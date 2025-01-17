@@ -99,19 +99,42 @@ class Game {
             }
             uvAttribute.needsUpdate = true;
             
-            // Create a material that combines the base color with the texture
-            const material = new THREE.MeshPhongMaterial({ 
-                color: playerId === this.socket.id ? 0xffff66 : 0xff6666,
-                map: texture,
+            // Create a shader material with increased saturation
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    map: { value: texture },
+                    saturation: { value: 1.2 } // Saturation multiplier (1.0 is normal)
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D map;
+                    uniform float saturation;
+                    varying vec2 vUv;
+
+                    void main() {
+                        vec4 texColor = texture2D(map, vUv);
+                        
+                        // Convert to grayscale
+                        float gray = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+                        
+                        // Mix between gray and color based on saturation
+                        vec3 saturated = mix(vec3(gray), texColor.rgb, saturation);
+                        
+                        gl_FragColor = vec4(saturated, texColor.a);
+                    }
+                `,
                 transparent: true,
-                side: THREE.DoubleSide,
-                emissive: playerId === this.socket.id ? 0x666600 : 0x660000,
-                emissiveIntensity: 0.2,
-                shininess: 50
+                side: THREE.DoubleSide
             });
 
             const player = new THREE.Mesh(geometry, material);
-            player.position.y = 0.5; // This is correct since sphere radius is 0.5
+            player.position.y = 0.5;
             
             // Rotate the sphere 90 degrees to the left around the Y axis
             player.rotateY(Math.PI / 2);
