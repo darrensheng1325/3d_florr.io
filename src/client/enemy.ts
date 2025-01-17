@@ -3,28 +3,167 @@ import { HealthBar } from './health';
 import { Petal } from './petal';
 import { Game } from './game';
 
-export class Enemy {
-    private mesh: THREE.Mesh;
-    private healthBar: HealthBar;
-    private speed: number = 0.05;
-    private target: THREE.Mesh | null = null;
-    private scene: THREE.Scene;
-    private damage: number = 10;
-    private attackCooldown: number = 1000;
-    private lastAttackTime: number = 0;
-    private knockbackResistance: number = 0.37; // Increased from 0.95 for faster recovery
-    private velocity: THREE.Vector3 = new THREE.Vector3();
+export enum EnemyType {
+    LADYBUG = 'ladybug',
+    BEE = 'bee'
+}
 
-    constructor(scene: THREE.Scene, position: THREE.Vector3, camera: THREE.Camera, game: Game) {
+interface EnemyStats {
+    health: number;
+    speed: number;
+    damage: number;
+    size: number;
+    attackCooldown: number;
+}
+
+const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
+    [EnemyType.LADYBUG]: {
+        health: 50,
+        speed: 0.05,
+        damage: 10,
+        size: 0.5,
+        attackCooldown: 1000
+    },
+    [EnemyType.BEE]: {
+        health: 30,
+        speed: 0.08,
+        damage: 8,
+        size: 0.4,
+        attackCooldown: 800
+    }
+};
+
+export class Enemy {
+    protected mesh: THREE.Mesh;
+    protected healthBar: HealthBar;
+    protected speed: number;
+    protected target: THREE.Mesh | null = null;
+    protected scene: THREE.Scene;
+    protected damage: number;
+    protected attackCooldown: number;
+    protected lastAttackTime: number = 0;
+    protected knockbackResistance: number = 0.37;
+    protected velocity: THREE.Vector3 = new THREE.Vector3();
+    protected type: EnemyType;
+
+    constructor(scene: THREE.Scene, position: THREE.Vector3, camera: THREE.Camera, game: Game, type: EnemyType = EnemyType.LADYBUG) {
         this.scene = scene;
-        this.scene.userData.game = game; // Store game reference
-        const geometry = new THREE.SphereGeometry(0.5, 32, 32);
-        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        this.scene.userData.game = game;
+        this.type = type;
+        
+        const stats = ENEMY_STATS[type];
+        this.speed = stats.speed;
+        this.damage = stats.damage;
+        this.attackCooldown = stats.attackCooldown;
+
+        // Create the base mesh with appropriate material based on type
+        const geometry = new THREE.SphereGeometry(stats.size, 64, 32);
+        let material: THREE.Material;
+
+        if (type === EnemyType.LADYBUG) {
+            // Create a canvas for the ladybug texture
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d')!;
+
+            // Fill the background with red
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Add the large black spot (head)
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(256, 128, 120, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Add smaller spots on top
+            const smallSpots = [
+                { x: 128, y: 384 },  // Left spot
+                { x: 384, y: 384 },  // Right spot
+                { x: 256, y: 448 }   // Back spot
+            ];
+
+            smallSpots.forEach(spot => {
+                ctx.beginPath();
+                ctx.arc(spot.x, spot.y, 40, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Create texture from canvas
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.repeat.set(1, 1);
+            texture.center.set(0.5, 0.5);
+            texture.rotation = Math.PI * 1.25;
+
+            material = new THREE.MeshPhongMaterial({
+                map: texture,
+                side: THREE.FrontSide
+            });
+        } else {
+            material = new THREE.MeshPhongMaterial({ color: this.getBaseColor() });
+        }
+
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.copy(position);
-        this.mesh.position.y = 0.5;
-        this.healthBar = new HealthBar(camera, this.mesh, 50);
+        this.mesh.position.y = stats.size;
+
+        // Rotate ladybug base orientation
+        if (type === EnemyType.LADYBUG) {
+            this.mesh.rotation.y = Math.PI / 2;
+            this.mesh.rotation.x = Math.PI / 4;
+        }
+
+        // Add decorative elements for non-ladybug types
+        if (type !== EnemyType.LADYBUG) {
+            this.addDecorativeElements();
+        }
+
+        this.healthBar = new HealthBar(camera, this.mesh, stats.health);
         scene.add(this.mesh);
+    }
+
+    protected getBaseColor(): number {
+        switch (this.type) {
+            case EnemyType.LADYBUG:
+                return 0xff0000; // Red
+            case EnemyType.BEE:
+                return 0xffff00; // Gold
+            default:
+                return 0xff0000;
+        }
+    }
+
+    protected addDecorativeElements(): void {
+        if (this.type === EnemyType.BEE) {
+            // Add black stripes
+            const stripeGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.3);
+            const stripeMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+            
+            [-0.2, 0, 0.2].forEach(zPos => {
+                const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+                stripe.position.z = zPos;
+                this.mesh.add(stripe);
+            });
+
+            // Add wings
+            const wingGeometry = new THREE.PlaneGeometry(0.4, 0.3);
+            const wingMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide
+            });
+
+            [-0.3, 0.3].forEach(xPos => {
+                const wing = new THREE.Mesh(wingGeometry, wingMaterial);
+                wing.position.set(xPos, 0.2, 0);
+                wing.rotation.x = Math.PI / 4;
+                this.mesh.add(wing);
+            });
+        }
     }
 
     public update(players: Map<string, THREE.Mesh>, playerPetals: Map<string, Petal[]>, playerHealthBars: Map<string, HealthBar>): void {
@@ -59,6 +198,18 @@ export class Enemy {
                 this.mesh.position.x += direction.x * this.speed;
                 this.mesh.position.z += direction.z * this.speed;
                 this.mesh.position.y = 0.5;
+
+                // Rotate ladybug to face movement direction (adjusted for 90-degree base rotation)
+                if (this.type === EnemyType.LADYBUG) {
+                    const angle = Math.atan2(direction.x, direction.z) + Math.PI / 2;
+                    this.mesh.rotation.y = angle;
+                }
+            } else {
+                // During knockback, rotate based on velocity direction (adjusted for 90-degree base rotation)
+                if (this.type === EnemyType.LADYBUG && this.velocity.length() > 0.01) {
+                    const angle = Math.atan2(this.velocity.x, this.velocity.z) + Math.PI / 2;
+                    this.mesh.rotation.y = angle;
+                }
             }
 
             // Check collision with player
