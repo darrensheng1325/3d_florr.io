@@ -2,17 +2,24 @@ import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 import playerSvg from './player.svg';
 import { Petal } from './petal';
+import { HealthBar } from './health';
+import { Enemy } from './enemy';
 
-class Game {
+export class Game {
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
     private renderer: THREE.WebGLRenderer;
     private socket: Socket;
-    private players: Map<string, THREE.Mesh>;
+    public players: Map<string, THREE.Mesh>;
     private cameraRotation: number = 0;
     private ground: THREE.Mesh;
     private textureLoader: THREE.TextureLoader;
     private playerPetals: Map<string, Petal[]> = new Map();
+    private enemies: Enemy[] = [];
+    private playerHealthBars: Map<string, HealthBar> = new Map();
+    private spawnInterval: number = 5000; // Spawn enemy every 5 seconds
+    private lastSpawnTime: number = 0;
+    private playerVelocities: Map<string, THREE.Vector3> = new Map();
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -144,7 +151,11 @@ class Game {
             this.scene.add(player);
             this.players.set(playerId, player);
 
-            // Add petals for the player
+            // Add health bar with camera reference
+            const healthBar = new HealthBar(this.camera, player);
+            this.playerHealthBars.set(playerId, healthBar);
+
+            // Add petals
             const petals: Petal[] = [];
             const numPetals = 8;
             for (let i = 0; i < numPetals; i++) {
@@ -207,6 +218,7 @@ class Game {
         this.socket.on('connect', () => {
             if (this.socket.id) {
                 this.createPlayer(this.socket.id);
+                this.playerVelocities.set(this.socket.id, new THREE.Vector3());
             }
         });
 
@@ -240,9 +252,17 @@ class Game {
     private animate(): void {
         requestAnimationFrame(() => this.animate());
         
+        this.updateEnemies();
+        this.updatePlayers();
+        
         // Update all petals
         this.playerPetals.forEach(petals => {
             petals.forEach(petal => petal.update());
+        });
+
+        // Update health bar positions
+        this.playerHealthBars.forEach(healthBar => {
+            healthBar.updatePosition();
         });
 
         this.updateCameraPosition();
@@ -256,9 +276,18 @@ class Game {
             const player = this.players.get(this.socket.id);
             if (!player) return;
 
+            // Handle petal expansion with space key
+            if (event.code === 'Space') {
+                const petals = this.playerPetals.get(this.socket.id);
+                if (petals) {
+                    petals.forEach(petal => petal.expand());
+                }
+                return;
+            }
+
             const moveSpeed = 0.2;
             const movement = { x: 0, z: 0 };
-            const mapSize = 15; // Half of 30x30 map
+            const mapSize = 15;
 
             switch(event.key) {
                 case 'w':
@@ -306,12 +335,86 @@ class Game {
                 z: player.position.z
             });
         });
+
+        // Add keyup handler for space to contract petals
+        document.addEventListener('keyup', (event) => {
+            if (!this.socket.id) return;
+            
+            if (event.code === 'Space') {
+                const petals = this.playerPetals.get(this.socket.id);
+                if (petals) {
+                    petals.forEach(petal => petal.contract());
+                }
+            }
+        });
     }
 
     private onWindowResize(): void {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    private spawnEnemy(): void {
+        const angle = Math.random() * Math.PI * 2;
+        const mapSize = 15;
+        const position = new THREE.Vector3(
+            Math.cos(angle) * mapSize,
+            0.5,
+            Math.sin(angle) * mapSize
+        );
+        
+        const enemy = new Enemy(this.scene, position, this.camera, this);
+        this.enemies.push(enemy);
+    }
+
+    private updateEnemies(): void {
+        const currentTime = Date.now();
+        if (currentTime - this.lastSpawnTime >= this.spawnInterval) {
+            this.spawnEnemy();
+            this.lastSpawnTime = currentTime;
+        }
+
+        // Update and check for dead enemies
+        this.enemies = this.enemies.filter(enemy => {
+            enemy.update(this.players, this.playerPetals, this.playerHealthBars);
+            
+            // Check if enemy is dead (health <= 0)
+            const isDead = enemy.takeDamageWithKnockback(0, enemy.getPosition()); // Check health without dealing damage
+            if (isDead) {
+                enemy.remove();
+                return false;
+            }
+            return true;
+        });
+    }
+
+    private updatePlayers(): void {
+        this.playerVelocities.forEach((velocity, playerId) => {
+            const player = this.players.get(playerId);
+            if (player) {
+                // Apply velocity
+                player.position.add(velocity);
+                
+                // Apply resistance
+                velocity.multiplyScalar(0.95);
+
+                // Keep within bounds
+                const mapSize = 15;
+                player.position.x = Math.max(-mapSize, Math.min(mapSize, player.position.x));
+                player.position.z = Math.max(-mapSize, Math.min(mapSize, player.position.z));
+                player.position.y = 0.5;
+
+                // Emit position if it's the local player
+                if (playerId === this.socket.id) {
+                    this.socket.emit('move', {
+                        x: player.position.x,
+                        y: player.position.y,
+                        z: player.position.z
+                    });
+                }
+            }
+        });
     }
 }
 

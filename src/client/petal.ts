@@ -3,10 +3,14 @@ import * as THREE from 'three';
 export class Petal {
     private mesh: THREE.Mesh;
     private orbitRadius: number;
-    private orbitSpeed: number;
+    private baseOrbitRadius: number = 1.0;
+    private expandedOrbitRadius: number = 2.0;
+    private orbitSpeed: number = 0.01;
     private angle: number;
     private centerObject: THREE.Mesh;
     private height: number;
+    private isExpanded: boolean = false;
+    private transitionSpeed: number = 0.1;
 
     constructor(scene: THREE.Scene, centerObject: THREE.Mesh, index: number, totalPetals: number = 8) {
         // Create petal geometry and material
@@ -19,9 +23,8 @@ export class Petal {
         this.mesh = new THREE.Mesh(geometry, material);
         
         this.centerObject = centerObject;
-        this.orbitRadius = 1.0; // Distance from player
-        this.orbitSpeed = 0.01; // Speed of rotation
-        this.height = 0.1; // Fixed height above ground
+        this.orbitRadius = this.baseOrbitRadius;
+        this.height = 0.1;
         
         // Distribute petals evenly around the circle
         this.angle = (index / totalPetals) * Math.PI * 2;
@@ -32,11 +35,23 @@ export class Petal {
 
     public update(): void {
         this.angle += this.orbitSpeed;
+        
+        // Smoothly transition between base and expanded radius
+        const targetRadius = this.isExpanded ? this.expandedOrbitRadius : this.baseOrbitRadius;
+        this.orbitRadius += (targetRadius - this.orbitRadius) * this.transitionSpeed;
+        
         this.updatePosition();
     }
 
+    public expand(): void {
+        this.isExpanded = true;
+    }
+
+    public contract(): void {
+        this.isExpanded = false;
+    }
+
     private updatePosition(): void {
-        // Calculate new position in a perfect circle parallel to the ground
         const x = this.centerObject.position.x + Math.cos(this.angle) * this.orbitRadius;
         const z = this.centerObject.position.z + Math.sin(this.angle) * this.orbitRadius;
         const y = this.centerObject.position.y + this.height;
@@ -46,5 +61,9 @@ export class Petal {
 
     public remove(scene: THREE.Scene): void {
         scene.remove(this.mesh);
+    }
+
+    public getPosition(): THREE.Vector3 {
+        return this.mesh.position;
     }
 } 
