@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 import playerSvg from './player.svg';
+import { Petal } from './petal';
 
 class Game {
     private scene: THREE.Scene;
@@ -11,6 +12,7 @@ class Game {
     private cameraRotation: number = 0;
     private ground: THREE.Mesh;
     private textureLoader: THREE.TextureLoader;
+    private playerPetals: Map<string, Petal[]> = new Map();
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -141,6 +143,14 @@ class Game {
             
             this.scene.add(player);
             this.players.set(playerId, player);
+
+            // Add petals for the player
+            const petals: Petal[] = [];
+            const numPetals = 8;
+            for (let i = 0; i < numPetals; i++) {
+                petals.push(new Petal(this.scene, player, i, numPetals));
+            }
+            this.playerPetals.set(playerId, petals);
         });
     }
 
@@ -209,6 +219,13 @@ class Game {
             if (player) {
                 this.scene.remove(player);
                 this.players.delete(playerId);
+                
+                // Remove petals
+                const petals = this.playerPetals.get(playerId);
+                if (petals) {
+                    petals.forEach(petal => petal.remove(this.scene));
+                    this.playerPetals.delete(playerId);
+                }
             }
         });
 
@@ -222,6 +239,12 @@ class Game {
 
     private animate(): void {
         requestAnimationFrame(() => this.animate());
+        
+        // Update all petals
+        this.playerPetals.forEach(petals => {
+            petals.forEach(petal => petal.update());
+        });
+
         this.updateCameraPosition();
         this.renderer.render(this.scene, this.camera);
     }
