@@ -21,14 +21,14 @@ class Game {
         this.textureLoader = new THREE.TextureLoader();
 
         // Create ground
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundGeometry = new THREE.PlaneGeometry(30, 30);
         const groundMaterial = new THREE.MeshPhongMaterial({ 
-            color: 0x33aa33,
+            color: 0x55ff55,
             side: THREE.DoubleSide 
         });
         this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
         this.ground.rotation.x = Math.PI / 2;
-        this.ground.position.y = -1;
+        this.ground.position.y = 0;
 
         this.init();
     }
@@ -42,14 +42,19 @@ class Game {
         this.scene.background = new THREE.Color(0x87CEEB);
 
         // Add lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0xffffff, 0.8);
+        const pointLight = new THREE.PointLight(0xffffff, 1.0);
         pointLight.position.set(5, 10, 5);
         this.scene.add(pointLight);
 
         // Add ground to scene
         this.scene.add(this.ground);
+
+        // Add grid helper
+        const gridHelper = new THREE.GridHelper(30, 30, 0x000000, 0x000000);
+        gridHelper.position.y = 0.01;
+        this.scene.add(gridHelper);
 
         // Set initial camera position
         this.camera.position.set(0, 5, 10);
@@ -96,14 +101,20 @@ class Game {
             
             // Create a material that combines the base color with the texture
             const material = new THREE.MeshPhongMaterial({ 
-                color: playerId === this.socket.id ? 0xffff00 : 0xff0000,
+                color: playerId === this.socket.id ? 0xffff66 : 0xff6666,
                 map: texture,
                 transparent: true,
                 side: THREE.DoubleSide,
+                emissive: playerId === this.socket.id ? 0x666600 : 0x660000,
+                emissiveIntensity: 0.2,
+                shininess: 50
             });
 
             const player = new THREE.Mesh(geometry, material);
-            player.position.y = 0.5;
+            player.position.y = 0.5; // This is correct since sphere radius is 0.5
+            
+            // Rotate the sphere 90 degrees to the left around the Y axis
+            player.rotateY(Math.PI / 2);
             
             this.scene.add(player);
             this.players.set(playerId, player);
@@ -201,32 +212,46 @@ class Game {
 
             const moveSpeed = 0.2;
             const movement = { x: 0, z: 0 };
+            const mapSize = 15; // Half of 30x30 map
 
             switch(event.key) {
                 case 'w':
                 case 'ArrowUp':
-                    movement.z = -moveSpeed;
+                    movement.x = -Math.sin(this.cameraRotation);
+                    movement.z = -Math.cos(this.cameraRotation);
+                    player.rotation.y = this.cameraRotation + Math.PI/2;
                     break;
                 case 's':
                 case 'ArrowDown':
-                    movement.z = moveSpeed;
+                    movement.x = Math.sin(this.cameraRotation);
+                    movement.z = Math.cos(this.cameraRotation);
+                    player.rotation.y = this.cameraRotation + Math.PI * 3/2;
                     break;
                 case 'a':
                 case 'ArrowLeft':
-                    movement.x = -moveSpeed;
+                    movement.x = -Math.cos(this.cameraRotation);
+                    movement.z = Math.sin(this.cameraRotation);
+                    player.rotation.y = this.cameraRotation + Math.PI;
                     break;
                 case 'd':
                 case 'ArrowRight':
-                    movement.x = moveSpeed;
+                    movement.x = Math.cos(this.cameraRotation);
+                    movement.z = -Math.sin(this.cameraRotation);
+                    player.rotation.y = this.cameraRotation;
                     break;
             }
 
-            // Apply movement relative to camera rotation
-            const rotatedX = movement.x * Math.cos(this.cameraRotation) - movement.z * Math.sin(this.cameraRotation);
-            const rotatedZ = movement.x * Math.sin(this.cameraRotation) + movement.z * Math.cos(this.cameraRotation);
+            // Calculate new position
+            const newX = player.position.x + movement.x * moveSpeed;
+            const newZ = player.position.z + movement.z * moveSpeed;
 
-            player.position.x += rotatedX;
-            player.position.z += rotatedZ;
+            // Check boundaries before applying movement
+            if (newX >= -mapSize && newX <= mapSize && 
+                newZ >= -mapSize && newZ <= mapSize) {
+                player.position.x = newX;
+                player.position.z = newZ;
+                player.position.y = 0.5; // This is correct since sphere radius is 0.5
+            }
 
             // Emit position to server
             this.socket.emit('move', {
