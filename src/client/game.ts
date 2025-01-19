@@ -4,12 +4,15 @@ import playerSvg from './player.svg';
 import { Petal } from './petal';
 import { HealthBar } from './health';
 import { Enemy, EnemyType } from './enemy';
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry';
+import { FontLoader, Font } from 'three/examples/jsm/loaders/FontLoader';
 
 export class Game {
     private scene: THREE.Scene;
+    private titleScene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
     private renderer: THREE.WebGLRenderer;
-    private socket: Socket;
+    private socket: Socket | null = null;
     public players: Map<string, THREE.Mesh>;
     private cameraRotation: number = 0;
     private ground: THREE.Mesh;
@@ -18,12 +21,14 @@ export class Game {
     private enemies: Map<string, Enemy> = new Map();
     private playerHealthBars: Map<string, HealthBar> = new Map();
     private playerVelocities: Map<string, THREE.Vector3> = new Map();
+    private isGameStarted: boolean = false;
+    private titleMeshes: THREE.Mesh[] = [];
 
     constructor() {
         this.scene = new THREE.Scene();
+        this.titleScene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer();
-        this.socket = io('/');
         this.players = new Map();
         this.textureLoader = new THREE.TextureLoader();
 
@@ -38,6 +43,118 @@ export class Game {
         this.ground.position.y = 0;
 
         this.init();
+    }
+
+    private async createTitleScreen(): Promise<void> {
+        // Add lights to title scene
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        this.titleScene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1.0);
+        pointLight.position.set(5, 5, 5);
+        this.titleScene.add(pointLight);
+
+        // Set background color
+        this.titleScene.background = new THREE.Color(0x87CEEB);
+
+        // Load font
+        const loader = new FontLoader();
+        const font = await new Promise<Font>((resolve) => {
+            loader.load('https://threejs.org/examples/fonts/helvetiker_bold.typeface.json', resolve);
+        });
+
+        // Create title text
+        const titleGeometry = new TextGeometry('FLORR.IO', {
+            font: font,
+            size: 0.5,
+            height: 0.1,
+        });
+
+        const titleMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+        const titleMesh = new THREE.Mesh(titleGeometry, titleMaterial);
+        
+        // Center the text
+        titleGeometry.computeBoundingBox();
+        const titleBox = titleGeometry.boundingBox!;
+        const textWidth = titleBox.max.x - titleBox.min.x;
+        titleMesh.position.set(-textWidth/2, 1, -2);
+        this.titleMeshes.push(titleMesh);
+        this.titleScene.add(titleMesh);
+
+        // Create "Press SPACE to start" text
+        const startGeometry = new TextGeometry('Press SPACE to start', {
+            font: font,
+            size: 0.2,
+            height: 0.05,
+        });
+
+        const startMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+        const startMesh = new THREE.Mesh(startGeometry, startMaterial);
+        
+        // Center and position below title
+        startGeometry.computeBoundingBox();
+        const startBox = startGeometry.boundingBox!;
+        const startWidth = startBox.max.x - startBox.min.x;
+        startMesh.position.set(-startWidth/2, 0, -2);
+        this.titleMeshes.push(startMesh);
+        this.titleScene.add(startMesh);
+
+        // Set camera position for title screen
+        this.camera.position.set(0, 0, 5);
+        this.camera.lookAt(0, 0, 0);
+
+        // Add space key listener
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space' && !this.isGameStarted) {
+                this.startGame();
+            }
+        });
+
+        // Animate title screen
+        const animate = () => {
+            if (!this.isGameStarted) {
+                requestAnimationFrame(animate);
+                
+                // Add some gentle floating animation to the text
+                this.titleMeshes.forEach((mesh, index) => {
+                    mesh.position.y += Math.sin(Date.now() * 0.002 + index) * 0.001;
+                });
+
+                this.renderer.render(this.titleScene, this.camera);
+            }
+        };
+        animate();
+    }
+
+    private startGame(): void {
+        this.isGameStarted = true;
+        
+        // Remove title meshes
+        this.titleMeshes.forEach(mesh => {
+            this.titleScene.remove(mesh);
+        });
+        this.titleMeshes = [];
+
+        // Connect to server
+        this.socket = io('/');
+        
+        // Setup game scene
+        this.setupGame();
+    }
+
+    private setupGame(): void {
+        // Set initial camera position for game
+        this.camera.position.set(0, 5, 10);
+        this.camera.lookAt(0, 0, 0);
+
+        // Setup socket events first
+        this.setupSocketEvents();
+
+        // Setup controls
+        this.setupControls();
+        this.setupMouseControls();
+
+        // Start game animation loop
+        this.animate();
     }
 
     private init(): void {
@@ -63,22 +180,34 @@ export class Game {
         gridHelper.position.y = 0.01;
         this.scene.add(gridHelper);
 
-        // Set initial camera position
-        this.camera.position.set(0, 5, 10);
-        this.camera.lookAt(0, 0, 0);
-
-        // Setup socket events first
-        this.setupSocketEvents();
-
-        // Setup controls
-        this.setupControls();
-        this.setupMouseControls();
-
         // Handle window resize
         window.addEventListener('resize', () => this.onWindowResize());
 
-        // Start animation loop
-        this.animate();
+        // Create and show title screen
+        this.createTitleScreen();
+    }
+
+    private animate(): void {
+        if (!this.isGameStarted) return;
+
+        requestAnimationFrame(() => this.animate());
+
+        // Update petals
+        this.playerPetals.forEach(petals => {
+            petals.forEach(petal => petal.update());
+        });
+
+        // Check petal collisions
+        this.checkPetalCollisions();
+
+        // Update health bars
+        this.playerHealthBars.forEach(healthBar => healthBar.updatePosition());
+
+        // Update camera
+        this.updateCameraPosition();
+
+        // Render game scene
+        this.renderer.render(this.scene, this.camera);
     }
 
     private createPlayer(playerId: string): void {
@@ -198,7 +327,7 @@ export class Game {
     }
 
     private updateCameraPosition(): void {
-        if (!this.socket.id) return;
+        if (!this.socket?.id) return;
         const player = this.players.get(this.socket.id);
         if (!player) return;
 
@@ -213,8 +342,10 @@ export class Game {
     }
 
     private setupSocketEvents(): void {
+        if (!this.socket) return;
+
         this.socket.on('connect', () => {
-            if (this.socket.id) {
+            if (this.socket?.id) {
                 this.createPlayer(this.socket.id);
                 this.playerVelocities.set(this.socket.id, new THREE.Vector3());
             }
@@ -291,30 +422,9 @@ export class Game {
         });
     }
 
-    private animate(): void {
-        requestAnimationFrame(() => this.animate());
-
-        // Update petals
-        this.playerPetals.forEach(petals => {
-            petals.forEach(petal => petal.update());
-        });
-
-        // Check petal collisions
-        this.checkPetalCollisions();
-
-        // Update health bars
-        this.playerHealthBars.forEach(healthBar => healthBar.updatePosition());
-
-        // Update camera
-        this.updateCameraPosition();
-
-        // Render
-        this.renderer.render(this.scene, this.camera);
-    }
-
     private setupControls(): void {
         document.addEventListener('keydown', (event) => {
-            if (!this.socket.id) return;
+            if (!this.socket?.id) return;
             
             const player = this.players.get(this.socket.id);
             if (!player) return;
@@ -381,7 +491,7 @@ export class Game {
 
         // Add keyup handler for space to contract petals
         document.addEventListener('keyup', (event) => {
-            if (!this.socket.id) return;
+            if (!this.socket?.id) return;
             
             if (event.code === 'Space') {
                 const petals = this.playerPetals.get(this.socket.id);
@@ -399,7 +509,7 @@ export class Game {
     }
 
     private checkPetalCollisions(): void {
-        if (!this.socket.id) return;
+        if (!this.socket?.id) return;
         
         const petals = this.playerPetals.get(this.socket.id);
         if (!petals) return;
@@ -417,7 +527,7 @@ export class Game {
                         .normalize();
 
                     // Send damage event to server
-                    this.socket.emit('enemyDamaged', {
+                    this.socket?.emit('enemyDamaged', {
                         enemyId: enemy.id,
                         damage: 5,
                         knockback: { x: knockbackDir.x, z: knockbackDir.z }

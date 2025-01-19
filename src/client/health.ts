@@ -17,12 +17,14 @@ export class HealthBar {
         // Create container div
         this.container = document.createElement('div');
         this.container.style.cssText = `
-            position: absolute;
+            position: fixed;
             width: 50px;
             height: 5px;
             background-color: #ff0000;
             pointer-events: none;
             transform: translate(-50%, -50%);
+            z-index: 1000;
+            display: none;
         `;
 
         // Create health fill div
@@ -37,6 +39,23 @@ export class HealthBar {
         this.container.appendChild(this.fill);
         document.body.appendChild(this.container);
 
+        // Add global styles to prevent scrollbars if not already added
+        if (!document.getElementById('healthbar-styles')) {
+            const style = document.createElement('style');
+            style.id = 'healthbar-styles';
+            style.textContent = `
+                body {
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                }
+                canvas {
+                    display: block;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
         this.updatePosition();
     }
 
@@ -44,7 +63,7 @@ export class HealthBar {
         // Get screen position
         const screenPosition = this.get2DPosition(this.parent3D.position);
         
-        if (screenPosition) {
+        if (screenPosition && this.isOnScreen(screenPosition)) {
             this.container.style.display = 'block';
             this.container.style.left = `${screenPosition.x}px`;
             this.container.style.top = `${screenPosition.y - 30}px`; // Offset above the object
@@ -53,12 +72,20 @@ export class HealthBar {
         }
     }
 
+    private isOnScreen(position: { x: number, y: number }): boolean {
+        const margin = 50; // Buffer for health bar width/height
+        return position.x >= -margin && 
+               position.x <= window.innerWidth + margin && 
+               position.y >= -margin && 
+               position.y <= window.innerHeight + margin;
+    }
+
     private get2DPosition(position3D: THREE.Vector3): { x: number, y: number } | null {
         const vector = position3D.clone();
         vector.project(this.camera);
 
-        // Check if the point is behind the camera
-        if (vector.z > 1) {
+        // Check if the point is behind the camera or too far to sides
+        if (vector.z > 1 || Math.abs(vector.x) > 1.1 || Math.abs(vector.y) > 1.1) {
             return null;
         }
 
