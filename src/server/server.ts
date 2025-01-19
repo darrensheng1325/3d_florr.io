@@ -8,6 +8,7 @@ interface Player {
     id: string;
     position: { x: number; y: number; z: number };
     health: number;
+    xp: number;  // Added XP tracking
 }
 
 interface Enemy {
@@ -17,6 +18,9 @@ interface Enemy {
     health: number;
     target?: string;  // Socket ID of target player
     velocity: { x: number; y: number; z: number };
+    isAggressive: boolean;
+    wanderAngle: number;  // For passive movement
+    wanderTime: number;   // Time until next direction change
 }
 
 const app = express();
@@ -36,19 +40,33 @@ let enemyIdCounter = 0;
 const SPAWN_INTERVAL = 5000;  // Spawn enemy every 5 seconds
 const MAP_SIZE = 15;
 
+// Wave management
+let currentWave = 1;
+let enemiesKilledInWave = 0;
+let totalXPInWave = 0;
+let enemiesSpawnedInWave = 0;  // Track how many enemies we've spawned
+const ENEMIES_PER_WAVE = 20;
+const XP_PER_WAVE = 1000;
+const WAVE_SPAWN_INTERVAL = 1000;  // Spawn enemy every second during wave
+let waveSpawnInterval: NodeJS.Timeout | null = null;
+
 // Enemy stats
 const ENEMY_STATS = {
     ladybug: {
         health: 50,
-        speed: 0.05,
+        speed: 0.03,
+        passiveSpeed: 0.02,
         damage: 10,
-        size: 0.5
+        size: 0.5,
+        xp: 100
     },
     bee: {
         health: 30,
         speed: 0.08,
+        passiveSpeed: 0.02,
         damage: 8,
-        size: 0.4
+        size: 0.4,
+        xp: 200
     }
 };
 
@@ -68,10 +86,10 @@ function spawnEnemy() {
     const edge = Math.floor(Math.random() * 4);
     let x, z;
     switch (edge) {
-        case 0: x = -MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;  // Left
-        case 1: x = MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;   // Right
-        case 2: x = (Math.random() * 2 - 1) * MAP_SIZE; z = -MAP_SIZE; break;  // Top
-        case 3: x = (Math.random() * 2 - 1) * MAP_SIZE; z = MAP_SIZE; break;   // Bottom
+        case 0: x = -MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;
+        case 1: x = MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;
+        case 2: x = (Math.random() * 2 - 1) * MAP_SIZE; z = -MAP_SIZE; break;
+        case 3: x = (Math.random() * 2 - 1) * MAP_SIZE; z = MAP_SIZE; break;
         default: x = -MAP_SIZE; z = -MAP_SIZE;
     }
 
@@ -80,7 +98,10 @@ function spawnEnemy() {
         type,
         position: { x, y: ENEMY_STATS[type].size, z },
         health: ENEMY_STATS[type].health,
-        velocity: { x: 0, y: 0, z: 0 }
+        velocity: { x: 0, y: 0, z: 0 },
+        isAggressive: type === 'bee',
+        wanderAngle: Math.random() * Math.PI * 2,
+        wanderTime: Date.now() + 2000 + Math.random() * 2000 // Random time between 2-4 seconds
     };
 
     enemies.set(id, enemy);
@@ -88,8 +109,50 @@ function spawnEnemy() {
 }
 
 function updateEnemies() {
+    const currentTime = Date.now();
+    
     enemies.forEach((enemy, enemyId) => {
-        // Find nearest player if no target
+        if (!enemy.isAggressive) {
+            // Passive wandering behavior
+            if (currentTime >= enemy.wanderTime) {
+                // Change direction and set new wander time
+                enemy.wanderAngle += (Math.random() * Math.PI/2 + Math.PI/4) * (Math.random() < 0.5 ? 1 : -1);
+                enemy.wanderTime = currentTime + 2000 + Math.random() * 2000;
+            }
+
+            // Move in current wander direction
+            const speed = ENEMY_STATS[enemy.type].passiveSpeed;
+            const dirX = Math.cos(enemy.wanderAngle);
+            const dirZ = Math.sin(enemy.wanderAngle);
+
+            // Update position
+            let newX = enemy.position.x + dirX * speed;
+            let newZ = enemy.position.z + dirZ * speed;
+
+            // Bounce off map boundaries
+            if (newX <= -MAP_SIZE || newX >= MAP_SIZE) {
+                enemy.wanderAngle = Math.PI - enemy.wanderAngle;
+                newX = enemy.position.x;
+            }
+            if (newZ <= -MAP_SIZE || newZ >= MAP_SIZE) {
+                enemy.wanderAngle = -enemy.wanderAngle;
+                newZ = enemy.position.z;
+            }
+
+            enemy.position.x = newX;
+            enemy.position.z = newZ;
+
+            // Emit position update with rotation
+            io.emit('enemyMoved', {
+                id: enemyId,
+                position: enemy.position,
+                rotation: enemy.wanderAngle - Math.PI/2
+            });
+
+            return;
+        }
+
+        // Aggressive behavior (existing code)
         if (!enemy.target || !players.has(enemy.target)) {
             let nearestDistance = Infinity;
             let nearestPlayer: string | null = null;
@@ -185,14 +248,70 @@ function updateEnemies() {
     });
 }
 
+function startNewWave() {
+    // Clear all existing enemies
+    enemies.forEach((_, enemyId) => {
+        io.emit('enemyDied', enemyId);
+    });
+    enemies.clear();
+    
+    currentWave++;
+    enemiesKilledInWave = 0;
+    totalXPInWave = 0;
+    enemiesSpawnedInWave = 0;  // Reset spawn counter
+    
+    // Clear any existing spawn interval
+    if (waveSpawnInterval) {
+        clearInterval(waveSpawnInterval);
+    }
+    
+    // Broadcast wave start
+    io.emit('waveStart', { wave: currentWave });
+    
+    // Start spawning enemies for this wave
+    waveSpawnInterval = setInterval(() => {
+        // Only spawn if we haven't reached the wave limit
+        if (enemiesSpawnedInWave < ENEMIES_PER_WAVE) {
+            spawnEnemy();
+            enemiesSpawnedInWave++;
+            
+            // If we've spawned all enemies, clear the interval
+            if (enemiesSpawnedInWave >= ENEMIES_PER_WAVE) {
+                if (waveSpawnInterval) {
+                    clearInterval(waveSpawnInterval);
+                }
+            }
+        }
+    }, WAVE_SPAWN_INTERVAL);
+}
+
+function distributeXP(amount: number) {
+    const playerCount = players.size;
+    if (playerCount === 0) return;
+    
+    const xpPerPlayer = Math.floor(amount / playerCount);
+    players.forEach((player) => {
+        player.xp += xpPerPlayer;
+        io.emit('playerXP', { id: player.id, xp: player.xp });
+    });
+    
+    totalXPInWave += amount;
+    
+    // Check if wave should end
+    if (enemiesKilledInWave >= ENEMIES_PER_WAVE || totalXPInWave >= XP_PER_WAVE) {
+        startNewWave();
+    }
+}
+
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
-    // Store new player
+    // Store new player with XP
     players.set(socket.id, {
         id: socket.id,
         position: { x: 0, y: 0.5, z: 0 },
-        health: 100
+        health: 100,
+        xp: 0
     });
 
     // Send existing players and enemies to the new player
@@ -201,11 +320,8 @@ io.on('connection', (socket) => {
             socket.emit('playerJoined', {
                 id: player.id,
                 position: player.position,
-                health: player.health
-            });
-            socket.emit('playerMoved', {
-                id: player.id,
-                position: player.position
+                health: player.health,
+                xp: player.xp
             });
         }
     });
@@ -222,7 +338,8 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('playerJoined', {
         id: socket.id,
         position: { x: 0, y: 0.5, z: 0 },
-        health: 100
+        health: 100,
+        xp: 0
     });
     socket.broadcast.emit('playerMoved', {
         id: socket.id,
@@ -247,25 +364,31 @@ io.on('connection', (socket) => {
         if (enemy) {
             enemy.health -= damage;
             
-            // Apply stronger knockback
+            if (enemy.type === 'ladybug' && !enemy.isAggressive) {
+                enemy.isAggressive = true;
+                enemy.target = socket.id;
+            }
+            
             const knockbackForce = 1.0;
             enemy.velocity.x = knockback.x * knockbackForce;
             enemy.velocity.z = knockback.z * knockbackForce;
             
-            // Apply immediate position change for responsive feedback
             enemy.position.x += enemy.velocity.x;
             enemy.position.z += enemy.velocity.z;
             
             if (enemy.health <= 0) {
                 enemies.delete(enemyId);
                 io.emit('enemyDied', enemyId);
+                
+                // Distribute XP and update wave progress
+                distributeXP(ENEMY_STATS[enemy.type].xp);
+                enemiesKilledInWave++;
             } else {
                 io.emit('enemyDamaged', {
                     id: enemyId,
                     health: enemy.health
                 });
                 
-                // Emit immediate position update
                 io.emit('enemyMoved', {
                     id: enemyId,
                     position: enemy.position,
@@ -283,8 +406,10 @@ io.on('connection', (socket) => {
     });
 });
 
-// Start enemy spawning and update loop
-setInterval(spawnEnemy, SPAWN_INTERVAL);
+// Start the first wave when server starts
+startNewWave();
+
+// Start enemy update loop
 setInterval(updateEnemies, 1000 / 60);  // 60 updates per second
 
 httpServer.listen(3000, () => {

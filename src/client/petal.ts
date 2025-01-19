@@ -1,44 +1,53 @@
 import * as THREE from 'three';
+import { PetalType } from './inventory';
 
 export class Petal {
     private mesh: THREE.Mesh;
-    private orbitRadius: number;
-    private baseOrbitRadius: number = 1.0;
-    private expandedOrbitRadius: number = 2.0;
+    private currentRadius: number = 1.5;
+    private baseRadius: number = 1.5;
+    private expandedRadius: number = 3.0;
     private orbitSpeed: number = 0.01;
-    private angle: number;
-    private centerObject: THREE.Mesh;
-    private height: number;
+    private angle: number = 0;
+    private height: number = 0.1;
     private isExpanded: boolean = false;
     private transitionSpeed: number = 0.1;
+    private scene: THREE.Scene;
+    private parent: THREE.Mesh;
+    private index: number;
+    private totalPetals: number;
+    private type: PetalType;
 
-    constructor(scene: THREE.Scene, centerObject: THREE.Mesh, index: number, totalPetals: number = 8) {
-        // Create petal geometry and material
-        const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+    constructor(scene: THREE.Scene, parent: THREE.Mesh, index: number, totalPetals: number, type: PetalType = PetalType.BASIC) {
+        this.scene = scene;
+        this.parent = parent;
+        this.index = index;
+        this.totalPetals = totalPetals;
+        this.type = type;
+
+        // Create petal mesh
+        const geometry = new THREE.SphereGeometry(0.2, 32, 32);
         const material = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.8
+            color: 0xffffff
         });
         this.mesh = new THREE.Mesh(geometry, material);
         
-        this.centerObject = centerObject;
-        this.orbitRadius = this.baseOrbitRadius;
-        this.height = 0.1;
-        
-        // Distribute petals evenly around the circle
+        // Set initial position and angle
         this.angle = (index / totalPetals) * Math.PI * 2;
+        this.updatePosition();
         
         scene.add(this.mesh);
-        this.updatePosition();
+    }
+
+    public getType(): PetalType {
+        return this.type;
     }
 
     public update(): void {
         this.angle += this.orbitSpeed;
         
         // Smoothly transition between base and expanded radius
-        const targetRadius = this.isExpanded ? this.expandedOrbitRadius : this.baseOrbitRadius;
-        this.orbitRadius += (targetRadius - this.orbitRadius) * this.transitionSpeed;
+        const targetRadius = this.isExpanded ? this.expandedRadius : this.baseRadius;
+        this.currentRadius += (targetRadius - this.currentRadius) * this.transitionSpeed;
         
         this.updatePosition();
     }
@@ -52,9 +61,9 @@ export class Petal {
     }
 
     private updatePosition(): void {
-        const x = this.centerObject.position.x + Math.cos(this.angle) * this.orbitRadius;
-        const z = this.centerObject.position.z + Math.sin(this.angle) * this.orbitRadius;
-        const y = this.centerObject.position.y + this.height;
+        const x = this.parent.position.x + Math.cos(this.angle) * this.currentRadius;
+        const z = this.parent.position.z + Math.sin(this.angle) * this.currentRadius;
+        const y = this.parent.position.y + this.height;
         
         this.mesh.position.set(x, y, z);
     }

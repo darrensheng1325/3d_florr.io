@@ -37,11 +37,9 @@ export class Enemy {
         
         const stats = ENEMY_STATS[type];
 
-        // Create the base mesh with appropriate material based on type
-        const geometry = new THREE.SphereGeometry(stats.size, 64, 32);
-        let material: THREE.Material;
-
         if (type === EnemyType.LADYBUG) {
+            // Create the base mesh with appropriate material based on type
+            const geometry = new THREE.SphereGeometry(stats.size, 64, 32);
             // Load the SVG texture with clean mapping
             const texture = new THREE.TextureLoader().load(ladybugSvg);
             texture.minFilter = THREE.LinearFilter;
@@ -51,25 +49,26 @@ export class Enemy {
             texture.center.set(0.5, 0.5);
             texture.rotation = 0;  // No initial rotation needed since we'll rotate the mesh to face direction
 
-            material = new THREE.MeshBasicMaterial({
+            const material = new THREE.MeshBasicMaterial({
                 map: texture,
                 side: THREE.FrontSide
             });
+            this.mesh = new THREE.Mesh(geometry, material);
         } else {
-            material = new THREE.MeshPhongMaterial({ color: this.getBaseColor() });
+            // For bees, create an invisible mesh as the base
+            const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+            const material = new THREE.MeshBasicMaterial({ visible: false });
+            this.mesh = new THREE.Mesh(geometry, material);
         }
 
-        this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.copy(position);
-        this.mesh.position.y = stats.size;
+        this.scene.add(this.mesh);
 
-        // Add decorative elements for non-ladybug types
-        if (type !== EnemyType.LADYBUG) {
-            this.addDecorativeElements();
-        }
-
+        // Add health bar
         this.healthBar = new HealthBar(camera, this.mesh, stats.health);
-        scene.add(this.mesh);
+
+        // Add decorative elements based on type
+        this.addDecorativeElements();
     }
 
     protected getBaseColor(): number {
@@ -85,30 +84,39 @@ export class Enemy {
 
     protected addDecorativeElements(): void {
         if (this.type === EnemyType.BEE) {
-            // Add black stripes
-            const stripeGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.3);
-            const stripeMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
+            // Make main body longer
+            const bodyGeometry = new THREE.CapsuleGeometry(0.2, 0.4, 4, 8);
+            const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.rotation.z = Math.PI / 2; // Rotate to be horizontal
+            this.mesh.add(body);
+
+            // Add stinger
+            const stingerGeometry = new THREE.ConeGeometry(0.05, 0.2, 8);
+            const stingerMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const stinger = new THREE.Mesh(stingerGeometry, stingerMaterial);
+            stinger.position.set(-0.4, 0, 0); // Position at back
+            stinger.rotation.z = -Math.PI / 2; // Point backward
+            body.add(stinger);
+
+            // Add antennae
+            const antennaGeometry = new THREE.CylinderGeometry(0.04, 0.03, 0.4);
+            const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
             
-            [-0.2, 0, 0.2].forEach(zPos => {
-                const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
-                stripe.position.z = zPos;
-                this.mesh.add(stripe);
-            });
-
-            // Add wings
-            const wingGeometry = new THREE.PlaneGeometry(0.4, 0.3);
-            const wingMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.5,
-                side: THREE.DoubleSide
-            });
-
-            [-0.3, 0.3].forEach(xPos => {
-                const wing = new THREE.Mesh(wingGeometry, wingMaterial);
-                wing.position.set(xPos, 0.2, 0);
-                wing.rotation.x = Math.PI / 4;
-                this.mesh.add(wing);
+            [-0.15, 0.15].forEach(zPos => {
+                const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+                antenna.position.set(0.5, -0.3, zPos);
+                
+                // First rotate 90 degrees towards front
+                antenna.rotation.z = Math.PI / 2;
+                
+                // Then angle outward
+                if (zPos < 0) {
+                    antenna.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.PI / 6);
+                } else {
+                    antenna.rotateOnAxis(new THREE.Vector3(1, 0, 0), -Math.PI / 6);
+                }
+                body.add(antenna);
             });
         }
     }

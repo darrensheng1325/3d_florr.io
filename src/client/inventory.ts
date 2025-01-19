@@ -43,7 +43,7 @@ export class Inventory {
         }
 
         // Create new petal
-        const petal = new Petal(this.scene, this.parent, slotIndex, this.maxSlots);
+        const petal = new Petal(this.scene, this.parent, slotIndex, this.maxSlots, type);
         this.slots[slotIndex].petal = petal;
         return true;
     }

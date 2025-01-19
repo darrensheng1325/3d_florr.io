@@ -5,6 +5,7 @@ import { Petal } from './petal';
 import { HealthBar } from './health';
 import { Enemy, EnemyType } from './enemy';
 import { Inventory, PetalType, PetalSlot } from './inventory';
+import { WaveUI } from './waves';
 
 export class Game {
     private scene: THREE.Scene;
@@ -15,6 +16,12 @@ export class Game {
     private inventorySlotScenes: THREE.Scene[] = [];
     private inventorySlotCameras: THREE.PerspectiveCamera[] = [];
     private inventorySlotContainers: HTMLDivElement[] = [];
+    private waveUI: WaveUI;
+    private currentWave: number = 1;
+    private enemiesKilled: number = 0;
+    private totalXP: number = 0;
+    private readonly ENEMIES_PER_WAVE = 20;
+    private readonly XP_PER_WAVE = 1000;
     public players: Map<string, THREE.Mesh>;
     private cameraRotation: number = 0;
     private ground: THREE.Mesh;
@@ -27,8 +34,11 @@ export class Game {
     private titleCanvas: HTMLCanvasElement;
     private titleCtx: CanvasRenderingContext2D;
     private pressedKeys: Set<string> = new Set();
-    private moveSpeed: number = 0.1;
+    private moveSpeed: number = 0.05;
     private mapSize: number = 15;
+    private lastFrameTime: number = 0;
+    private readonly targetFPS: number = 60;
+    private readonly frameInterval: number = 1000 / 60;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -36,6 +46,7 @@ export class Game {
         this.renderer = new THREE.WebGLRenderer();
         this.players = new Map();
         this.textureLoader = new THREE.TextureLoader();
+        this.waveUI = new WaveUI();
 
         // Create title canvas overlay
         this.titleCanvas = document.createElement('canvas');
@@ -69,7 +80,6 @@ export class Game {
             slotContainer.style.position = 'relative';
             slotContainer.style.border = '2px solid black';
             slotContainer.style.borderRadius = '10px';
-            slotContainer.style.overflow = 'hidden';
             inventoryContainer.appendChild(slotContainer);
             this.inventorySlotContainers.push(slotContainer);
 
@@ -125,6 +135,9 @@ export class Game {
         // Connect to server immediately for spectating
         this.socket = io('/');
         this.setupSpectatorEvents();
+
+        // Setup wave events
+        this.setupWaveEvents();
     }
 
     private setupSpectatorEvents(): void {
@@ -241,6 +254,9 @@ export class Game {
         // Remove title canvas
         document.body.removeChild(this.titleCanvas);
 
+        // Show wave UI
+        this.waveUI.show();
+
         // Clear the scene of all spectator elements
         this.players.forEach((player, id) => {
             this.scene.remove(player);
@@ -324,30 +340,37 @@ export class Game {
     private animate(): void {
         if (!this.isGameStarted) return;
 
+        const currentTime = Date.now();
+        const elapsed = currentTime - this.lastFrameTime;
+
+        if (elapsed > this.frameInterval) {
+            this.lastFrameTime = currentTime - (elapsed % this.frameInterval);
+
+            // Update player movement
+            this.updatePlayerMovement();
+
+            // Update all petals
+            this.playerInventories.forEach(inventory => {
+                inventory.getPetals().forEach(petal => petal.update());
+            });
+
+            // Check petal collisions
+            this.checkPetalCollisions();
+
+            // Update health bars
+            this.playerHealthBars.forEach(healthBar => healthBar.updatePosition());
+
+            // Update camera
+            this.updateCameraPosition();
+
+            // Render inventory UI
+            this.renderInventoryUI();
+
+            // Render game scene
+            this.renderer.render(this.scene, this.camera);
+        }
+
         requestAnimationFrame(() => this.animate());
-
-        // Update player movement
-        this.updatePlayerMovement();
-
-        // Update all petals
-        this.playerInventories.forEach(inventory => {
-            inventory.getPetals().forEach(petal => petal.update());
-        });
-
-        // Check petal collisions
-        this.checkPetalCollisions();
-
-        // Update health bars
-        this.playerHealthBars.forEach(healthBar => healthBar.updatePosition());
-
-        // Update camera
-        this.updateCameraPosition();
-
-        // Render inventory UI
-        this.renderInventoryUI();
-
-        // Render game scene
-        this.renderer.render(this.scene, this.camera);
     }
 
     private createPlayer(playerId: string): void {
@@ -490,7 +513,7 @@ export class Game {
             }
         });
 
-        this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number } }) => {
+        this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number }, xp: number }) => {
             this.createPlayer(data.id);
         });
 
@@ -513,6 +536,34 @@ export class Game {
             const player = this.players.get(data.id);
             if (player) {
                 player.position.set(data.position.x, data.position.y, data.position.z);
+            }
+        });
+
+        // Wave and XP events
+        this.socket.on('waveStart', (data: { wave: number }) => {
+            console.log('Wave start:', data.wave);  // Debug log
+            this.currentWave = data.wave;
+            this.enemiesKilled = 0;
+            this.totalXP = 0;
+            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+        });
+
+        this.socket.on('enemyDied', (enemyId: string) => {
+            console.log('Enemy died, kills:', this.enemiesKilled + 1);  // Debug log
+            const enemy = this.enemies.get(enemyId);
+            if (enemy) {
+                enemy.remove();
+                this.enemies.delete(enemyId);
+                this.enemiesKilled++;
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+            }
+        });
+
+        this.socket.on('playerXP', (data: { id: string, xp: number }) => {
+            console.log('XP update:', data);  // Debug log
+            if (this.socket?.id === data.id) {
+                this.totalXP = data.xp % this.XP_PER_WAVE;
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
             }
         });
 
@@ -539,24 +590,6 @@ export class Game {
             const enemy = this.enemies.get(data.id);
             if (enemy) {
                 enemy.takeDamage(data.health);
-            }
-        });
-
-        this.socket.on('enemyDied', (enemyId: string) => {
-            const enemy = this.enemies.get(enemyId);
-            if (enemy) {
-                enemy.remove();
-                this.enemies.delete(enemyId);
-            }
-        });
-
-        this.socket.on('playerDamaged', (data: { id: string, health: number }) => {
-            const healthBar = this.playerHealthBars.get(data.id);
-            if (healthBar) {
-                // Calculate damage based on current health
-                const currentHealth = data.health;
-                const damage = 100 - currentHealth;  // Assuming max health is 100
-                healthBar.takeDamage(damage);
             }
         });
     }
@@ -684,7 +717,7 @@ export class Game {
                 const enemyPosition = enemy.getPosition();
                 const distance = petalPosition.distanceTo(enemyPosition);
                 
-                if (distance < 0.6) {
+                if (distance < 1.2) {
                     // Calculate knockback direction
                     const knockbackDir = new THREE.Vector3()
                         .subVectors(enemyPosition, petalPosition)
@@ -724,25 +757,71 @@ export class Game {
                 scene.remove(scene.children[2]);
             }
 
+            // Update or create petal name text
+            let nameText = container.querySelector('.petal-name') as HTMLDivElement | null;
+            if (!nameText) {
+                nameText = document.createElement('div');
+                nameText.className = 'petal-name';
+                nameText.style.position = 'absolute';
+                nameText.style.bottom = '5px';
+                nameText.style.left = '0';
+                nameText.style.width = '100%';
+                nameText.style.textAlign = 'center';
+                nameText.style.color = 'black';
+                nameText.style.fontFamily = 'Arial, sans-serif';
+                nameText.style.fontSize = '12px';
+                nameText.style.fontWeight = 'bold';
+                nameText.style.pointerEvents = 'none';
+                nameText.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+                nameText.style.padding = '2px 0';
+                container.appendChild(nameText);
+            }
+
+            // Get the petal type and display the raw enum value
+            nameText.textContent = slot.petal ? slot.petal.getType() : '';
+
             if (slot.petal) {
                 // Create a preview petal mesh using a sphere
-                const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                const geometry = new THREE.SphereGeometry(0.4, 32, 32);
                 const material = new THREE.MeshPhongMaterial({ 
-                    color: 0xffffff,  // White color
-                    shininess: 100,    // More shiny
-                    opacity: 1.0       // Fully opaque
+                    color: 0xffffff,
+                    shininess: 100,
+                    opacity: 1.0
                 });
                 const petalMesh = new THREE.Mesh(geometry, material);
                 scene.add(petalMesh);
 
                 // Rotate the preview petal
-                const time = Date.now() * 0.001;
+                const time = Date.now() * 0.0005;
                 petalMesh.rotation.x = time * 0.5;
                 petalMesh.rotation.y = time;
             }
 
             // Render the slot
             renderer.render(scene, camera);
+        });
+    }
+
+    private setupWaveEvents(): void {
+        if (!this.socket) return;
+
+        this.socket.on('waveStart', (data: { wave: number }) => {
+            this.currentWave = data.wave;
+            this.enemiesKilled = 0;
+            this.totalXP = 0;
+            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+        });
+
+        this.socket.on('enemyDied', () => {
+            this.enemiesKilled++;
+            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+        });
+
+        this.socket.on('playerXP', (data: { id: string, xp: number }) => {
+            if (this.socket?.id === data.id) {
+                this.totalXP = data.xp % this.XP_PER_WAVE;
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+            }
         });
     }
 }
