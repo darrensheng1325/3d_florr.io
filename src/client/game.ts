@@ -9,7 +9,6 @@ import { FontLoader, Font } from 'three/examples/jsm/loaders/FontLoader';
 
 export class Game {
     private scene: THREE.Scene;
-    private titleScene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
     private renderer: THREE.WebGLRenderer;
     private socket: Socket | null = null;
@@ -22,15 +21,27 @@ export class Game {
     private playerHealthBars: Map<string, HealthBar> = new Map();
     private playerVelocities: Map<string, THREE.Vector3> = new Map();
     private isGameStarted: boolean = false;
-    private titleMeshes: THREE.Mesh[] = [];
+    private titleCanvas: HTMLCanvasElement;
+    private titleCtx: CanvasRenderingContext2D;
 
     constructor() {
         this.scene = new THREE.Scene();
-        this.titleScene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer();
         this.players = new Map();
         this.textureLoader = new THREE.TextureLoader();
+
+        // Create title canvas overlay
+        this.titleCanvas = document.createElement('canvas');
+        this.titleCanvas.style.position = 'absolute';
+        this.titleCanvas.style.top = '0';
+        this.titleCanvas.style.left = '0';
+        this.titleCanvas.style.pointerEvents = 'none';
+        document.body.appendChild(this.titleCanvas);
+        
+        const ctx = this.titleCanvas.getContext('2d');
+        if (!ctx) throw new Error('Could not get 2D context');
+        this.titleCtx = ctx;
 
         // Create ground
         const groundGeometry = new THREE.PlaneGeometry(30, 30);
@@ -43,65 +54,73 @@ export class Game {
         this.ground.position.y = 0;
 
         this.init();
+        
+        // Connect to server immediately for spectating
+        this.socket = io('/');
+        this.setupSpectatorEvents();
     }
 
-    private async createTitleScreen(): Promise<void> {
-        // Add lights to title scene
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        this.titleScene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0xffffff, 1.0);
-        pointLight.position.set(5, 5, 5);
-        this.titleScene.add(pointLight);
+    private setupSpectatorEvents(): void {
+        if (!this.socket) return;
 
-        // Set background color
-        this.titleScene.background = new THREE.Color(0x87CEEB);
-
-        // Load font
-        const loader = new FontLoader();
-        const font = await new Promise<Font>((resolve) => {
-            loader.load('https://threejs.org/examples/fonts/helvetiker_bold.typeface.json', resolve);
+        // Handle other players
+        this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number } }) => {
+            if (!this.isGameStarted) {  // Only handle other players while spectating
+                this.createPlayer(data.id);
+            }
         });
 
-        // Create title text
-        const titleGeometry = new TextGeometry('FLORR.IO', {
-            font: font,
-            size: 0.5,
-            height: 0.1,
+        this.socket.on('playerLeft', (playerId: string) => {
+            const player = this.players.get(playerId);
+            if (player) {
+                this.scene.remove(player);
+                this.players.delete(playerId);
+            }
         });
 
-        const titleMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-        const titleMesh = new THREE.Mesh(titleGeometry, titleMaterial);
-        
-        // Center the text
-        titleGeometry.computeBoundingBox();
-        const titleBox = titleGeometry.boundingBox!;
-        const textWidth = titleBox.max.x - titleBox.min.x;
-        titleMesh.position.set(-textWidth/2, 1, -2);
-        this.titleMeshes.push(titleMesh);
-        this.titleScene.add(titleMesh);
-
-        // Create "Press SPACE to start" text
-        const startGeometry = new TextGeometry('Press SPACE to start', {
-            font: font,
-            size: 0.2,
-            height: 0.05,
+        this.socket.on('playerMoved', (data: { id: string, position: { x: number, y: number, z: number } }) => {
+            const player = this.players.get(data.id);
+            if (player) {
+                player.position.set(data.position.x, data.position.y, data.position.z);
+            }
         });
 
-        const startMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
-        const startMesh = new THREE.Mesh(startGeometry, startMaterial);
-        
-        // Center and position below title
-        startGeometry.computeBoundingBox();
-        const startBox = startGeometry.boundingBox!;
-        const startWidth = startBox.max.x - startBox.min.x;
-        startMesh.position.set(-startWidth/2, 0, -2);
-        this.titleMeshes.push(startMesh);
-        this.titleScene.add(startMesh);
+        // Handle enemies
+        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
+            const enemy = new Enemy(
+                this.scene,
+                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                this.camera,
+                data.type as EnemyType,
+                data.id
+            );
+            this.enemies.set(data.id, enemy);
+        });
 
-        // Set camera position for title screen
-        this.camera.position.set(0, 0, 5);
+        this.socket.on('enemyMoved', (data: { id: string, position: { x: number, y: number, z: number }, rotation: number }) => {
+            const enemy = this.enemies.get(data.id);
+            if (enemy) {
+                enemy.updatePosition(data.position, data.rotation);
+            }
+        });
+
+        this.socket.on('enemyDied', (enemyId: string) => {
+            const enemy = this.enemies.get(enemyId);
+            if (enemy) {
+                enemy.remove();
+                this.enemies.delete(enemyId);
+            }
+        });
+    }
+
+    private createTitleScreen(): void {
+        // Set camera for spectating
+        this.camera.position.set(0, 15, 0);
         this.camera.lookAt(0, 0, 0);
 
+        // Start rotating camera for spectating
+        let angle = 0;
+        
         // Add space key listener
         document.addEventListener('keydown', (event) => {
             if (event.code === 'Space' && !this.isGameStarted) {
@@ -109,17 +128,38 @@ export class Game {
             }
         });
 
+        // Update canvas size
+        this.onWindowResize();
+
         // Animate title screen
         const animate = () => {
             if (!this.isGameStarted) {
                 requestAnimationFrame(animate);
                 
-                // Add some gentle floating animation to the text
-                this.titleMeshes.forEach((mesh, index) => {
-                    mesh.position.y += Math.sin(Date.now() * 0.002 + index) * 0.001;
-                });
+                // Rotate camera around the scene
+                angle += 0.001;
+                const radius = 15;
+                this.camera.position.x = Math.cos(angle) * radius;
+                this.camera.position.z = Math.sin(angle) * radius;
+                this.camera.lookAt(0, 0, 0);
 
-                this.renderer.render(this.titleScene, this.camera);
+                // Render game scene
+                this.renderer.render(this.scene, this.camera);
+                
+                // Clear and draw title text
+                this.titleCtx.clearRect(0, 0, this.titleCanvas.width, this.titleCanvas.height);
+                
+                // Draw title
+                this.titleCtx.font = 'bold 72px Arial';
+                this.titleCtx.textAlign = 'center';
+                this.titleCtx.fillStyle = '#ff0000';
+                this.titleCtx.fillText('FLORR.IO', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+                
+                // Draw subtitle with floating animation
+                this.titleCtx.font = '24px Arial';
+                this.titleCtx.fillStyle = '#000000';
+                const yOffset = Math.sin(Date.now() * 0.002) * 5;
+                this.titleCtx.fillText('Press SPACE to start', this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
             }
         };
         animate();
@@ -128,15 +168,39 @@ export class Game {
     private startGame(): void {
         this.isGameStarted = true;
         
-        // Remove title meshes
-        this.titleMeshes.forEach(mesh => {
-            this.titleScene.remove(mesh);
-        });
-        this.titleMeshes = [];
+        // Remove title canvas
+        document.body.removeChild(this.titleCanvas);
 
-        // Connect to server
+        // Clear the scene of all spectator elements
+        this.players.forEach((player, id) => {
+            this.scene.remove(player);
+        });
+        this.players.clear();
+
+        this.enemies.forEach((enemy) => {
+            enemy.remove();
+        });
+        this.enemies.clear();
+
+        this.playerPetals.forEach((petals) => {
+            petals.forEach(petal => petal.remove(this.scene));
+        });
+        this.playerPetals.clear();
+
+        this.playerHealthBars.forEach((healthBar) => {
+            healthBar.remove();
+        });
+        this.playerHealthBars.clear();
+
+        // Clear the renderer
+        this.renderer.clear();
+
+        // Reconnect to server to get a fresh connection
+        if (this.socket) {
+            this.socket.disconnect();
+        }
         this.socket = io('/');
-        
+
         // Setup game scene
         this.setupGame();
     }
@@ -351,8 +415,8 @@ export class Game {
             }
         });
 
-        this.socket.on('playerJoined', (playerId: string) => {
-            this.createPlayer(playerId);
+        this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number } }) => {
+            this.createPlayer(data.id);
         });
 
         this.socket.on('playerLeft', (playerId: string) => {
@@ -506,6 +570,12 @@ export class Game {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // Update title canvas size if it exists
+        if (this.titleCanvas) {
+            this.titleCanvas.width = window.innerWidth;
+            this.titleCanvas.height = window.innerHeight;
+        }
     }
 
     private checkPetalCollisions(): void {
