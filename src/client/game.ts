@@ -4,25 +4,31 @@ import playerSvg from './player.svg';
 import { Petal } from './petal';
 import { HealthBar } from './health';
 import { Enemy, EnemyType } from './enemy';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry';
-import { FontLoader, Font } from 'three/examples/jsm/loaders/FontLoader';
+import { Inventory, PetalType, PetalSlot } from './inventory';
 
 export class Game {
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
     private renderer: THREE.WebGLRenderer;
     private socket: Socket | null = null;
+    private inventorySlotRenderers: THREE.WebGLRenderer[] = [];
+    private inventorySlotScenes: THREE.Scene[] = [];
+    private inventorySlotCameras: THREE.PerspectiveCamera[] = [];
+    private inventorySlotContainers: HTMLDivElement[] = [];
     public players: Map<string, THREE.Mesh>;
     private cameraRotation: number = 0;
     private ground: THREE.Mesh;
     private textureLoader: THREE.TextureLoader;
-    private playerPetals: Map<string, Petal[]> = new Map();
+    private playerInventories: Map<string, Inventory> = new Map();
     private enemies: Map<string, Enemy> = new Map();
     private playerHealthBars: Map<string, HealthBar> = new Map();
     private playerVelocities: Map<string, THREE.Vector3> = new Map();
     private isGameStarted: boolean = false;
     private titleCanvas: HTMLCanvasElement;
     private titleCtx: CanvasRenderingContext2D;
+    private pressedKeys: Set<string> = new Set();
+    private moveSpeed: number = 0.1;
+    private mapSize: number = 15;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -42,6 +48,67 @@ export class Game {
         const ctx = this.titleCanvas.getContext('2d');
         if (!ctx) throw new Error('Could not get 2D context');
         this.titleCtx = ctx;
+
+        // Create inventory container
+        const inventoryContainer = document.createElement('div');
+        inventoryContainer.style.position = 'absolute';
+        inventoryContainer.style.bottom = '20px';
+        inventoryContainer.style.left = '50%';
+        inventoryContainer.style.transform = 'translateX(-50%)';
+        inventoryContainer.style.display = 'flex';
+        inventoryContainer.style.gap = '10px';
+        inventoryContainer.style.justifyContent = 'center';
+        document.body.appendChild(inventoryContainer);
+
+        // Create inventory slots
+        for (let i = 0; i < 5; i++) {
+            // Create container for this slot
+            const slotContainer = document.createElement('div');
+            slotContainer.style.width = '80px';
+            slotContainer.style.height = '80px';
+            slotContainer.style.position = 'relative';
+            slotContainer.style.border = '2px solid black';
+            slotContainer.style.borderRadius = '10px';
+            slotContainer.style.overflow = 'hidden';
+            inventoryContainer.appendChild(slotContainer);
+            this.inventorySlotContainers.push(slotContainer);
+
+            // Create renderer
+            const renderer = new THREE.WebGLRenderer({ alpha: true });
+            renderer.setSize(80, 80);
+            renderer.setClearColor(0x000000, 0);
+            slotContainer.appendChild(renderer.domElement);
+            this.inventorySlotRenderers.push(renderer);
+
+            // Create scene
+            const scene = new THREE.Scene();
+            scene.background = null;
+            this.inventorySlotScenes.push(scene);
+
+            // Create camera
+            const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+            camera.position.set(0, 0, 3);
+            camera.lookAt(0, 0, 0);
+            this.inventorySlotCameras.push(camera);
+
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 1.0);
+            pointLight.position.set(2, 2, 2);
+            scene.add(pointLight);
+
+            // Add slot number
+            const numberDiv = document.createElement('div');
+            numberDiv.style.position = 'absolute';
+            numberDiv.style.bottom = '5px';
+            numberDiv.style.right = '5px';
+            numberDiv.style.color = 'black';
+            numberDiv.style.fontWeight = 'bold';
+            numberDiv.style.fontSize = '16px';
+            numberDiv.textContent = (i + 1).toString();
+            slotContainer.appendChild(numberDiv);
+        }
 
         // Create ground
         const groundGeometry = new THREE.PlaneGeometry(30, 30);
@@ -152,8 +219,11 @@ export class Game {
                 // Draw title
                 this.titleCtx.font = 'bold 72px Arial';
                 this.titleCtx.textAlign = 'center';
-                this.titleCtx.fillStyle = '#ff0000';
-                this.titleCtx.fillText('FLORR.IO', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+                this.titleCtx.fillStyle = '#ffffff';
+                this.titleCtx.strokeStyle = '#000000';
+                this.titleCtx.lineWidth = 5;
+                this.titleCtx.strokeText('florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+                this.titleCtx.fillText('florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
                 
                 // Draw subtitle with floating animation
                 this.titleCtx.font = '24px Arial';
@@ -182,10 +252,10 @@ export class Game {
         });
         this.enemies.clear();
 
-        this.playerPetals.forEach((petals) => {
-            petals.forEach(petal => petal.remove(this.scene));
+        this.playerInventories.forEach((inventory) => {
+            inventory.clear();
         });
-        this.playerPetals.clear();
+        this.playerInventories.clear();
 
         this.playerHealthBars.forEach((healthBar) => {
             healthBar.remove();
@@ -256,9 +326,12 @@ export class Game {
 
         requestAnimationFrame(() => this.animate());
 
-        // Update petals
-        this.playerPetals.forEach(petals => {
-            petals.forEach(petal => petal.update());
+        // Update player movement
+        this.updatePlayerMovement();
+
+        // Update all petals
+        this.playerInventories.forEach(inventory => {
+            inventory.getPetals().forEach(petal => petal.update());
         });
 
         // Check petal collisions
@@ -269,6 +342,9 @@ export class Game {
 
         // Update camera
         this.updateCameraPosition();
+
+        // Render inventory UI
+        this.renderInventoryUI();
 
         // Render game scene
         this.renderer.render(this.scene, this.camera);
@@ -336,7 +412,7 @@ export class Game {
             const player = new THREE.Mesh(geometry, material);
             player.position.y = 0.5;
             
-            // Rotate the sphere 90 degrees to the left around the Y axis
+            // Rotate the sphere 90 degrees to the right around the Y axis
             player.rotateY(Math.PI / 2);
             
             this.scene.add(player);
@@ -346,13 +422,12 @@ export class Game {
             const healthBar = new HealthBar(this.camera, player);
             this.playerHealthBars.set(playerId, healthBar);
 
-            // Add petals
-            const petals: Petal[] = [];
-            const numPetals = 8;
-            for (let i = 0; i < numPetals; i++) {
-                petals.push(new Petal(this.scene, player, i, numPetals));
+            // Create inventory with default petals
+            const inventory = new Inventory(this.scene, player);
+            for (let i = 0; i < 5; i++) {
+                inventory.addPetal(PetalType.BASIC, i);
             }
-            this.playerPetals.set(playerId, petals);
+            this.playerInventories.set(playerId, inventory);
         });
     }
 
@@ -426,10 +501,10 @@ export class Game {
                 this.players.delete(playerId);
                 
                 // Remove petals
-                const petals = this.playerPetals.get(playerId);
-                if (petals) {
-                    petals.forEach(petal => petal.remove(this.scene));
-                    this.playerPetals.delete(playerId);
+                const inventory = this.playerInventories.get(playerId);
+                if (inventory) {
+                    inventory.clear();
+                    this.playerInventories.delete(playerId);
                 }
             }
         });
@@ -489,60 +564,89 @@ export class Game {
     private setupControls(): void {
         document.addEventListener('keydown', (event) => {
             if (!this.socket?.id) return;
+            this.pressedKeys.add(event.key);
             
             const player = this.players.get(this.socket.id);
-            if (!player) return;
+            const inventory = this.playerInventories.get(this.socket.id);
+            if (!player || !inventory) return;
 
             // Handle petal expansion with space key
             if (event.code === 'Space') {
-                const petals = this.playerPetals.get(this.socket.id);
-                if (petals) {
-                    petals.forEach(petal => petal.expand());
+                inventory.expandPetals();
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (!this.socket?.id) return;
+            this.pressedKeys.delete(event.key);
+            
+            if (event.code === 'Space') {
+                const inventory = this.playerInventories.get(this.socket.id);
+                if (inventory) {
+                    inventory.contractPetals();
                 }
-                return;
             }
+        });
+    }
 
-            const moveSpeed = 0.2;
-            const movement = { x: 0, z: 0 };
-            const mapSize = 15;
+    private updatePlayerMovement(): void {
+        if (!this.socket?.id) return;
+        
+        const player = this.players.get(this.socket.id);
+        if (!player) return;
 
-            switch(event.key) {
-                case 'w':
-                case 'ArrowUp':
-                    movement.x = -Math.sin(this.cameraRotation);
-                    movement.z = -Math.cos(this.cameraRotation);
-                    player.rotation.y = this.cameraRotation + Math.PI/2;
-                    break;
-                case 's':
-                case 'ArrowDown':
-                    movement.x = Math.sin(this.cameraRotation);
-                    movement.z = Math.cos(this.cameraRotation);
-                    player.rotation.y = this.cameraRotation + Math.PI * 3/2;
-                    break;
-                case 'a':
-                case 'ArrowLeft':
-                    movement.x = -Math.cos(this.cameraRotation);
-                    movement.z = Math.sin(this.cameraRotation);
-                    player.rotation.y = this.cameraRotation + Math.PI;
-                    break;
-                case 'd':
-                case 'ArrowRight':
-                    movement.x = Math.cos(this.cameraRotation);
-                    movement.z = -Math.sin(this.cameraRotation);
-                    player.rotation.y = this.cameraRotation;
-                    break;
-            }
+        const movement = { x: 0, z: 0 };
+        let direction = 0;
+        let isMoving = false;
 
-            // Calculate new position
-            const newX = player.position.x + movement.x * moveSpeed;
-            const newZ = player.position.z + movement.z * moveSpeed;
+        // Calculate movement based on pressed keys
+        if (this.pressedKeys.has('w') || this.pressedKeys.has('ArrowUp')) {
+            movement.x -= Math.sin(this.cameraRotation);
+            movement.z -= Math.cos(this.cameraRotation);
+            direction = Math.PI/2;
+            isMoving = true;
+        }
+        if (this.pressedKeys.has('s') || this.pressedKeys.has('ArrowDown')) {
+            movement.x += Math.sin(this.cameraRotation);
+            movement.z += Math.cos(this.cameraRotation);
+            direction = Math.PI * 3/2;
+            isMoving = true;
+        }
+        if (this.pressedKeys.has('a') || this.pressedKeys.has('ArrowLeft')) {
+            movement.x -= Math.cos(this.cameraRotation);
+            movement.z += Math.sin(this.cameraRotation);
+            direction = Math.PI;
+            isMoving = true;
+        }
+        if (this.pressedKeys.has('d') || this.pressedKeys.has('ArrowRight')) {
+            movement.x += Math.cos(this.cameraRotation);
+            movement.z -= Math.sin(this.cameraRotation);
+            direction = 0;
+            isMoving = true;
+        }
 
-            // Check boundaries before applying movement
-            if (newX >= -mapSize && newX <= mapSize && 
-                newZ >= -mapSize && newZ <= mapSize) {
-                player.position.x = newX;
-                player.position.z = newZ;
-                player.position.y = 0.5; // This is correct since sphere radius is 0.5
+        // Normalize diagonal movement
+        if (movement.x !== 0 || movement.z !== 0) {
+            const length = Math.sqrt(movement.x * movement.x + movement.z * movement.z);
+            movement.x /= length;
+            movement.z /= length;
+        }
+
+        // Calculate new position
+        const newX = player.position.x + movement.x * this.moveSpeed;
+        const newZ = player.position.z + movement.z * this.moveSpeed;
+
+        // Check boundaries before applying movement
+        if (newX >= -this.mapSize && newX <= this.mapSize && 
+            newZ >= -this.mapSize && newZ <= this.mapSize) {
+            player.position.x = newX;
+            player.position.z = newZ;
+            player.position.y = 0.5;
+
+            // Update player rotation based on movement direction
+            if (isMoving) {
+                const angle = Math.atan2(movement.x, movement.z);
+                player.rotation.y = angle - Math.PI/2;
             }
 
             // Emit position to server
@@ -551,19 +655,7 @@ export class Game {
                 y: player.position.y,
                 z: player.position.z
             });
-        });
-
-        // Add keyup handler for space to contract petals
-        document.addEventListener('keyup', (event) => {
-            if (!this.socket?.id) return;
-            
-            if (event.code === 'Space') {
-                const petals = this.playerPetals.get(this.socket.id);
-                if (petals) {
-                    petals.forEach(petal => petal.contract());
-                }
-            }
-        });
+        }
     }
 
     private onWindowResize(): void {
@@ -581,9 +673,11 @@ export class Game {
     private checkPetalCollisions(): void {
         if (!this.socket?.id) return;
         
-        const petals = this.playerPetals.get(this.socket.id);
-        if (!petals) return;
+        const inventory = this.playerInventories.get(this.socket.id);
+        if (!inventory) return;
 
+        // Use all petals instead of just active ones
+        const petals = inventory.getPetals();
         this.enemies.forEach((enemy) => {
             petals.forEach(petal => {
                 const petalPosition = petal.getPosition();
@@ -604,6 +698,51 @@ export class Game {
                     });
                 }
             });
+        });
+    }
+
+    private renderInventoryUI(): void {
+        if (!this.socket?.id) return;
+        const inventory = this.playerInventories.get(this.socket.id);
+        if (!inventory) return;
+
+        const slots = inventory.getSlots();
+        
+        slots.forEach((slot, index) => {
+            if (index >= this.inventorySlotRenderers.length) return;
+
+            const scene = this.inventorySlotScenes[index];
+            const camera = this.inventorySlotCameras[index];
+            const renderer = this.inventorySlotRenderers[index];
+            const container = this.inventorySlotContainers[index];
+
+            // Update container style based on active state
+            container.style.backgroundColor = slot.isActive ? 'rgba(255, 107, 107, 0.2)' : 'rgba(255, 255, 255, 0.2)';
+
+            // Clear previous petal preview if any
+            while (scene.children.length > 2) { // Keep lights (ambient and point)
+                scene.remove(scene.children[2]);
+            }
+
+            if (slot.petal) {
+                // Create a preview petal mesh using a sphere
+                const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: 0xffffff,  // White color
+                    shininess: 100,    // More shiny
+                    opacity: 1.0       // Fully opaque
+                });
+                const petalMesh = new THREE.Mesh(geometry, material);
+                scene.add(petalMesh);
+
+                // Rotate the preview petal
+                const time = Date.now() * 0.001;
+                petalMesh.rotation.x = time * 0.5;
+                petalMesh.rotation.y = time;
+            }
+
+            // Render the slot
+            renderer.render(scene, camera);
         });
     }
 }
