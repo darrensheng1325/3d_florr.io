@@ -116,7 +116,7 @@ export class Enemy {
             const stingerGeometry = new THREE.ConeGeometry(0.05, 0.2, 8);
             const stingerMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
             const stinger = new THREE.Mesh(stingerGeometry, stingerMaterial);
-            stinger.position.set(-0.4, 0, 0); // Position at back
+            stinger.position.set(0, 0.4, 0); // Position at back
             stinger.rotation.z = -Math.PI / 2; // Point backward
             body.add(stinger);
 

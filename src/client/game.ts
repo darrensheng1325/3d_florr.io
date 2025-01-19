@@ -122,8 +122,8 @@ export class Game {
 
         // Create ground
         const groundGeometry = new THREE.PlaneGeometry(30, 30);
-        const groundMaterial = new THREE.MeshPhongMaterial({ 
-            color: 0x55ff55,
+        const groundMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00cf2d,
             side: THREE.DoubleSide 
         });
         this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -326,7 +326,7 @@ export class Game {
         this.scene.add(this.ground);
 
         // Add grid helper
-        const gridHelper = new THREE.GridHelper(30, 30, 0x000000, 0x000000);
+        const gridHelper = new THREE.GridHelper(30, 30, 0x038f21, 0x038f21);
         gridHelper.position.y = 0.01;
         this.scene.add(gridHelper);
 
