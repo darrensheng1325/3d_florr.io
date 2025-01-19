@@ -34,11 +34,10 @@ module.exports = {
     },
     compress: true,
     port: 3000,
-    proxy: {
-      '/socket.io': {
-        target: 'http://localhost:3000',
-        ws: true
-      }
-    }
+    proxy: [{
+      context: ['/socket.io'],
+      target: 'http://localhost:3000',
+      ws: true
+    }]
   },
 }; 

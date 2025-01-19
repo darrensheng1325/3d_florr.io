@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import playerSvg from './player.svg';
 import { Petal } from './petal';
 import { HealthBar } from './health';
-import { Enemy } from './enemy';
+import { Enemy, EnemyType } from './enemy';
 
 export class Game {
     private scene: THREE.Scene;
@@ -15,10 +15,8 @@ export class Game {
     private ground: THREE.Mesh;
     private textureLoader: THREE.TextureLoader;
     private playerPetals: Map<string, Petal[]> = new Map();
-    private enemies: Enemy[] = [];
+    private enemies: Map<string, Enemy> = new Map();
     private playerHealthBars: Map<string, HealthBar> = new Map();
-    private spawnInterval: number = 5000; // Spawn enemy every 5 seconds
-    private lastSpawnTime: number = 0;
     private playerVelocities: Map<string, THREE.Vector3> = new Map();
 
     constructor() {
@@ -247,25 +245,70 @@ export class Game {
                 player.position.set(data.position.x, data.position.y, data.position.z);
             }
         });
+
+        // Enemy events
+        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
+            const enemy = new Enemy(
+                this.scene,
+                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                this.camera,
+                data.type as EnemyType,
+                data.id
+            );
+            this.enemies.set(data.id, enemy);
+        });
+
+        this.socket.on('enemyMoved', (data: { id: string, position: { x: number, y: number, z: number }, rotation: number }) => {
+            const enemy = this.enemies.get(data.id);
+            if (enemy) {
+                enemy.updatePosition(data.position, data.rotation);
+            }
+        });
+
+        this.socket.on('enemyDamaged', (data: { id: string, health: number }) => {
+            const enemy = this.enemies.get(data.id);
+            if (enemy) {
+                enemy.takeDamage(data.health);
+            }
+        });
+
+        this.socket.on('enemyDied', (enemyId: string) => {
+            const enemy = this.enemies.get(enemyId);
+            if (enemy) {
+                enemy.remove();
+                this.enemies.delete(enemyId);
+            }
+        });
+
+        this.socket.on('playerDamaged', (data: { id: string, health: number }) => {
+            const healthBar = this.playerHealthBars.get(data.id);
+            if (healthBar) {
+                // Calculate damage based on current health
+                const currentHealth = data.health;
+                const damage = 100 - currentHealth;  // Assuming max health is 100
+                healthBar.takeDamage(damage);
+            }
+        });
     }
 
     private animate(): void {
         requestAnimationFrame(() => this.animate());
-        
-        this.updateEnemies();
-        this.updatePlayers();
-        
-        // Update all petals
+
+        // Update petals
         this.playerPetals.forEach(petals => {
             petals.forEach(petal => petal.update());
         });
 
-        // Update health bar positions
-        this.playerHealthBars.forEach(healthBar => {
-            healthBar.updatePosition();
-        });
+        // Check petal collisions
+        this.checkPetalCollisions();
 
+        // Update health bars
+        this.playerHealthBars.forEach(healthBar => healthBar.updatePosition());
+
+        // Update camera
         this.updateCameraPosition();
+
+        // Render
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -355,65 +398,32 @@ export class Game {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    private spawnEnemy(): void {
-        const angle = Math.random() * Math.PI * 2;
-        const mapSize = 15;
-        const position = new THREE.Vector3(
-            Math.cos(angle) * mapSize,
-            0.5,
-            Math.sin(angle) * mapSize
-        );
+    private checkPetalCollisions(): void {
+        if (!this.socket.id) return;
         
-        const enemy = new Enemy(this.scene, position, this.camera, this);
-        this.enemies.push(enemy);
-    }
+        const petals = this.playerPetals.get(this.socket.id);
+        if (!petals) return;
 
-    private updateEnemies(): void {
-        const currentTime = Date.now();
-        if (currentTime - this.lastSpawnTime >= this.spawnInterval) {
-            this.spawnEnemy();
-            this.lastSpawnTime = currentTime;
-        }
-
-        // Update and check for dead enemies
-        this.enemies = this.enemies.filter(enemy => {
-            enemy.update(this.players, this.playerPetals, this.playerHealthBars);
-            
-            // Check if enemy is dead (health <= 0)
-            const isDead = enemy.takeDamageWithKnockback(0, enemy.getPosition()); // Check health without dealing damage
-            if (isDead) {
-                enemy.remove();
-                return false;
-            }
-            return true;
-        });
-    }
-
-    private updatePlayers(): void {
-        this.playerVelocities.forEach((velocity, playerId) => {
-            const player = this.players.get(playerId);
-            if (player) {
-                // Apply velocity
-                player.position.add(velocity);
+        this.enemies.forEach((enemy) => {
+            petals.forEach(petal => {
+                const petalPosition = petal.getPosition();
+                const enemyPosition = enemy.getPosition();
+                const distance = petalPosition.distanceTo(enemyPosition);
                 
-                // Apply resistance
-                velocity.multiplyScalar(0.95);
+                if (distance < 0.6) {
+                    // Calculate knockback direction
+                    const knockbackDir = new THREE.Vector3()
+                        .subVectors(enemyPosition, petalPosition)
+                        .normalize();
 
-                // Keep within bounds
-                const mapSize = 15;
-                player.position.x = Math.max(-mapSize, Math.min(mapSize, player.position.x));
-                player.position.z = Math.max(-mapSize, Math.min(mapSize, player.position.z));
-                player.position.y = 0.5;
-
-                // Emit position if it's the local player
-                if (playerId === this.socket.id) {
-                    this.socket.emit('move', {
-                        x: player.position.x,
-                        y: player.position.y,
-                        z: player.position.z
+                    // Send damage event to server
+                    this.socket.emit('enemyDamaged', {
+                        enemyId: enemy.id,
+                        damage: 5,
+                        knockback: { x: knockbackDir.x, z: knockbackDir.z }
                     });
                 }
-            }
+            });
         });
     }
 }

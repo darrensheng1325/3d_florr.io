@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Red background -->
+  <rect width="512" height="512" fill="#ff0000"/>
+  
+  <!-- Large center spot (head) -->
+  <circle cx="256" cy="256" r="100" fill="#000000"/>
+  
+  <!-- Smaller spots arranged in a symmetrical pattern -->
+  <circle cx="150" cy="150" r="35" fill="#000000"/>
+  <circle cx="362" cy="150" r="35" fill="#000000"/>
+  <circle cx="150" cy="362" r="35" fill="#000000"/>
+  <circle cx="362" cy="362" r="35" fill="#000000"/>
+  <circle cx="256" cy="100" r="35" fill="#000000"/>
+  <circle cx="256" cy="400" r="35" fill="#000000"/>
+  
+  <!-- Even smaller decorative spots -->
+  <circle cx="200" cy="256" r="20" fill="#000000"/>
+  <circle cx="312" cy="256" r="20" fill="#000000"/>
+</svg> 
