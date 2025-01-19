@@ -39,6 +39,7 @@ export class Game {
     private lastFrameTime: number = 0;
     private readonly targetFPS: number = 60;
     private readonly frameInterval: number = 1000 / 60;
+    private deathScreen: HTMLDivElement | null = null;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -185,10 +186,13 @@ export class Game {
         });
 
         this.socket.on('enemyDied', (enemyId: string) => {
+            console.log('Enemy died, kills:', this.enemiesKilled + 1);  // Debug log
             const enemy = this.enemies.get(enemyId);
             if (enemy) {
                 enemy.remove();
                 this.enemies.delete(enemyId);
+                this.enemiesKilled++;
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
             }
         });
     }
@@ -251,8 +255,10 @@ export class Game {
     private startGame(): void {
         this.isGameStarted = true;
         
-        // Remove title canvas
-        document.body.removeChild(this.titleCanvas);
+        // Remove title canvas if it exists and is attached
+        if (this.titleCanvas && this.titleCanvas.parentNode === document.body) {
+            document.body.removeChild(this.titleCanvas);
+        }
 
         // Show wave UI
         this.waveUI.show();
@@ -310,6 +316,7 @@ export class Game {
     private init(): void {
         // Setup renderer
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
         document.body.appendChild(this.renderer.domElement);
 
         // Set background color to sky blue
@@ -356,6 +363,9 @@ export class Game {
 
             // Check petal collisions
             this.checkPetalCollisions();
+
+            // Check enemy collisions with player
+            this.checkEnemyCollisions();
 
             // Update health bars
             this.playerHealthBars.forEach(healthBar => healthBar.updatePosition());
@@ -513,6 +523,19 @@ export class Game {
             }
         });
 
+        // Add player damage event handler
+        this.socket.on('playerDamaged', (data: { id: string, health: number }) => {
+            if (this.socket?.id === data.id) {
+                const healthBar = this.playerHealthBars.get(this.socket.id);
+                if (healthBar) {
+                    const isDead = healthBar.takeDamage(10);
+                    if (isDead) {
+                        this.showDeathScreen();
+                    }
+                }
+            }
+        });
+
         this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number }, xp: number }) => {
             this.createPlayer(data.id);
         });
@@ -590,6 +613,16 @@ export class Game {
             const enemy = this.enemies.get(data.id);
             if (enemy) {
                 enemy.takeDamage(data.health);
+            }
+        });
+
+        // Add respawn event handler
+        this.socket.on('playerRespawned', (data: { id: string, position: { x: number, y: number, z: number } }) => {
+            if (this.socket?.id === data.id) {
+                const player = this.players.get(data.id);
+                if (player) {
+                    player.position.set(data.position.x, data.position.y, data.position.z);
+                }
             }
         });
     }
@@ -725,12 +758,33 @@ export class Game {
 
                     // Send damage event to server
                     this.socket?.emit('enemyDamaged', {
-                        enemyId: enemy.id,
+                        enemyId: enemy.getId(),
                         damage: 5,
                         knockback: { x: knockbackDir.x, z: knockbackDir.z }
                     });
                 }
             });
+        });
+    }
+
+    private checkEnemyCollisions(): void {
+        if (!this.socket?.id) return;
+        
+        const player = this.players.get(this.socket.id);
+        if (!player) return;
+
+        this.enemies.forEach((enemy) => {
+            const enemyPosition = enemy.getPosition();
+            const playerPosition = player.position;
+            const distance = enemyPosition.distanceTo(playerPosition);
+            
+            // If enemy is touching player's center
+            if (distance < 1.0) {
+                // Send damage event to server
+                this.socket?.emit('playerDamaged', {
+                    damage: 10
+                });
+            }
         });
     }
 
@@ -823,6 +877,169 @@ export class Game {
                 this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
             }
         });
+    }
+
+    private createDeathScreen(): void {
+        // Create death screen container
+        this.deathScreen = document.createElement('div');
+        this.deathScreen.style.position = 'fixed';
+        this.deathScreen.style.top = '0';
+        this.deathScreen.style.left = '0';
+        this.deathScreen.style.width = '100%';
+        this.deathScreen.style.height = '100%';
+        this.deathScreen.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        this.deathScreen.style.display = 'flex';
+        this.deathScreen.style.flexDirection = 'column';
+        this.deathScreen.style.alignItems = 'center';
+        this.deathScreen.style.justifyContent = 'center';
+        this.deathScreen.style.zIndex = '1000';
+
+        // Add "You Died" text
+        const deathText = document.createElement('div');
+        deathText.textContent = 'You Died';
+        deathText.style.color = '#ff0000';
+        deathText.style.fontSize = '64px';
+        deathText.style.fontFamily = 'Arial, sans-serif';
+        deathText.style.fontWeight = 'bold';
+        deathText.style.marginBottom = '30px';
+        this.deathScreen.appendChild(deathText);
+
+        // Add continue button
+        const continueButton = document.createElement('button');
+        continueButton.textContent = 'Return to Title';
+        continueButton.style.padding = '15px 30px';
+        continueButton.style.fontSize = '24px';
+        continueButton.style.backgroundColor = '#4CAF50';
+        continueButton.style.color = 'white';
+        continueButton.style.border = 'none';
+        continueButton.style.borderRadius = '5px';
+        continueButton.style.cursor = 'pointer';
+        continueButton.style.transition = 'background-color 0.3s';
+        
+        continueButton.addEventListener('mouseover', () => {
+            continueButton.style.backgroundColor = '#45a049';
+        });
+        
+        continueButton.addEventListener('mouseout', () => {
+            continueButton.style.backgroundColor = '#4CAF50';
+        });
+        
+        continueButton.addEventListener('click', () => {
+            this.respawnPlayer();
+        });
+        
+        this.deathScreen.appendChild(continueButton);
+    }
+
+    private showDeathScreen(): void {
+        if (!this.deathScreen) {
+            this.createDeathScreen();
+        }
+        document.body.appendChild(this.deathScreen!);
+
+        // Stop game loop
+        this.isGameStarted = false;
+    }
+
+    private hideDeathScreen(): void {
+        if (this.deathScreen && this.deathScreen.parentNode) {
+            this.deathScreen.parentNode.removeChild(this.deathScreen);
+        }
+    }
+
+    private respawnPlayer(): void {
+        if (!this.socket?.id) return;
+        
+        // Hide death screen
+        this.hideDeathScreen();
+        
+        // Clear game state
+        this.players.forEach((player) => {
+            this.scene.remove(player);
+        });
+        this.players.clear();
+
+        this.enemies.forEach((enemy) => {
+            enemy.remove();
+        });
+        this.enemies.clear();
+
+        this.playerInventories.forEach((inventory) => {
+            inventory.clear();
+        });
+        this.playerInventories.clear();
+
+        this.playerHealthBars.forEach((healthBar) => {
+            healthBar.remove();
+        });
+        this.playerHealthBars.clear();
+
+        // Reset game state
+        this.isGameStarted = false;
+        
+        // Reconnect for spectating
+        if (this.socket) {
+            this.socket.disconnect();
+        }
+        this.socket = io('/');
+        this.setupSpectatorEvents();
+
+        // Reset camera for spectating
+        this.camera.position.set(0, 15, 0);
+        this.camera.lookAt(0, 0, 0);
+
+        // Recreate and show title screen
+        this.titleCanvas = document.createElement('canvas');
+        this.titleCanvas.style.position = 'absolute';
+        this.titleCanvas.style.top = '0';
+        this.titleCanvas.style.left = '0';
+        this.titleCanvas.style.pointerEvents = 'none';
+        document.body.appendChild(this.titleCanvas);
+        
+        const ctx = this.titleCanvas.getContext('2d');
+        if (!ctx) throw new Error('Could not get 2D context');
+        this.titleCtx = ctx;
+
+        // Update canvas size
+        this.onWindowResize();
+
+        // Hide wave UI
+        this.waveUI.hide();
+
+        // Start title screen animation
+        let angle = 0;
+        const animate = () => {
+            if (this.isGameStarted) return;
+
+            // Clear the canvas
+            this.titleCtx.clearRect(0, 0, this.titleCanvas.width, this.titleCanvas.height);
+
+            // Draw title text
+            this.titleCtx.font = 'bold 64px Arial';
+            this.titleCtx.fillStyle = '#ff0000';
+            this.titleCtx.textAlign = 'center';
+            this.titleCtx.textBaseline = 'middle';
+            this.titleCtx.fillText('FLORR.IO', this.titleCanvas.width / 2, this.titleCanvas.height / 2 - 40);
+
+            // Draw subtitle with floating animation
+            this.titleCtx.font = '24px Arial';
+            this.titleCtx.fillStyle = '#000000';
+            const floatOffset = Math.sin(Date.now() * 0.003) * 5;
+            this.titleCtx.fillText('Press SPACE to start', this.titleCanvas.width / 2, this.titleCanvas.height / 2 + 40 + floatOffset);
+
+            // Rotate camera
+            angle += 0.002;
+            this.camera.position.x = Math.sin(angle) * 15;
+            this.camera.position.z = Math.cos(angle) * 15;
+            this.camera.position.y = 15;
+            this.camera.lookAt(0, 0, 0);
+
+            // Render scene
+            this.renderer.render(this.scene, this.camera);
+
+            requestAnimationFrame(animate);
+        };
+        animate();
     }
 }
 

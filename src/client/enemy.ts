@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HealthBar } from './health';
 import ladybugSvg from './ladybug.svg';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 export enum EnemyType {
     LADYBUG = 'ladybug',
@@ -24,11 +25,12 @@ const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
 };
 
 export class Enemy {
-    protected mesh: THREE.Mesh;
-    protected healthBar: HealthBar;
-    protected type: EnemyType;
-    protected scene: THREE.Scene;
-    public id: string;
+    private scene: THREE.Scene;
+    private mesh: THREE.Mesh;
+    private healthBar: HealthBar;
+    private type: EnemyType;
+    private id: string;
+    private static gltfLoader = new GLTFLoader();
 
     constructor(scene: THREE.Scene, position: THREE.Vector3, camera: THREE.Camera, type: EnemyType, id: string) {
         this.type = type;
@@ -47,7 +49,7 @@ export class Enemy {
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
             texture.center.set(0.5, 0.5);
-            texture.rotation = 0;  // No initial rotation needed since we'll rotate the mesh to face direction
+            texture.rotation = 0;
 
             const material = new THREE.MeshBasicMaterial({
                 map: texture,
@@ -55,10 +57,48 @@ export class Enemy {
             });
             this.mesh = new THREE.Mesh(geometry, material);
         } else {
-            // For bees, create an invisible mesh as the base
+            // For bees, create an invisible mesh as the base while we load the model
             const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
             const material = new THREE.MeshBasicMaterial({ visible: false });
             this.mesh = new THREE.Mesh(geometry, material);
+            
+            // Load the bee model
+            Enemy.gltfLoader.load(
+                '/bee.glb',
+                (gltf) => {
+                    console.log('Bee model loaded successfully');
+                    const model = gltf.scene;
+                    
+                    // Apply MeshBasicMaterial to all meshes in the model
+                    model.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            const oldMaterial = child.material as THREE.MeshStandardMaterial;
+                            // Create a flat, unlit material that ignores lighting
+                            const newMaterial = new THREE.MeshBasicMaterial({
+                                color: oldMaterial.color,
+                                map: oldMaterial.map,
+                                side: THREE.DoubleSide,  // Render both sides
+                                toneMapped: false,       // Disable tone mapping
+                                fog: false               // Disable fog effect
+                            });
+                            child.material = newMaterial;
+                        }
+                    });
+
+                    // Scale the model to match our game size
+                    model.scale.set(0.5, 0.5, 0.5);
+                    // Rotate 90 degrees to the right
+                    model.rotation.y = -Math.PI / 2;
+                    // Add the model to our base mesh
+                    this.mesh.add(model);
+                },
+                (progress) => {
+                    console.log('Loading bee model:', (progress.loaded / progress.total * 100) + '%');
+                },
+                (error) => {
+                    console.error('Error loading bee model:', error);
+                }
+            );
         }
 
         this.mesh.position.copy(position);
@@ -84,61 +124,7 @@ export class Enemy {
 
     protected addDecorativeElements(): void {
         if (this.type === EnemyType.BEE) {
-            // Make main body longer
-            const bodyGeometry = new THREE.CapsuleGeometry(0.2, 0.4, 4, 8);
-            const bodyMaterial = new THREE.ShaderMaterial({
-                uniforms: {
-                    stripeWidth: { value: 6.0 }, // Number of rings
-                },
-                vertexShader: `
-                    varying vec3 vPosition;
-                    void main() {
-                        vPosition = position;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                    }
-                `,
-                fragmentShader: `
-                    uniform float stripeWidth;
-                    varying vec3 vPosition;
-                    void main() {
-                        // Create rings based on y position (along capsule length)
-                        float stripe = mod(vPosition.y * stripeWidth, 1.0);
-                        vec3 color = stripe < 0.5 ? vec3(1.0, 1.0, 0.0) : vec3(0.0, 0.0, 0.0);
-                        gl_FragColor = vec4(color, 1.0);
-                    }
-                `
-            });
-            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            body.rotation.z = Math.PI / 2; // Rotate to be horizontal
-            this.mesh.add(body);
-
-            // Add stinger
-            const stingerGeometry = new THREE.ConeGeometry(0.05, 0.2, 8);
-            const stingerMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-            const stinger = new THREE.Mesh(stingerGeometry, stingerMaterial);
-            stinger.position.set(0, 0.4, 0); // Position at back
-            stinger.rotation.z = -Math.PI / 2; // Point backward
-            body.add(stinger);
-
-            // Add antennae
-            const antennaGeometry = new THREE.CylinderGeometry(0.04, 0.03, 0.4);
-            const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-            
-            [-0.15, 0.15].forEach(zPos => {
-                const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-                antenna.position.set(0.5, -0.3, zPos);
-                
-                // First rotate 90 degrees towards front
-                antenna.rotation.z = Math.PI / 2;
-                
-                // Then angle outward
-                if (zPos < 0) {
-                    antenna.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.PI / 6);
-                } else {
-                    antenna.rotateOnAxis(new THREE.Vector3(1, 0, 0), -Math.PI / 6);
-                }
-                body.add(antenna);
-            });
+            // Nothing needed here anymore as we're using the model
         }
     }
 
@@ -159,5 +145,9 @@ export class Enemy {
 
     public getPosition(): THREE.Vector3 {
         return this.mesh.position;
+    }
+
+    public getId(): string {
+        return this.id;
     }
 } 
