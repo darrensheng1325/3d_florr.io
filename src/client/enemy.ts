@@ -86,7 +86,28 @@ export class Enemy {
         if (this.type === EnemyType.BEE) {
             // Make main body longer
             const bodyGeometry = new THREE.CapsuleGeometry(0.2, 0.4, 4, 8);
-            const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const bodyMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    stripeWidth: { value: 6.0 }, // Number of rings
+                },
+                vertexShader: `
+                    varying vec3 vPosition;
+                    void main() {
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform float stripeWidth;
+                    varying vec3 vPosition;
+                    void main() {
+                        // Create rings based on y position (along capsule length)
+                        float stripe = mod(vPosition.y * stripeWidth, 1.0);
+                        vec3 color = stripe < 0.5 ? vec3(1.0, 1.0, 0.0) : vec3(0.0, 0.0, 0.0);
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `
+            });
             const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
             body.rotation.z = Math.PI / 2; // Rotate to be horizontal
             this.mesh.add(body);
