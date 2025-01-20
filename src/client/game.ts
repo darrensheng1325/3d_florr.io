@@ -6,6 +6,7 @@ import { HealthBar } from './health';
 import { Enemy, EnemyType } from './enemy';
 import { Inventory, PetalType, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
+import { Item, ItemType } from './item';
 
 export class Game {
     private scene: THREE.Scene;
@@ -40,6 +41,10 @@ export class Game {
     private readonly targetFPS: number = 60;
     private readonly frameInterval: number = 1000 / 60;
     private deathScreen: HTMLDivElement | null = null;
+    private lastHealTime: number = 0;
+    private readonly HEAL_INTERVAL: number = 1000; // Heal every second
+    private readonly HEAL_AMOUNT: number = 5;      // Heal 5 health per tick
+    private items: Map<string, Item> = new Map();
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -141,6 +146,51 @@ export class Game {
         this.setupWaveEvents();
     }
 
+    private setupEnemyEvents(): void {
+        if (!this.socket) return;
+
+        // Handle enemies
+        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
+            const enemy = new Enemy(
+                this.scene,
+                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                this.camera,
+                data.type as EnemyType,
+                data.id
+            );
+            this.enemies.set(data.id, enemy);
+        });
+
+        this.socket.on('enemyMoved', (data: { id: string, position: { x: number, y: number, z: number }, rotation: number }) => {
+            const enemy = this.enemies.get(data.id);
+            if (enemy) {
+                enemy.updatePosition(data.position, data.rotation);
+            }
+        });
+
+        this.socket.on('enemyDied', (data: { enemyId: string, position: { x: number, y: number, z: number }, itemType: string}) => {
+            const enemy = this.enemies.get(data.enemyId);
+            if (enemy) {
+                enemy.remove();
+                this.enemies.delete(data.enemyId);
+                this.enemiesKilled++;
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+
+                // If there's an item drop, create it
+                if (data.itemType) {
+                    const itemId = `item_${data.enemyId}`;
+                    const item = new Item(
+                        this.scene,
+                        new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                        data.itemType as ItemType,
+                        itemId
+                    );
+                    this.items.set(itemId, item);
+                }
+            }
+        });
+    }
+
     private setupSpectatorEvents(): void {
         if (!this.socket) return;
 
@@ -166,35 +216,8 @@ export class Game {
             }
         });
 
-        // Handle enemies
-        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
-            const enemy = new Enemy(
-                this.scene,
-                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
-                this.camera,
-                data.type as EnemyType,
-                data.id
-            );
-            this.enemies.set(data.id, enemy);
-        });
-
-        this.socket.on('enemyMoved', (data: { id: string, position: { x: number, y: number, z: number }, rotation: number }) => {
-            const enemy = this.enemies.get(data.id);
-            if (enemy) {
-                enemy.updatePosition(data.position, data.rotation);
-            }
-        });
-
-        this.socket.on('enemyDied', (enemyId: string) => {
-            console.log('Enemy died, kills:', this.enemiesKilled + 1);  // Debug log
-            const enemy = this.enemies.get(enemyId);
-            if (enemy) {
-                enemy.remove();
-                this.enemies.delete(enemyId);
-                this.enemiesKilled++;
-                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
-            }
-        });
+        // Setup enemy events
+        this.setupEnemyEvents();
     }
 
     private createTitleScreen(): void {
@@ -287,6 +310,12 @@ export class Game {
         // Clear the renderer
         this.renderer.clear();
 
+        // Clear items
+        this.items.forEach(item => {
+            item.remove();
+        });
+        this.items.clear();
+
         // Reconnect to server to get a fresh connection
         if (this.socket) {
             this.socket.disconnect();
@@ -316,7 +345,7 @@ export class Game {
     private init(): void {
         // Setup renderer
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.body.appendChild(this.renderer.domElement);
 
         // Set background color to sky blue
@@ -361,11 +390,20 @@ export class Game {
                 inventory.getPetals().forEach(petal => petal.update());
             });
 
+            // Update all items
+            this.items.forEach(item => item.update());
+
             // Check petal collisions
             this.checkPetalCollisions();
 
             // Check enemy collisions with player
             this.checkEnemyCollisions();
+
+            // Check item collisions with player
+            this.checkItemCollisions();
+
+            // Update health regeneration
+            this.updateHealthRegeneration();
 
             // Update health bars
             this.playerHealthBars.forEach(healthBar => healthBar.updatePosition());
@@ -381,6 +419,19 @@ export class Game {
         }
 
         requestAnimationFrame(() => this.animate());
+    }
+
+    private updateHealthRegeneration(): void {
+        if (!this.socket?.id) return;
+
+        const currentTime = Date.now();
+        if (currentTime - this.lastHealTime >= this.HEAL_INTERVAL) {
+            const healthBar = this.playerHealthBars.get(this.socket.id);
+            if (healthBar) {
+                healthBar.heal(this.HEAL_AMOUNT);
+            }
+            this.lastHealTime = currentTime;
+        }
     }
 
     private createPlayer(playerId: string): void {
@@ -562,67 +613,28 @@ export class Game {
             }
         });
 
+        // Setup enemy events
+        this.setupEnemyEvents();
+
         // Wave and XP events
         this.socket.on('waveStart', (data: { wave: number }) => {
-            console.log('Wave start:', data.wave);  // Debug log
+            // Clear all existing enemies
+            this.enemies.forEach(enemy => {
+                enemy.remove();
+            });
+            this.enemies.clear();
+
+            // Reset wave stats
             this.currentWave = data.wave;
             this.enemiesKilled = 0;
             this.totalXP = 0;
             this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
         });
 
-        this.socket.on('enemyDied', (enemyId: string) => {
-            console.log('Enemy died, kills:', this.enemiesKilled + 1);  // Debug log
-            const enemy = this.enemies.get(enemyId);
-            if (enemy) {
-                enemy.remove();
-                this.enemies.delete(enemyId);
-                this.enemiesKilled++;
-                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
-            }
-        });
-
         this.socket.on('playerXP', (data: { id: string, xp: number }) => {
-            console.log('XP update:', data);  // Debug log
             if (this.socket?.id === data.id) {
                 this.totalXP = data.xp % this.XP_PER_WAVE;
                 this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
-            }
-        });
-
-        // Enemy events
-        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
-            const enemy = new Enemy(
-                this.scene,
-                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
-                this.camera,
-                data.type as EnemyType,
-                data.id
-            );
-            this.enemies.set(data.id, enemy);
-        });
-
-        this.socket.on('enemyMoved', (data: { id: string, position: { x: number, y: number, z: number }, rotation: number }) => {
-            const enemy = this.enemies.get(data.id);
-            if (enemy) {
-                enemy.updatePosition(data.position, data.rotation);
-            }
-        });
-
-        this.socket.on('enemyDamaged', (data: { id: string, health: number }) => {
-            const enemy = this.enemies.get(data.id);
-            if (enemy) {
-                enemy.takeDamage(data.health);
-            }
-        });
-
-        // Add respawn event handler
-        this.socket.on('playerRespawned', (data: { id: string, position: { x: number, y: number, z: number } }) => {
-            if (this.socket?.id === data.id) {
-                const player = this.players.get(data.id);
-                if (player) {
-                    player.position.set(data.position.x, data.position.y, data.position.z);
-                }
             }
         });
     }
@@ -788,6 +800,31 @@ export class Game {
         });
     }
 
+    private checkItemCollisions(): void {
+        if (!this.socket?.id) return;
+        
+        const player = this.players.get(this.socket.id);
+        if (!player) return;
+
+        this.items.forEach((item, itemId) => {
+            const itemPosition = item.getPosition();
+            const playerPosition = player.position;
+            const distance = itemPosition.distanceTo(playerPosition);
+            
+            // If player touches item
+            if (distance < 1.0) {
+                // Tell server we collected the item
+                this.socket?.emit('itemCollected', {
+                    itemId: item.getId()
+                });
+                
+                // Remove item locally
+                item.remove();
+                this.items.delete(itemId);
+            }
+        });
+    }
+
     private renderInventoryUI(): void {
         if (!this.socket?.id) return;
         const inventory = this.playerInventories.get(this.socket.id);
@@ -863,11 +900,6 @@ export class Game {
             this.currentWave = data.wave;
             this.enemiesKilled = 0;
             this.totalXP = 0;
-            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
-        });
-
-        this.socket.on('enemyDied', () => {
-            this.enemiesKilled++;
             this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
         });
 
@@ -1016,10 +1048,10 @@ export class Game {
 
             // Draw title text
             this.titleCtx.font = 'bold 64px Arial';
-            this.titleCtx.fillStyle = '#ff0000';
+            this.titleCtx.fillStyle = '#ffffff';
             this.titleCtx.textAlign = 'center';
             this.titleCtx.textBaseline = 'middle';
-            this.titleCtx.fillText('FLORR.IO', this.titleCanvas.width / 2, this.titleCanvas.height / 2 - 40);
+            this.titleCtx.fillText('florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 2 - 40);
 
             // Draw subtitle with floating animation
             this.titleCtx.font = '24px Arial';

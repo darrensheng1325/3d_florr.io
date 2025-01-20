@@ -377,8 +377,28 @@ io.on('connection', (socket) => {
             enemy.position.z += enemy.velocity.z;
             
             if (enemy.health <= 0) {
+                // Store position before any modifications
+                const deathPosition = {
+                    x: enemy.position.x,
+                    y: enemy.position.y,
+                    z: enemy.position.z
+                };
+                
+                // Remove enemy first
                 enemies.delete(enemyId);
-                io.emit('enemyDied', enemyId);
+                
+                // Determine item drop (50% chance)
+                let itemType: string = 'cube';
+                if (Math.random() < 0.5) {
+                    itemType = Math.random() < 0.7 ? 'tetrahedron' : 'cube';
+                }
+                
+                // Emit death with item drop info
+                io.emit('enemyDied', {
+                    enemyId,
+                    position: deathPosition,
+                    itemType
+                });
                 
                 // Distribute XP and update wave progress
                 distributeXP(ENEMY_STATS[enemy.type].xp);
