@@ -861,6 +861,28 @@ export class Game {
 
             // Update container style based on active state
             container.style.backgroundColor = slot.isActive ? 'rgba(255, 107, 107, 0.2)' : 'rgba(255, 255, 255, 0.2)';
+            container.style.cursor = 'pointer';  // Add cursor pointer
+
+            // Add click handler to the container
+            container.onclick = () => {
+                if (!this.socket?.id) return;
+                const inventory = this.playerInventories.get(this.socket.id);
+                if (!inventory || !slot.petal) return;
+
+                // Get the petal type before removing it
+                const petalType = slot.petal.getType();
+                
+                // Remove the petal from the slot
+                inventory.removePetal(index);
+                
+                // Add it back to collected petals
+                this.collectedPetals.push(petalType);
+                
+                // Update inventory display if open
+                if (this.isInventoryOpen) {
+                    this.updateInventoryDisplay();
+                }
+            };
 
             // Clear previous petal preview if any
             while (scene.children.length > 2) { // Keep lights (ambient and point)
@@ -1219,7 +1241,7 @@ export class Game {
             slot.style.backgroundColor = 'rgba(200, 200, 200, 0.5)';
             slot.style.padding = '5px';
             slot.style.borderRadius = '5px';
-            slot.style.cursor = 'grab';
+            slot.style.cursor = 'pointer';
             slot.style.position = 'relative';
             slot.style.height = '50px';
             slot.style.border = '2px solid #666';
@@ -1262,15 +1284,29 @@ export class Game {
                 animate();
             }
 
-            // Add drag event listeners
-            slot.addEventListener('dragstart', (e) => {
-                if (!e.dataTransfer) return;
-                e.dataTransfer.setData('text/plain', petalType);
-                slot.style.opacity = '0.5';
-            });
+            // Add click event listener
+            slot.addEventListener('click', () => {
+                if (!this.socket?.id) return;
+                const inventory = this.playerInventories.get(this.socket.id);
+                if (!inventory) return;
 
-            slot.addEventListener('dragend', () => {
-                slot.style.opacity = '1';
+                // Find the first empty slot
+                const slots = inventory.getSlots();
+                const emptySlotIndex = slots.findIndex(slot => !slot.petal);
+                
+                if (emptySlotIndex !== -1) {
+                    // Add petal to the empty slot
+                    inventory.addPetal(petalType, emptySlotIndex);
+                    
+                    // Remove one from collected petals
+                    const petalIndex = this.collectedPetals.findIndex(p => p === petalType);
+                    if (petalIndex !== -1) {
+                        this.collectedPetals.splice(petalIndex, 1);
+                    }
+                    
+                    // Update inventory display
+                    this.updateInventoryDisplay();
+                }
             });
 
             grid.appendChild(slot);
@@ -1288,51 +1324,13 @@ export class Game {
         const inventory = this.playerInventories.get(this.socket.id);
         if (inventory) {
             inventory.getSlots().forEach((slot, index) => {
-                const slotElement = document.createElement('div');
-                slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.3)';
-                slotElement.style.padding = '5px';
-                slotElement.style.borderRadius = '5px';
-                slotElement.style.height = '50px';
-                slotElement.style.border = '2px dashed #666';
-                slotElement.style.position = 'relative';
-
-                // Add drop event listeners
-                slotElement.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.6)';
-                });
-
-                slotElement.addEventListener('dragleave', () => {
-                    slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.3)';
-                });
-
-                slotElement.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.3)';
-                    
-                    const petalType = e.dataTransfer?.getData('text/plain') as PetalType;
-                    if (petalType && inventory) {
-                        inventory.addPetal(petalType, index);
-                        
-                        // Remove one from collected petals
-                        const petalIndex = this.collectedPetals.findIndex(p => p === petalType);
-                        if (petalIndex !== -1) {
-                            this.collectedPetals.splice(petalIndex, 1);
-                        }
-                        this.updateInventoryDisplay();
-                    }
-                });
-
                 // Show current petal if exists
                 if (slot.petal) {
                     const preview = this.inventoryPreviews.get(slot.petal.getType());
                     if (preview) {
                         const { renderer } = preview;
-                        slotElement.appendChild(renderer.domElement.cloneNode(true));
                     }
                 }
-
-                inventoryGrid.appendChild(slotElement);
             });
         }
     }
