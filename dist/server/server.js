@@ -30,7 +30,6 @@ const ENEMIES_PER_WAVE = 20;
 const XP_PER_WAVE = 1000;
 const WAVE_SPAWN_INTERVAL = 1000; // Spawn enemy every second during wave
 let waveSpawnInterval = null;
-// Enemy stats
 const ENEMY_STATS = {
     ladybug: {
         health: 50,
@@ -47,6 +46,22 @@ const ENEMY_STATS = {
         damage: 8,
         size: 0.4,
         xp: 200
+    },
+    centipede: {
+        health: 40,
+        speed: 0.02,
+        passiveSpeed: 0.01,
+        damage: 15,
+        size: 0.3,
+        xp: 300
+    },
+    centipede_segment: {
+        health: 25,
+        speed: 0.02,
+        passiveSpeed: 0.01,
+        damage: 10,
+        size: 0.3,
+        xp: 150
     }
 };
 // Serve static files from dist directory
@@ -55,156 +70,169 @@ app.use(express_1.default.static(path_1.default.join(__dirname, '../../dist')));
 app.get('*', (req, res) => {
     res.sendFile(path_1.default.join(__dirname, '../../dist/index.html'));
 });
-function spawnEnemy() {
-    const id = `enemy_${enemyIdCounter++}`;
-    const type = Math.random() < 0.7 ? 'ladybug' : 'bee';
-    // Spawn at random edge of map
-    const edge = Math.floor(Math.random() * 4);
-    let x, z;
-    switch (edge) {
-        case 0:
-            x = -MAP_SIZE;
-            z = (Math.random() * 2 - 1) * MAP_SIZE;
-            break;
-        case 1:
-            x = MAP_SIZE;
-            z = (Math.random() * 2 - 1) * MAP_SIZE;
-            break;
-        case 2:
-            x = (Math.random() * 2 - 1) * MAP_SIZE;
-            z = -MAP_SIZE;
-            break;
-        case 3:
-            x = (Math.random() * 2 - 1) * MAP_SIZE;
-            z = MAP_SIZE;
-            break;
-        default:
-            x = -MAP_SIZE;
-            z = -MAP_SIZE;
+function generateId() {
+    return `enemy_${enemyIdCounter++}`;
+}
+function spawnEnemy(type, position) {
+    const id = generateId();
+    const isAggressive = false; // All enemies start passive
+    let health = ENEMY_STATS[type].health;
+    if (type === 'centipede') {
+        console.log('Creating centipede...');
+        // Calculate spawn direction and adjust position to ensure all segments fit
+        let directionX = 0, directionZ = 0;
+        const segmentCount = 4;
+        const segmentSpacing = 0.6;
+        const totalLength = segmentSpacing * segmentCount;
+        // Adjust spawn position based on edge to ensure entire centipede fits
+        if (position.x === -MAP_SIZE) {
+            directionX = 1;
+            directionZ = 0;
+            position.x += totalLength; // Move spawn point inward by centipede length
+        }
+        else if (position.x === MAP_SIZE) {
+            directionX = -1;
+            directionZ = 0;
+            position.x -= totalLength; // Move spawn point inward by centipede length
+        }
+        else if (position.z === -MAP_SIZE) {
+            directionX = 0;
+            directionZ = 1;
+            position.z += totalLength; // Move spawn point inward by centipede length
+        }
+        else {
+            directionX = 0;
+            directionZ = -1;
+            position.z -= totalLength; // Move spawn point inward by centipede length
+        }
+        // Spawn head segment at adjusted position
+        const headId = generateId();
+        const headEnemy = {
+            id: headId,
+            type: 'centipede',
+            position: { ...position },
+            health: ENEMY_STATS.centipede.health,
+            isAggressive: false,
+            segments: [],
+            velocity: { x: 0, y: 0, z: 0 },
+            wanderAngle: Math.random() * Math.PI * 2,
+            wanderTime: Date.now() + 2000 + Math.random() * 2000
+        };
+        enemies.set(headId, headEnemy);
+        console.log('Created centipede head:', headId);
+        io.emit('enemySpawned', {
+            id: headId,
+            type: 'centipede',
+            position: headEnemy.position,
+            health: headEnemy.health,
+            isAggressive: false
+        });
+        // Spawn body segments
+        let lastSegmentPos = { ...position };
+        for (let i = 0; i < segmentCount; i++) {
+            const segmentId = generateId();
+            console.log('Creating segment', i + 1, 'with ID:', segmentId);
+            // Position segments in a straight line behind the head
+            lastSegmentPos = {
+                x: position.x - directionX * segmentSpacing * (i + 1),
+                y: position.y,
+                z: position.z - directionZ * segmentSpacing * (i + 1)
+            };
+            const segmentEnemy = {
+                id: segmentId,
+                type: 'centipede_segment',
+                position: lastSegmentPos,
+                health: ENEMY_STATS.centipede_segment.health,
+                isAggressive: false,
+                centipedeId: headId,
+                followsId: i === 0 ? headId : headEnemy.segments[i - 1],
+                velocity: { x: 0, y: 0, z: 0 },
+                wanderAngle: Math.random() * Math.PI * 2,
+                wanderTime: Date.now() + 2000 + Math.random() * 2000,
+                segments: []
+            };
+            enemies.set(segmentId, segmentEnemy);
+            headEnemy.segments.push(segmentId);
+            io.emit('enemySpawned', {
+                id: segmentId,
+                type: 'centipede_segment',
+                position: segmentEnemy.position,
+                health: segmentEnemy.health,
+                isAggressive: false
+            });
+        }
+        console.log('Centipede creation complete. Head:', headId, 'Segments:', headEnemy.segments);
+        return;
     }
     const enemy = {
         id,
         type,
-        position: { x, y: ENEMY_STATS[type].size, z },
-        health: ENEMY_STATS[type].health,
+        position,
+        health,
+        isAggressive: false, // Ensure regular enemies are passive
         velocity: { x: 0, y: 0, z: 0 },
-        isAggressive: false, // Make all enemies start passive
         wanderAngle: Math.random() * Math.PI * 2,
-        wanderTime: Date.now() + 2000 + Math.random() * 2000 // Random time between 2-4 seconds
+        wanderTime: Date.now() + 2000 + Math.random() * 2000,
+        segments: []
     };
     enemies.set(id, enemy);
-    io.emit('enemySpawned', { id, type, position: enemy.position });
+    io.emit('enemySpawned', {
+        id: enemy.id,
+        type: enemy.type,
+        position: enemy.position,
+        health: enemy.health,
+        isAggressive: false
+    });
 }
 function updateEnemies() {
     const currentTime = Date.now();
     enemies.forEach((enemy, enemyId) => {
-        if (!enemy.isAggressive) {
-            // Passive wandering behavior
+        // Skip all movement for centipedes and their segments
+        if (enemy.type !== 'centipede' && enemy.type !== 'centipede_segment') {
+            // Only passive wandering behavior for non-centipede enemies
+            // Update wander direction periodically
             if (currentTime >= enemy.wanderTime) {
-                // Change direction and set new wander time
-                enemy.wanderAngle += (Math.random() * Math.PI / 2 + Math.PI / 4) * (Math.random() < 0.5 ? 1 : -1);
+                enemy.wanderAngle = Math.random() * Math.PI * 2;
                 enemy.wanderTime = currentTime + 2000 + Math.random() * 2000;
             }
-            // Move in current wander direction
             const speed = ENEMY_STATS[enemy.type].passiveSpeed;
-            const dirX = Math.cos(enemy.wanderAngle);
-            const dirZ = Math.sin(enemy.wanderAngle);
-            // Update position
-            let newX = enemy.position.x + dirX * speed;
-            let newZ = enemy.position.z + dirZ * speed;
-            // Bounce off map boundaries
-            if (newX <= -MAP_SIZE || newX >= MAP_SIZE) {
-                enemy.wanderAngle = Math.PI - enemy.wanderAngle;
-                newX = enemy.position.x;
-            }
-            if (newZ <= -MAP_SIZE || newZ >= MAP_SIZE) {
-                enemy.wanderAngle = -enemy.wanderAngle;
-                newZ = enemy.position.z;
-            }
-            enemy.position.x = newX;
-            enemy.position.z = newZ;
-            // Emit position update with rotation
+            enemy.position.x += Math.cos(enemy.wanderAngle) * speed;
+            enemy.position.z += Math.sin(enemy.wanderAngle) * speed;
+            // Keep within map bounds
+            enemy.position.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.x));
+            enemy.position.z = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.z));
             io.emit('enemyMoved', {
                 id: enemyId,
                 position: enemy.position,
                 rotation: enemy.wanderAngle - Math.PI / 2
             });
-            return;
         }
-        // Aggressive behavior (existing code)
-        if (!enemy.target || !players.has(enemy.target)) {
-            let nearestDistance = Infinity;
-            let nearestPlayer = null;
-            players.forEach((player, playerId) => {
-                const dx = player.position.x - enemy.position.x;
-                const dz = player.position.z - enemy.position.z;
-                const distance = Math.sqrt(dx * dx + dz * dz);
-                if (distance < nearestDistance) {
-                    nearestDistance = distance;
-                    nearestPlayer = playerId;
-                }
-            });
-            if (nearestPlayer) {
-                enemy.target = nearestPlayer;
-            }
-        }
-        // Move towards target
-        const targetPlayer = enemy.target ? players.get(enemy.target) : null;
-        if (targetPlayer) {
-            const dx = targetPlayer.position.x - enemy.position.x;
-            const dz = targetPlayer.position.z - enemy.position.z;
-            const distance = Math.sqrt(dx * dx + dz * dz);
-            if (distance > 0) {
-                const speed = ENEMY_STATS[enemy.type].speed;
-                const dirX = dx / distance;
-                const dirZ = dz / distance;
-                enemy.position.x += dirX * speed;
-                enemy.position.z += dirZ * speed;
-                // Apply velocity (for knockback)
-                enemy.position.x += enemy.velocity.x;
-                enemy.position.z += enemy.velocity.z;
-                enemy.velocity.x *= 0.37; // knockback resistance
-                enemy.velocity.z *= 0.37;
-                // Keep y position constant
-                enemy.position.y = ENEMY_STATS[enemy.type].size;
-                // Calculate rotation (sent to clients)
-                const rotation = Math.atan2(dirX, dirZ) - Math.PI / 2;
-                // Emit position update
-                io.emit('enemyMoved', {
-                    id: enemyId,
-                    position: enemy.position,
-                    rotation
-                });
-                // Check for collision with target
-                const PLAYER_RADIUS = 0.5; // Player sphere radius
-                const enemyRadius = ENEMY_STATS[enemy.type].size;
-                const collisionDistance = PLAYER_RADIUS + enemyRadius;
-                if (distance < collisionDistance && enemy.target) {
-                    const player = players.get(enemy.target);
-                    if (player) {
-                        // Calculate bounce direction
-                        const bounceX = (enemy.position.x - player.position.x) / distance;
-                        const bounceZ = (enemy.position.z - player.position.z) / distance;
-                        // Move enemy out of collision
-                        enemy.position.x = player.position.x + bounceX * collisionDistance;
-                        enemy.position.z = player.position.z + bounceZ * collisionDistance;
-                        // Deal damage
-                        player.health -= ENEMY_STATS[enemy.type].damage;
-                        io.emit('playerDamaged', {
-                            id: enemy.target,
-                            health: player.health
-                        });
-                        // Apply knockback to enemy
-                        const bounceForce = 0.2;
-                        enemy.velocity.x = bounceX * bounceForce;
-                        enemy.velocity.z = bounceZ * bounceForce;
-                        // Send updated position after bounce
-                        io.emit('enemyMoved', {
-                            id: enemyId,
-                            position: enemy.position,
-                            rotation: Math.atan2(bounceX, bounceZ) - Math.PI / 2
-                        });
-                    }
+        // Update centipede segment positions to follow their leader
+        if (enemy.type === 'centipede_segment' && enemy.followsId) {
+            const leader = enemies.get(enemy.followsId);
+            if (leader) {
+                const dx = leader.position.x - enemy.position.x;
+                const dy = leader.position.y - enemy.position.y;
+                const dz = leader.position.z - enemy.position.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                // Each segment should be exactly one segment length away
+                const segmentLength = 0.6;
+                if (distance > segmentLength * 1.1 || distance < segmentLength * 0.9) {
+                    // Calculate the exact position where this segment should be
+                    const dirX = dx / distance;
+                    const dirZ = dz / distance;
+                    // Set position directly behind leader
+                    enemy.position.x = leader.position.x - dirX * segmentLength;
+                    enemy.position.z = leader.position.z - dirZ * segmentLength;
+                    enemy.position.y = leader.position.y;
+                    // Calculate rotation to face movement direction
+                    const rotation = Math.atan2(dx, dz);
+                    // Emit position update
+                    io.emit('enemyMoved', {
+                        id: enemyId,
+                        position: enemy.position,
+                        rotation: rotation
+                    });
                 }
             }
         }
@@ -230,7 +258,7 @@ function startNewWave() {
     waveSpawnInterval = setInterval(() => {
         // Only spawn if we haven't reached the wave limit
         if (enemiesSpawnedInWave < ENEMIES_PER_WAVE) {
-            spawnEnemy();
+            spawnRandomEnemy();
             enemiesSpawnedInWave++;
             // If we've spawned all enemies, clear the interval
             if (enemiesSpawnedInWave >= ENEMIES_PER_WAVE) {
@@ -256,6 +284,41 @@ function distributeXP(amount) {
         startNewWave();
     }
 }
+function spawnRandomEnemy() {
+    // Spawn at random edge of map
+    const edge = Math.floor(Math.random() * 4);
+    let x, z;
+    switch (edge) {
+        case 0:
+            x = -MAP_SIZE;
+            z = (Math.random() * 2 - 1) * MAP_SIZE;
+            break;
+        case 1:
+            x = MAP_SIZE;
+            z = (Math.random() * 2 - 1) * MAP_SIZE;
+            break;
+        case 2:
+            x = (Math.random() * 2 - 1) * MAP_SIZE;
+            z = -MAP_SIZE;
+            break;
+        case 3:
+            x = (Math.random() * 2 - 1) * MAP_SIZE;
+            z = MAP_SIZE;
+            break;
+        default:
+            x = -MAP_SIZE;
+            z = -MAP_SIZE;
+    }
+    // Randomly choose enemy type with more balanced weights
+    const rand = Math.random();
+    const type = rand < 0.4 ? 'ladybug' : (rand < 0.7 ? 'bee' : 'centipede');
+    console.log('Spawning enemy:', type); // Add debug logging
+    spawnEnemy(type, {
+        x,
+        y: ENEMY_STATS[type].size,
+        z
+    });
+}
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
     // Store new player with XP
@@ -280,7 +343,9 @@ io.on('connection', (socket) => {
         socket.emit('enemySpawned', {
             id: enemy.id,
             type: enemy.type,
-            position: enemy.position
+            position: enemy.position,
+            health: enemy.health,
+            isAggressive: enemy.isAggressive
         });
     });
     // Broadcast to other players that a new player has joined

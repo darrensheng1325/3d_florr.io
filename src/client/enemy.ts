@@ -5,7 +5,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 export enum EnemyType {
     LADYBUG = 'ladybug',
-    BEE = 'bee'
+    BEE = 'bee',
+    CENTIPEDE = 'centipede',
+    CENTIPEDE_SEGMENT = 'centipede_segment'  // For the body segments
 }
 
 interface EnemyStats {
@@ -21,6 +23,14 @@ const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
     [EnemyType.BEE]: {
         health: 30,
         size: 0.4
+    },
+    [EnemyType.CENTIPEDE]: {
+        health: 40,
+        size: 0.3
+    },
+    [EnemyType.CENTIPEDE_SEGMENT]: {
+        health: 25,
+        size: 0.3
     }
 };
 
@@ -31,12 +41,20 @@ export class Enemy {
     private type: EnemyType;
     private id: string;
     private static gltfLoader = new GLTFLoader();
+    private health: number;
+    private isAggressive: boolean;
+    private camera: THREE.Camera;
 
-    constructor(scene: THREE.Scene, position: THREE.Vector3, camera: THREE.Camera, type: EnemyType, id: string) {
+    constructor(scene: THREE.Scene, position: THREE.Vector3, camera: THREE.Camera, type: EnemyType, id: string, health: number, isAggressive: boolean) {
         this.type = type;
         this.id = id;
         this.scene = scene;
-        
+        this.camera = camera;
+        this.health = health;
+        this.isAggressive = isAggressive;
+        this.mesh = new THREE.Mesh(); // Initialize with empty mesh
+        this.createModel();
+
         const stats = ENEMY_STATS[type];
 
         if (type === EnemyType.LADYBUG) {
@@ -56,7 +74,7 @@ export class Enemy {
                 side: THREE.FrontSide
             });
             this.mesh = new THREE.Mesh(geometry, material);
-        } else {
+        } else if (type === EnemyType.BEE) {
             // For bees, create an invisible mesh as the base while we load the model
             const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
             const material = new THREE.MeshBasicMaterial({ visible: false });
@@ -99,6 +117,29 @@ export class Enemy {
                     console.error('Error loading bee model:', error);
                 }
             );
+        } else if (type === EnemyType.CENTIPEDE || type === EnemyType.CENTIPEDE_SEGMENT) {
+            // Create the main sphere for the body segment
+            const geometry = new THREE.SphereGeometry(stats.size);
+            const material = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+            this.mesh = new THREE.Mesh(geometry, material);
+
+            // Add antennae only for the head segment
+            if (type === EnemyType.CENTIPEDE) {
+                const antennaGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.4);
+                const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+                
+                // Left antenna
+                const leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+                leftAntenna.position.set(-0.15, 0.2, 0);
+                leftAntenna.rotation.z = Math.PI / 4;
+                this.mesh.add(leftAntenna);
+                
+                // Right antenna
+                const rightAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+                rightAntenna.position.set(0.15, 0.2, 0);
+                rightAntenna.rotation.z = -Math.PI / 4;
+                this.mesh.add(rightAntenna);
+            }
         }
 
         this.mesh.position.copy(position);
@@ -109,6 +150,95 @@ export class Enemy {
 
         // Add decorative elements based on type
         this.addDecorativeElements();
+    }
+
+    private createModel(): void {
+        const stats = ENEMY_STATS[this.type];
+        
+        if (this.type === EnemyType.LADYBUG) {
+            // Create the base mesh with appropriate material based on type
+            const geometry = new THREE.SphereGeometry(stats.size, 64, 32);
+            // Load the SVG texture with clean mapping
+            const texture = new THREE.TextureLoader().load(ladybugSvg);
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.center.set(0.5, 0.5);
+            texture.rotation = 0;
+
+            const material = new THREE.MeshBasicMaterial({
+                map: texture,
+                side: THREE.FrontSide
+            });
+            this.mesh = new THREE.Mesh(geometry, material);
+        } else if (this.type === EnemyType.BEE) {
+            // For bees, create an invisible mesh as the base while we load the model
+            const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+            const material = new THREE.MeshBasicMaterial({ visible: false });
+            this.mesh = new THREE.Mesh(geometry, material);
+            
+            // Load the bee model
+            Enemy.gltfLoader.load(
+                '/bee.glb',
+                (gltf) => {
+                    console.log('Bee model loaded successfully');
+                    const model = gltf.scene;
+                    
+                    // Apply MeshBasicMaterial to all meshes in the model
+                    model.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            const oldMaterial = child.material as THREE.MeshStandardMaterial;
+                            // Create a flat, unlit material that ignores lighting
+                            const newMaterial = new THREE.MeshBasicMaterial({
+                                color: oldMaterial.color,
+                                map: oldMaterial.map,
+                                side: THREE.DoubleSide,  // Render both sides
+                                toneMapped: false,       // Disable tone mapping
+                                fog: false               // Disable fog effect
+                            });
+                            child.material = newMaterial;
+                        }
+                    });
+
+                    // Scale the model to match our game size
+                    model.scale.set(0.5, 0.5, 0.5);
+                    // Rotate 90 degrees to the right
+                    model.rotation.y = -Math.PI / 2;
+                    // Add the model to our base mesh
+                    this.mesh.add(model);
+                },
+                (progress) => {
+                    console.log('Loading bee model:', (progress.loaded / progress.total * 100) + '%');
+                },
+                (error) => {
+                    console.error('Error loading bee model:', error);
+                }
+            );
+        } else if (this.type === EnemyType.CENTIPEDE || this.type === EnemyType.CENTIPEDE_SEGMENT) {
+            // Create the main sphere for the body segment
+            const geometry = new THREE.SphereGeometry(stats.size);
+            const material = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+            this.mesh = new THREE.Mesh(geometry, material);
+
+            // Add antennae only for the head segment
+            if (this.type === EnemyType.CENTIPEDE) {
+                const antennaGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.4);
+                const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+                
+                // Left antenna
+                const leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+                leftAntenna.position.set(-0.15, 0.2, 0);
+                leftAntenna.rotation.z = Math.PI / 4;
+                this.mesh.add(leftAntenna);
+                
+                // Right antenna
+                const rightAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+                rightAntenna.position.set(0.15, 0.2, 0);
+                rightAntenna.rotation.z = -Math.PI / 4;
+                this.mesh.add(rightAntenna);
+            }
+        }
     }
 
     protected getBaseColor(): number {

@@ -159,13 +159,15 @@ export class Game {
         if (!this.socket) return;
 
         // Handle enemies
-        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
+        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number }, health: number, isAggressive: boolean }) => {
             const enemy = new Enemy(
                 this.scene,
                 new THREE.Vector3(data.position.x, data.position.y, data.position.z),
                 this.camera,
                 data.type as EnemyType,
-                data.id
+                data.id,
+                data.health,
+                data.isAggressive
             );
             this.enemies.set(data.id, enemy);
         });
@@ -956,9 +958,8 @@ export class Game {
 
                 // Create a preview petal mesh using a sphere
                 const geometry = new THREE.SphereGeometry(0.4, 32, 32);
-                const material = new THREE.MeshPhongMaterial({ 
+                const material = new THREE.MeshBasicMaterial({ 
                     color: 0xffffff,
-                    shininess: 100,
                     opacity: slot.petal.isBrokenState() ? 0.3 : 1.0,
                     transparent: true
                 });
@@ -1214,23 +1215,20 @@ export class Game {
             switch (type) {
                 case PetalType.TETRAHEDRON:
                     geometry = new THREE.TetrahedronGeometry(0.8);
-                    material = new THREE.MeshPhongMaterial({ 
+                    material = new THREE.MeshBasicMaterial({ 
                         color: 0xff0000,
-                        shininess: 100
                     });
                     break;
                 case PetalType.CUBE:
                     geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-                    material = new THREE.MeshPhongMaterial({ 
+                    material = new THREE.MeshBasicMaterial({ 
                         color: 0x0000ff,
-                        shininess: 100
                     });
                     break;
                 default:
                     geometry = new THREE.SphereGeometry(0.8, 32, 32);
-                    material = new THREE.MeshPhongMaterial({ 
+                    material = new THREE.MeshBasicMaterial({ 
                         color: 0xffffff,
-                        shininess: 100
                     });
             }
 
