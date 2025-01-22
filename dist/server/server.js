@@ -88,7 +88,7 @@ function spawnEnemy() {
         position: { x, y: ENEMY_STATS[type].size, z },
         health: ENEMY_STATS[type].health,
         velocity: { x: 0, y: 0, z: 0 },
-        isAggressive: type === 'bee',
+        isAggressive: false, // Make all enemies start passive
         wanderAngle: Math.random() * Math.PI * 2,
         wanderTime: Date.now() + 2000 + Math.random() * 2000 // Random time between 2-4 seconds
     };
@@ -310,6 +310,7 @@ io.on('connection', (socket) => {
         const enemy = enemies.get(enemyId);
         if (enemy) {
             enemy.health -= damage;
+            // Only ladybugs become aggressive when hit
             if (enemy.type === 'ladybug' && !enemy.isAggressive) {
                 enemy.isAggressive = true;
                 enemy.target = socket.id;

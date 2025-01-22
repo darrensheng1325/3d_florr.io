@@ -1124,7 +1124,7 @@ export class Game {
         menu.style.bottom = '20px';
         menu.style.left = '20px';
         menu.style.width = '300px';
-        menu.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        menu.style.backgroundColor = '#589ad4';
         menu.style.padding = '15px';
         menu.style.borderRadius = '10px';
         menu.style.display = 'none';
@@ -1137,6 +1137,7 @@ export class Game {
         title.style.textAlign = 'left';
         title.style.marginBottom = '15px';
         title.style.fontSize = '18px';
+        title.style.color = 'white';
         menu.appendChild(title);
 
         // Create grid container for petals
@@ -1238,13 +1239,13 @@ export class Game {
         // Add each group to the grid
         groupedPetals.forEach((count, petalType) => {
             const slot = document.createElement('div');
-            slot.style.backgroundColor = 'rgba(200, 200, 200, 0.5)';
+            slot.style.backgroundColor = 'rgba(119, 234, 101, 1)';
             slot.style.padding = '5px';
             slot.style.borderRadius = '5px';
             slot.style.cursor = 'pointer';
             slot.style.position = 'relative';
             slot.style.height = '50px';
-            slot.style.border = '2px solid #666';
+            slot.style.border = '2px solid #5fbb50';
             slot.draggable = true;
             slot.setAttribute('data-type', petalType);
 
