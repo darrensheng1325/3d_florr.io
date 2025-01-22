@@ -45,6 +45,16 @@ export class Inventory {
 
         // Create new petal
         const petal = new Petal(this.scene, this.parent, slotIndex, this.slots.length, type);
+        
+        // Set up respawn callback to reequip petal
+        petal.setRespawnCallback(() => {
+            // Remove the broken petal
+            this.removePetal(slotIndex);
+            
+            // Create and add a fresh petal of the same type
+            this.addPetal(type, slotIndex);
+        });
+        
         this.slots[slotIndex].petal = petal;
 
         // Recalculate positions for all petals
@@ -54,6 +64,15 @@ export class Inventory {
                 const petalType = slot.petal.getType();
                 slot.petal.remove(this.scene);
                 slot.petal = new Petal(this.scene, this.parent, index, this.slots.length, petalType);
+                
+                // Set up respawn callback for the new petal
+                slot.petal.setRespawnCallback(() => {
+                    // Remove the broken petal
+                    this.removePetal(index);
+                    
+                    // Create and add a fresh petal of the same type
+                    this.addPetal(petalType, index);
+                });
             }
         });
 

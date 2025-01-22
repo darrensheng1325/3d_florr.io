@@ -1,6 +1,22 @@
 import * as THREE from 'three';
 import { PetalType } from './inventory';
 
+// Stats for different petal types
+const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: number }> = {
+    'basic': {
+        maxHealth: 50,
+        cooldownTime: 3000, // 3 seconds
+    },
+    'tetrahedron': {
+        maxHealth: 100,
+        cooldownTime: 5000, // 5 seconds
+    },
+    'cube': {
+        maxHealth: 75,
+        cooldownTime: 4000, // 4 seconds
+    }
+};
+
 export class Petal {
     private mesh: THREE.Mesh;
     private currentRadius: number = 1.5;
@@ -16,6 +32,14 @@ export class Petal {
     private index: number;
     private totalPetals: number;
     private type: PetalType;
+    private onRespawn: (() => void) | null = null;  // Callback for respawn
+    
+    // New attributes
+    private isBroken: boolean = false;
+    private health: number;
+    private maxHealth: number;
+    private cooldownTime: number;
+    private breakTime: number = 0;
 
     constructor(scene: THREE.Scene, parent: THREE.Mesh, index: number, totalPetals: number, type: PetalType = PetalType.BASIC) {
         this.scene = scene;
@@ -23,6 +47,12 @@ export class Petal {
         this.index = index;
         this.totalPetals = totalPetals;
         this.type = type;
+
+        // Initialize health and cooldown stats
+        const stats = PETAL_STATS[type];
+        this.maxHealth = stats.maxHealth;
+        this.health = this.maxHealth;
+        this.cooldownTime = stats.cooldownTime;
 
         // Create petal mesh with properties based on type
         let geometry: THREE.BufferGeometry;
@@ -71,6 +101,17 @@ export class Petal {
     }
 
     public update(): void {
+        // Check if broken petal should respawn
+        if (this.isBroken) {
+            if (Date.now() - this.breakTime >= this.cooldownTime) {
+                this.respawn();
+            } else {
+                // Keep broken petal hidden
+                this.mesh.visible = false;
+                return;
+            }
+        }
+
         this.angle += this.orbitSpeed;
         
         // Smoothly transition between base and expanded radius
@@ -78,10 +119,13 @@ export class Petal {
         this.currentRadius += (targetRadius - this.currentRadius) * this.transitionSpeed;
         
         this.updatePosition();
+        this.mesh.visible = true;
     }
 
     public expand(): void {
-        this.isExpanded = true;
+        if (!this.isBroken) {
+            this.isExpanded = true;
+        }
     }
 
     public contract(): void {
@@ -102,5 +146,45 @@ export class Petal {
 
     public getPosition(): THREE.Vector3 {
         return this.mesh.position;
+    }
+
+    public takeDamage(amount: number): void {
+        if (this.isBroken) return;
+
+        this.health -= amount;
+        if (this.health <= 0) {
+            this.break();
+        }
+    }
+
+    private break(): void {
+        this.isBroken = true;
+        this.breakTime = Date.now();
+        this.mesh.visible = false;
+        this.isExpanded = false;
+    }
+
+    private respawn(): void {
+        // Call respawn callback if set
+        if (this.onRespawn) {
+            this.onRespawn();
+        }
+        
+        this.isBroken = false;
+        this.health = this.maxHealth;
+        this.mesh.visible = true;
+    }
+
+    // Add method to set respawn callback
+    public setRespawnCallback(callback: () => void): void {
+        this.onRespawn = callback;
+    }
+
+    public isBrokenState(): boolean {
+        return this.isBroken;
+    }
+
+    public getHealthPercent(): number {
+        return (this.health / this.maxHealth) * 100;
     }
 } 

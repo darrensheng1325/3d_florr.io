@@ -772,6 +772,8 @@ export class Game {
         const petals = inventory.getPetals();
         this.enemies.forEach((enemy) => {
             petals.forEach(petal => {
+                if (petal.isBrokenState()) return;  // Skip broken petals
+                
                 const petalPosition = petal.getPosition();
                 const enemyPosition = enemy.getPosition();
                 const distance = petalPosition.distanceTo(enemyPosition);
@@ -788,6 +790,9 @@ export class Game {
                         damage: 5,
                         knockback: { x: knockbackDir.x, z: knockbackDir.z }
                     });
+
+                    // Make petal take damage on collision
+                    petal.takeDamage(10);  // Petals take 10 damage per hit
                 }
             });
         });
@@ -913,12 +918,49 @@ export class Game {
             nameText.textContent = slot.petal ? slot.petal.getType() : '';
 
             if (slot.petal) {
+                // Create health bar
+                let healthBar = container.querySelector('.petal-health') as HTMLDivElement | null;
+                if (!healthBar) {
+                    healthBar = document.createElement('div');
+                    healthBar.className = 'petal-health';
+                    healthBar.style.position = 'absolute';
+                    healthBar.style.top = '5px';
+                    healthBar.style.left = '5px';
+                    healthBar.style.right = '5px';
+                    healthBar.style.height = '4px';
+                    healthBar.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+                    healthBar.style.borderRadius = '2px';
+                    container.appendChild(healthBar);
+
+                    const healthFill = document.createElement('div');
+                    healthFill.style.height = '100%';
+                    healthFill.style.width = '100%';
+                    healthFill.style.backgroundColor = '#2ecc71';
+                    healthFill.style.borderRadius = '2px';
+                    healthFill.style.transition = 'width 0.2s ease-out';
+                    healthBar.appendChild(healthFill);
+                }
+
+                // Update health bar
+                const healthFill = healthBar.firstChild as HTMLDivElement;
+                if (slot.petal.isBrokenState()) {
+                    healthFill.style.width = '0%';
+                    healthFill.style.backgroundColor = '#e74c3c';
+                    container.style.opacity = '0.5';
+                } else {
+                    const healthPercent = slot.petal.getHealthPercent();
+                    healthFill.style.width = `${healthPercent}%`;
+                    healthFill.style.backgroundColor = healthPercent > 50 ? '#2ecc71' : '#e74c3c';
+                    container.style.opacity = '1';
+                }
+
                 // Create a preview petal mesh using a sphere
                 const geometry = new THREE.SphereGeometry(0.4, 32, 32);
                 const material = new THREE.MeshPhongMaterial({ 
                     color: 0xffffff,
                     shininess: 100,
-                    opacity: 1.0
+                    opacity: slot.petal.isBrokenState() ? 0.3 : 1.0,
+                    transparent: true
                 });
                 const petalMesh = new THREE.Mesh(geometry, material);
                 scene.add(petalMesh);
