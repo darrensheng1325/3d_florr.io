@@ -24,18 +24,46 @@ export class Petal {
         this.totalPetals = totalPetals;
         this.type = type;
 
-        // Create petal mesh
-        const geometry = new THREE.SphereGeometry(0.2, 32, 32);
+        // Create petal mesh with properties based on type
+        let geometry: THREE.BufferGeometry;
+        switch (type) {
+            case PetalType.TETRAHEDRON:
+                geometry = new THREE.TetrahedronGeometry(0.2);
+                break;
+            case PetalType.CUBE:
+                geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+                break;
+            default:
+                geometry = new THREE.SphereGeometry(0.2, 32, 32);
+        }
+
         const material = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff
+            color: this.getPetalColor()
         });
         this.mesh = new THREE.Mesh(geometry, material);
+        
+        // Use same radius and speed for all types
+        this.baseRadius = 1.5;
+        this.expandedRadius = 3.0;
+        this.orbitSpeed = 0.01;
+        this.currentRadius = this.baseRadius;
         
         // Set initial position and angle
         this.angle = (index / totalPetals) * Math.PI * 2;
         this.updatePosition();
         
         scene.add(this.mesh);
+    }
+
+    private getPetalColor(): number {
+        switch (this.type) {
+            case PetalType.TETRAHEDRON:
+                return 0xff0000; // Red
+            case PetalType.CUBE:
+                return 0x0000ff; // Blue
+            default:
+                return 0xffffff; // White for basic
+        }
     }
 
     public getType(): PetalType {

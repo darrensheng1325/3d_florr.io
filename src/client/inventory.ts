@@ -3,7 +3,8 @@ import { Petal } from './petal';
 
 export enum PetalType {
     BASIC = 'basic',
-    // Add more petal types here
+    TETRAHEDRON = 'tetrahedron',
+    CUBE = 'cube'
 }
 
 export interface PetalSlot {
@@ -43,8 +44,19 @@ export class Inventory {
         }
 
         // Create new petal
-        const petal = new Petal(this.scene, this.parent, slotIndex, this.maxSlots, type);
+        const petal = new Petal(this.scene, this.parent, slotIndex, this.slots.length, type);
         this.slots[slotIndex].petal = petal;
+
+        // Recalculate positions for all petals
+        this.slots.forEach((slot, index) => {
+            if (slot.petal) {
+                // Remove and recreate each petal to update its position
+                const petalType = slot.petal.getType();
+                slot.petal.remove(this.scene);
+                slot.petal = new Petal(this.scene, this.parent, index, this.slots.length, petalType);
+            }
+        });
+
         return true;
     }
 

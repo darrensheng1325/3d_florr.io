@@ -45,6 +45,15 @@ export class Game {
     private readonly HEAL_INTERVAL: number = 1000; // Heal every second
     private readonly HEAL_AMOUNT: number = 5;      // Heal 5 health per tick
     private items: Map<string, Item> = new Map();
+    private inventoryMenu: HTMLDivElement | null = null;
+    private collectedPetals: PetalType[] = [];
+    private isInventoryOpen: boolean = false;
+    private inventoryPreviews: Map<PetalType, {
+        renderer: THREE.WebGLRenderer;
+        scene: THREE.Scene;
+        camera: THREE.PerspectiveCamera;
+        mesh: THREE.Mesh;
+    }> = new Map();
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -652,6 +661,11 @@ export class Game {
             if (event.code === 'Space') {
                 inventory.expandPetals();
             }
+
+            // Toggle inventory menu with Z key
+            if (event.code === 'KeyZ') {
+                this.toggleInventoryMenu();
+            }
         });
 
         document.addEventListener('keyup', (event) => {
@@ -813,14 +827,19 @@ export class Game {
             
             // If player touches item
             if (distance < 1.0) {
-                // Tell server we collected the item
-                this.socket?.emit('itemCollected', {
-                    itemId: item.getId()
-                });
-                
-                // Remove item locally
+                // Convert item type to petal type and add to inventory
+                const petalType = item.getType() === ItemType.TETRAHEDRON ? 
+                    PetalType.TETRAHEDRON : PetalType.CUBE;
+                this.collectedPetals.push(petalType);
+
+                // Remove item
                 item.remove();
                 this.items.delete(itemId);
+
+                // Update inventory display if open
+                if (this.isInventoryOpen) {
+                    this.updateInventoryDisplay();
+                }
             }
         });
     }
@@ -1072,6 +1091,250 @@ export class Game {
             requestAnimationFrame(animate);
         };
         animate();
+    }
+
+    private createInventoryMenu(): void {
+        this.inventoryMenu = document.createElement('div');
+        const menu = this.inventoryMenu;
+        
+        // Style the menu for bottom left corner
+        menu.style.position = 'fixed';
+        menu.style.bottom = '20px';
+        menu.style.left = '20px';
+        menu.style.width = '300px';
+        menu.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        menu.style.padding = '15px';
+        menu.style.borderRadius = '10px';
+        menu.style.display = 'none';
+        menu.style.zIndex = '1000';
+        menu.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+
+        // Add title
+        const title = document.createElement('h2');
+        title.textContent = 'Inventory';
+        title.style.textAlign = 'left';
+        title.style.marginBottom = '15px';
+        title.style.fontSize = '18px';
+        menu.appendChild(title);
+
+        // Create grid container for petals
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        grid.style.gap = '8px';
+        menu.appendChild(grid);
+
+        // Create preview renderers for each petal type
+        Object.values(PetalType).forEach(type => {
+            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(50, 50);
+            renderer.setClearColor(0x000000, 0);
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+            camera.position.set(0, 0, 3);
+            camera.lookAt(0, 0, 0);
+
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 1.0);
+            pointLight.position.set(2, 2, 2);
+            scene.add(pointLight);
+
+            // Create preview mesh based on type
+            let geometry: THREE.BufferGeometry;
+            let material: THREE.Material;
+
+            switch (type) {
+                case PetalType.TETRAHEDRON:
+                    geometry = new THREE.TetrahedronGeometry(0.8);
+                    material = new THREE.MeshPhongMaterial({ 
+                        color: 0xff0000,
+                        shininess: 100
+                    });
+                    break;
+                case PetalType.CUBE:
+                    geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+                    material = new THREE.MeshPhongMaterial({ 
+                        color: 0x0000ff,
+                        shininess: 100
+                    });
+                    break;
+                default:
+                    geometry = new THREE.SphereGeometry(0.8, 32, 32);
+                    material = new THREE.MeshPhongMaterial({ 
+                        color: 0xffffff,
+                        shininess: 100
+                    });
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+
+            // Store renderer, scene, camera, and mesh for updates
+            this.inventoryPreviews.set(type, {
+                renderer,
+                scene,
+                camera,
+                mesh
+            });
+        });
+
+        document.body.appendChild(menu);
+    }
+
+    private toggleInventoryMenu(): void {
+        if (!this.inventoryMenu) {
+            this.createInventoryMenu();
+        }
+
+        this.isInventoryOpen = !this.isInventoryOpen;
+        if (this.inventoryMenu) {
+            this.inventoryMenu.style.display = this.isInventoryOpen ? 'block' : 'none';
+            
+            if (this.isInventoryOpen) {
+                this.updateInventoryDisplay();
+            }
+        }
+    }
+
+    private updateInventoryDisplay(): void {
+        if (!this.inventoryMenu || !this.socket?.id) return;
+
+        // Clear existing grid
+        const grid = this.inventoryMenu.querySelector('div:nth-child(2)');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        // Group petals by type
+        const groupedPetals = this.collectedPetals.reduce((acc, type) => {
+            acc.set(type, (acc.get(type) || 0) + 1);
+            return acc;
+        }, new Map<PetalType, number>());
+
+        // Add each group to the grid
+        groupedPetals.forEach((count, petalType) => {
+            const slot = document.createElement('div');
+            slot.style.backgroundColor = 'rgba(200, 200, 200, 0.5)';
+            slot.style.padding = '5px';
+            slot.style.borderRadius = '5px';
+            slot.style.cursor = 'grab';
+            slot.style.position = 'relative';
+            slot.style.height = '50px';
+            slot.style.border = '2px solid #666';
+            slot.draggable = true;
+            slot.setAttribute('data-type', petalType);
+
+            // Create canvas container
+            const canvasContainer = document.createElement('div');
+            canvasContainer.style.width = '100%';
+            canvasContainer.style.height = '100%';
+            slot.appendChild(canvasContainer);
+
+            // Add count badge
+            const countBadge = document.createElement('div');
+            countBadge.textContent = count.toString();
+            countBadge.style.position = 'absolute';
+            countBadge.style.bottom = '2px';
+            countBadge.style.right = '2px';
+            countBadge.style.backgroundColor = '#333';
+            countBadge.style.color = 'white';
+            countBadge.style.padding = '2px 6px';
+            countBadge.style.borderRadius = '10px';
+            countBadge.style.fontSize = '12px';
+            slot.appendChild(countBadge);
+
+            // Get the preview renderer for this type
+            const preview = this.inventoryPreviews.get(petalType);
+            if (preview) {
+                const { renderer, scene, camera, mesh } = preview;
+                canvasContainer.appendChild(renderer.domElement);
+
+                // Start rendering the preview
+                const animate = () => {
+                    if (!this.isInventoryOpen) return;
+                    mesh.rotation.x += 0.02;
+                    mesh.rotation.y += 0.02;
+                    renderer.render(scene, camera);
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+
+            // Add drag event listeners
+            slot.addEventListener('dragstart', (e) => {
+                if (!e.dataTransfer) return;
+                e.dataTransfer.setData('text/plain', petalType);
+                slot.style.opacity = '0.5';
+            });
+
+            slot.addEventListener('dragend', () => {
+                slot.style.opacity = '1';
+            });
+
+            grid.appendChild(slot);
+        });
+
+        // Create inventory slots
+        const inventoryGrid = document.createElement('div');
+        inventoryGrid.style.display = 'grid';
+        inventoryGrid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+        inventoryGrid.style.gap = '8px';
+        inventoryGrid.style.marginTop = '15px';
+        grid.appendChild(inventoryGrid);
+
+        // Add inventory slots
+        const inventory = this.playerInventories.get(this.socket.id);
+        if (inventory) {
+            inventory.getSlots().forEach((slot, index) => {
+                const slotElement = document.createElement('div');
+                slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.3)';
+                slotElement.style.padding = '5px';
+                slotElement.style.borderRadius = '5px';
+                slotElement.style.height = '50px';
+                slotElement.style.border = '2px dashed #666';
+                slotElement.style.position = 'relative';
+
+                // Add drop event listeners
+                slotElement.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.6)';
+                });
+
+                slotElement.addEventListener('dragleave', () => {
+                    slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.3)';
+                });
+
+                slotElement.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    slotElement.style.backgroundColor = 'rgba(150, 150, 150, 0.3)';
+                    
+                    const petalType = e.dataTransfer?.getData('text/plain') as PetalType;
+                    if (petalType && inventory) {
+                        inventory.addPetal(petalType, index);
+                        
+                        // Remove one from collected petals
+                        const petalIndex = this.collectedPetals.findIndex(p => p === petalType);
+                        if (petalIndex !== -1) {
+                            this.collectedPetals.splice(petalIndex, 1);
+                        }
+                        this.updateInventoryDisplay();
+                    }
+                });
+
+                // Show current petal if exists
+                if (slot.petal) {
+                    const preview = this.inventoryPreviews.get(slot.petal.getType());
+                    if (preview) {
+                        const { renderer } = preview;
+                        slotElement.appendChild(renderer.domElement.cloneNode(true));
+                    }
+                }
+
+                inventoryGrid.appendChild(slotElement);
+            });
+        }
     }
 }
 
