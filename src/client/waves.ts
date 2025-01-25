@@ -1,9 +1,14 @@
+import { Rarity, RARITY_COLORS } from '../shared/types';
+
 export class WaveUI {
     private container: HTMLDivElement;
     private waveText: HTMLDivElement;
     private progressContainer: HTMLDivElement;
     private xpProgress: HTMLDivElement;
     private killProgress: HTMLDivElement;
+    private progressText: HTMLDivElement;
+    private xpText: HTMLDivElement;
+    private rarityText: HTMLDivElement;
 
     constructor() {
         // Create main container
@@ -14,6 +19,7 @@ export class WaveUI {
         this.container.style.transform = 'translateX(-50%)';
         this.container.style.textAlign = 'center';
         this.container.style.zIndex = '1000';
+        this.container.style.display = 'none';
         document.body.appendChild(this.container);
 
         // Create wave text
@@ -26,6 +32,12 @@ export class WaveUI {
         this.waveText.style.marginBottom = '10px';
         this.waveText.textContent = 'Wave 1';  // Set initial text
         this.container.appendChild(this.waveText);
+
+        // Create rarity text
+        this.rarityText = document.createElement('div');
+        this.rarityText.style.fontSize = '16px';
+        this.rarityText.style.marginTop = '5px';
+        this.container.appendChild(this.rarityText);
 
         // Create progress bar container
         this.progressContainer = document.createElement('div');
@@ -59,6 +71,18 @@ export class WaveUI {
         this.xpProgress.style.transition = 'width 0.3s ease-in-out';
         this.progressContainer.appendChild(this.xpProgress);
 
+        // Create progress text
+        this.progressText = document.createElement('div');
+        this.progressText.style.fontSize = '16px';
+        this.progressText.style.marginTop = '5px';
+        this.container.appendChild(this.progressText);
+
+        // Create XP text
+        this.xpText = document.createElement('div');
+        this.xpText.style.fontSize = '16px';
+        this.xpText.style.marginTop = '5px';
+        this.container.appendChild(this.xpText);
+
         // Add progress text
         const progressText = document.createElement('div');
         progressText.style.position = 'absolute';
@@ -74,7 +98,7 @@ export class WaveUI {
         this.progressContainer.appendChild(progressText);
     }
 
-    public update(wave: number, enemiesKilled: number, totalXP: number): void {
+    public update(wave: number, enemiesKilled: number, totalXP: number, minRarity?: Rarity): void {
         // Update wave text
         this.waveText.textContent = `Wave ${wave}`;
 
@@ -97,6 +121,17 @@ export class WaveUI {
         } else {
             this.xpProgress.style.zIndex = '1';
             this.killProgress.style.zIndex = '2';
+        }
+
+        if (minRarity) {
+            this.rarityText.textContent = `Minimum Rarity: ${minRarity}`;
+            this.rarityText.style.color = RARITY_COLORS[minRarity];
+            // Add glow effect for higher rarities
+            if (minRarity === Rarity.LEGENDARY || minRarity === Rarity.EPIC) {
+                this.rarityText.style.textShadow = `0 0 10px ${RARITY_COLORS[minRarity]}`;
+            } else {
+                this.rarityText.style.textShadow = 'none';
+            }
         }
     }
 

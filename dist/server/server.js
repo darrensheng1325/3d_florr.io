@@ -7,6 +7,7 @@ const socket_io_1 = require("socket.io");
 const http_1 = require("http");
 const express_1 = __importDefault(require("express"));
 const path_1 = __importDefault(require("path"));
+const types_1 = require("../shared/types");
 const app = (0, express_1.default)();
 const httpServer = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(httpServer, {
@@ -30,13 +31,14 @@ const ENEMIES_PER_WAVE = 20;
 const XP_PER_WAVE = 1000;
 const WAVE_SPAWN_INTERVAL = 1000; // Spawn enemy every second during wave
 let waveSpawnInterval = null;
-const ENEMY_STATS = {
+// Update ENEMY_STATS with base stats (before rarity multipliers)
+const BASE_ENEMY_STATS = {
     ladybug: {
         health: 50,
         speed: 0.03,
         passiveSpeed: 0.02,
         damage: 10,
-        size: 0.5,
+        size: types_1.BASE_SIZES.ladybug,
         xp: 100
     },
     bee: {
@@ -44,7 +46,7 @@ const ENEMY_STATS = {
         speed: 0.08,
         passiveSpeed: 0.02,
         damage: 8,
-        size: 0.4,
+        size: types_1.BASE_SIZES.bee,
         xp: 200
     },
     centipede: {
@@ -52,7 +54,7 @@ const ENEMY_STATS = {
         speed: 0.02,
         passiveSpeed: 0.01,
         damage: 15,
-        size: 0.3,
+        size: types_1.BASE_SIZES.centipede,
         xp: 300
     },
     centipede_segment: {
@@ -60,18 +62,69 @@ const ENEMY_STATS = {
         speed: 0.02,
         passiveSpeed: 0.01,
         damage: 10,
-        size: 0.3,
+        size: types_1.BASE_SIZES.centipede_segment,
         xp: 150
     },
     spider: {
-        health: 10, // Dies in 2 hits (assuming 5 damage per hit)
-        speed: 0.12, // Faster than player's moveSpeed of 0.05
+        health: 10,
+        speed: 0.12,
         passiveSpeed: 0.06,
         damage: 15,
-        size: 0.4,
+        size: types_1.BASE_SIZES.spider,
         xp: 250
     }
 };
+// Function to determine enemy rarity based on wave number
+function determineRarity(forcedRarity, waveNumber = currentWave) {
+    if (forcedRarity)
+        return forcedRarity;
+    // Calculate minimum rarity based on wave number
+    let minRarity;
+    if (waveNumber >= 40) {
+        minRarity = types_1.Rarity.LEGENDARY;
+    }
+    else if (waveNumber >= 30) {
+        minRarity = types_1.Rarity.EPIC;
+    }
+    else if (waveNumber >= 20) {
+        minRarity = types_1.Rarity.RARE;
+    }
+    else if (waveNumber >= 10) {
+        minRarity = types_1.Rarity.UNCOMMON;
+    }
+    else {
+        minRarity = types_1.Rarity.COMMON;
+    }
+    // Get available rarities based on minimum rarity
+    const rarityLevels = Object.values(types_1.Rarity);
+    const minRarityIndex = rarityLevels.indexOf(minRarity);
+    const availableRarities = rarityLevels.slice(minRarityIndex);
+    // Weighted random selection from available rarities
+    const rand = Math.random();
+    if (rand < 0.50)
+        return availableRarities[0]; // 50% for minimum rarity
+    if (rand < 0.80 && availableRarities[1])
+        return availableRarities[1]; // 30% for next rarity
+    if (rand < 0.95 && availableRarities[2])
+        return availableRarities[2]; // 15% for next rarity
+    if (rand < 0.99 && availableRarities[3])
+        return availableRarities[3]; // 4% for next rarity
+    return availableRarities[availableRarities.length - 1]; // Remaining % for highest available rarity
+}
+// Function to get enemy stats with rarity multipliers
+function getEnemyStats(type, rarity) {
+    const baseStats = BASE_ENEMY_STATS[type];
+    const multiplier = types_1.RARITY_MULTIPLIERS[rarity];
+    return {
+        ...baseStats,
+        health: Math.round(baseStats.health * multiplier),
+        damage: Math.round(baseStats.damage * multiplier),
+        xp: Math.round(baseStats.xp * multiplier),
+        // Scale size with rarity, but use a smaller multiplier to prevent them from being too big
+        size: baseStats.size * (1 + (multiplier - 1) * 0.5),
+        rarity
+    };
+}
 // Serve static files from dist directory
 app.use(express_1.default.static(path_1.default.join(__dirname, '../../dist')));
 // Serve index.html for all routes (for client-side routing)
@@ -81,66 +134,42 @@ app.get('*', (req, res) => {
 function generateId() {
     return `enemy_${enemyIdCounter++}`;
 }
-function spawnEnemy(type, position) {
+function spawnEnemy(type, position, forcedRarity) {
     const id = generateId();
-    const isAggressive = false; // All enemies start passive
-    let health = ENEMY_STATS[type].health;
+    const rarity = determineRarity(forcedRarity, currentWave);
+    const stats = getEnemyStats(type, rarity);
     if (type === 'centipede') {
-        console.log('Creating centipede...');
-        // Calculate spawn direction and adjust position to ensure all segments fit
-        let directionX = 0, directionZ = 0;
-        const segmentCount = 4;
-        const segmentSpacing = 0.6;
-        const totalLength = segmentSpacing * segmentCount;
-        // Adjust spawn position based on edge to ensure entire centipede fits
-        if (position.x === -MAP_SIZE) {
-            directionX = 1;
-            directionZ = 0;
-            position.x += totalLength; // Move spawn point inward by centipede length
-        }
-        else if (position.x === MAP_SIZE) {
-            directionX = -1;
-            directionZ = 0;
-            position.x -= totalLength; // Move spawn point inward by centipede length
-        }
-        else if (position.z === -MAP_SIZE) {
-            directionX = 0;
-            directionZ = 1;
-            position.z += totalLength; // Move spawn point inward by centipede length
-        }
-        else {
-            directionX = 0;
-            directionZ = -1;
-            position.z -= totalLength; // Move spawn point inward by centipede length
-        }
-        // Spawn head segment at adjusted position
         const headId = generateId();
         const headEnemy = {
             id: headId,
             type: 'centipede',
-            position: { ...position },
-            health: ENEMY_STATS.centipede.health,
+            position,
+            health: stats.health,
             isAggressive: false,
-            segments: [],
             velocity: { x: 0, y: 0, z: 0 },
             wanderAngle: Math.random() * Math.PI * 2,
-            wanderTime: Date.now() + 2000 + Math.random() * 2000
+            wanderTime: Date.now() + 2000 + Math.random() * 2000,
+            segments: [],
+            rarity
         };
         enemies.set(headId, headEnemy);
-        console.log('Created centipede head:', headId);
         io.emit('enemySpawned', {
             id: headId,
             type: 'centipede',
             position: headEnemy.position,
             health: headEnemy.health,
-            isAggressive: false
+            isAggressive: false,
+            rarity: headEnemy.rarity
         });
-        // Spawn body segments
+        // Create segments
+        const segmentCount = 3;
+        const segmentSpacing = 0.6;
         let lastSegmentPos = { ...position };
+        const directionX = Math.cos(headEnemy.wanderAngle);
+        const directionZ = Math.sin(headEnemy.wanderAngle);
         for (let i = 0; i < segmentCount; i++) {
             const segmentId = generateId();
-            console.log('Creating segment', i + 1, 'with ID:', segmentId);
-            // Position segments in a straight line behind the head
+            const segmentStats = getEnemyStats('centipede_segment', rarity);
             lastSegmentPos = {
                 x: position.x - directionX * segmentSpacing * (i + 1),
                 y: position.y,
@@ -150,14 +179,15 @@ function spawnEnemy(type, position) {
                 id: segmentId,
                 type: 'centipede_segment',
                 position: lastSegmentPos,
-                health: ENEMY_STATS.centipede_segment.health,
+                health: segmentStats.health,
                 isAggressive: false,
                 centipedeId: headId,
                 followsId: i === 0 ? headId : headEnemy.segments[i - 1],
                 velocity: { x: 0, y: 0, z: 0 },
                 wanderAngle: Math.random() * Math.PI * 2,
                 wanderTime: Date.now() + 2000 + Math.random() * 2000,
-                segments: []
+                segments: [],
+                rarity
             };
             enemies.set(segmentId, segmentEnemy);
             headEnemy.segments.push(segmentId);
@@ -166,22 +196,27 @@ function spawnEnemy(type, position) {
                 type: 'centipede_segment',
                 position: segmentEnemy.position,
                 health: segmentEnemy.health,
-                isAggressive: false
+                isAggressive: false,
+                rarity: segmentEnemy.rarity
             });
         }
-        console.log('Centipede creation complete. Head:', headId, 'Segments:', headEnemy.segments);
         return;
     }
     const enemy = {
         id,
         type,
-        position,
-        health,
-        isAggressive: false, // Ensure regular enemies are passive
+        position: {
+            x: position.x,
+            y: BASE_ENEMY_STATS[type].size,
+            z: position.z
+        },
+        health: stats.health,
+        isAggressive: false,
         velocity: { x: 0, y: 0, z: 0 },
         wanderAngle: Math.random() * Math.PI * 2,
         wanderTime: Date.now() + 2000 + Math.random() * 2000,
-        segments: []
+        segments: [],
+        rarity
     };
     enemies.set(id, enemy);
     io.emit('enemySpawned', {
@@ -189,7 +224,8 @@ function spawnEnemy(type, position) {
         type: enemy.type,
         position: enemy.position,
         health: enemy.health,
-        isAggressive: false
+        isAggressive: false,
+        rarity: enemy.rarity
     });
 }
 // Add this helper function to constrain position within map bounds
@@ -224,6 +260,7 @@ function calculateAvoidanceVector(enemy) {
 function updateEnemies() {
     const currentTime = Date.now();
     enemies.forEach((enemy, enemyId) => {
+        const enemyStats = getEnemyStats(enemy.type, enemy.rarity);
         // Check for player collisions and apply knockback
         players.forEach((player) => {
             const dx = enemy.position.x - player.position.x;
@@ -277,7 +314,7 @@ function updateEnemies() {
             }
             else if (enemy.type === 'centipede') {
                 // Centipede head moves in a smooth snake-like pattern
-                const speed = ENEMY_STATS[enemy.type].passiveSpeed;
+                const speed = enemyStats.passiveSpeed;
                 const time = currentTime * 0.001; // Convert to seconds
                 // Add sinusoidal movement to create snake-like pattern
                 const baseX = Math.cos(enemy.wanderAngle) * speed;
@@ -312,7 +349,7 @@ function updateEnemies() {
             }
             else {
                 // Regular enemies (ladybugs and bees) use normal wandering
-                const speed = ENEMY_STATS[enemy.type].passiveSpeed;
+                const speed = enemyStats.passiveSpeed;
                 // Calculate avoidance
                 const avoidance = calculateAvoidanceVector(enemy);
                 const newPosition = {
@@ -352,7 +389,7 @@ function updateEnemies() {
                 const distance = Math.sqrt(dx * dx + dz * dz);
                 // Move towards player
                 if (distance > 0.5) { // Don't get too close
-                    const speed = ENEMY_STATS[enemy.type].speed;
+                    const speed = enemyStats.speed;
                     const newPosition = {
                         x: enemy.position.x + (dx / distance) * speed,
                         y: enemy.position.y,
@@ -438,26 +475,43 @@ function updateEnemies() {
 function startNewWave() {
     // Clear all existing enemies
     enemies.forEach((_, enemyId) => {
-        io.emit('enemyDied', enemyId);
+        io.emit('enemyDied', {
+            enemyId,
+            position: { x: 0, y: 0, z: 0 },
+            itemType: ''
+        });
     });
     enemies.clear();
     currentWave++;
     enemiesKilledInWave = 0;
     totalXPInWave = 0;
-    enemiesSpawnedInWave = 0; // Reset spawn counter
+    enemiesSpawnedInWave = 0;
+    // Determine minimum rarity for this wave
+    let minRarity;
+    if (currentWave >= 40)
+        minRarity = types_1.Rarity.LEGENDARY;
+    else if (currentWave >= 30)
+        minRarity = types_1.Rarity.EPIC;
+    else if (currentWave >= 20)
+        minRarity = types_1.Rarity.RARE;
+    else if (currentWave >= 10)
+        minRarity = types_1.Rarity.UNCOMMON;
+    else
+        minRarity = types_1.Rarity.COMMON;
     // Clear any existing spawn interval
     if (waveSpawnInterval) {
         clearInterval(waveSpawnInterval);
     }
-    // Broadcast wave start
-    io.emit('waveStart', { wave: currentWave });
+    // Broadcast wave start with minimum rarity info
+    io.emit('waveStart', {
+        wave: currentWave,
+        minRarity: minRarity
+    });
     // Start spawning enemies for this wave
     waveSpawnInterval = setInterval(() => {
-        // Only spawn if we haven't reached the wave limit
         if (enemiesSpawnedInWave < ENEMIES_PER_WAVE) {
             spawnRandomEnemy();
             enemiesSpawnedInWave++;
-            // If we've spawned all enemies, clear the interval
             if (enemiesSpawnedInWave >= ENEMIES_PER_WAVE) {
                 if (waveSpawnInterval) {
                     clearInterval(waveSpawnInterval);
@@ -523,7 +577,7 @@ function spawnRandomEnemy() {
     console.log('Spawning enemy:', type);
     spawnEnemy(type, {
         x,
-        y: ENEMY_STATS[type].size,
+        y: BASE_ENEMY_STATS[type].size,
         z
     });
 }
@@ -598,7 +652,8 @@ io.on('connection', (socket) => {
             type: enemy.type,
             position: enemy.position,
             health: enemy.health,
-            isAggressive: enemy.isAggressive
+            isAggressive: enemy.isAggressive,
+            rarity: enemy.rarity
         });
     });
     // Broadcast to other players that a new player has joined
@@ -672,7 +727,7 @@ io.on('connection', (socket) => {
                     itemType
                 });
                 // Distribute XP and update wave progress
-                distributeXP(ENEMY_STATS[enemy.type].xp);
+                distributeXP(BASE_ENEMY_STATS[enemy.type].xp);
                 enemiesKilledInWave++;
             }
             else {
@@ -722,18 +777,31 @@ process.stdin.on('data', (data) => {
     switch (cmd) {
         case 'spawn':
             if (args.length === 0) {
-                console.log('Usage: spawn <type> [count]');
+                console.log('Usage: spawn <type> [count] [rarity]');
                 console.log('Available types: ladybug, bee, centipede, spider');
-                console.log('Example: spawn spider 3');
+                console.log('Available rarities: common, uncommon, rare, epic, legendary');
+                console.log('Example: spawn spider 3 rare');
                 return;
             }
             const type = args[0].toLowerCase();
             const count = parseInt(args[1]) || 1;
+            let specifiedRarity;
+            // Check if rarity is specified
+            if (args[2]) {
+                const rarityArg = args[2].toLowerCase();
+                if (Object.values(types_1.Rarity).includes(rarityArg)) {
+                    specifiedRarity = rarityArg;
+                }
+                else {
+                    console.log('Invalid rarity. Available rarities: common, uncommon, rare, epic, legendary');
+                    return;
+                }
+            }
             if (!['ladybug', 'bee', 'centipede', 'spider'].includes(type)) {
                 console.log('Invalid enemy type. Available types: ladybug, bee, centipede, spider');
                 return;
             }
-            console.log(`Spawning ${count} ${type}(s)...`);
+            console.log(`Spawning ${count} ${specifiedRarity || 'random'} ${type}(s)...`);
             for (let i = 0; i < count; i++) {
                 // Spawn at random edge of map
                 const edge = Math.floor(Math.random() * 4);
@@ -761,15 +829,18 @@ process.stdin.on('data', (data) => {
                 }
                 spawnEnemy(type, {
                     x,
-                    y: ENEMY_STATS[type].size,
+                    y: BASE_ENEMY_STATS[type].size,
                     z
-                });
+                }, specifiedRarity);
             }
             break;
         case 'help':
             console.log('Available commands:');
-            console.log('  spawn <type> [count] - Spawn enemies');
-            console.log('  help                 - Show this help message');
+            console.log('  spawn <type> [count] [rarity] - Spawn enemies');
+            console.log('    - type: ladybug, bee, centipede, spider');
+            console.log('    - count: number of enemies to spawn (default: 1)');
+            console.log('    - rarity: common, uncommon, rare, epic, legendary (default: random)');
+            console.log('  help                          - Show this help message');
             break;
         default:
             if (cmd !== '') {

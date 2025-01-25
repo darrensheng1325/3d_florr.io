@@ -7,6 +7,7 @@ import { Enemy, EnemyType } from './enemy';
 import { Inventory, PetalType, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
+import { Rarity } from '../shared/types';
 
 export class Game {
     private scene: THREE.Scene;
@@ -54,6 +55,9 @@ export class Game {
         camera: THREE.PerspectiveCamera;
         mesh: THREE.Mesh;
     }> = new Map();
+    private reconnectAttempts: number = 0;
+    private readonly MAX_RECONNECT_ATTEMPTS = 3;
+    private readonly RECONNECT_DELAY = 2000; // 2 seconds
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -153,13 +157,23 @@ export class Game {
 
         // Setup wave events
         this.setupWaveEvents();
+
+        // Setup server connection monitoring
+        this.setupConnectionMonitoring();
     }
 
     private setupEnemyEvents(): void {
         if (!this.socket) return;
 
         // Handle enemies
-        this.socket.on('enemySpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number }, health: number, isAggressive: boolean }) => {
+        this.socket.on('enemySpawned', (data: { 
+            id: string, 
+            type: string, 
+            position: { x: number, y: number, z: number }, 
+            health: number, 
+            isAggressive: boolean,
+            rarity: Rarity 
+        }) => {
             const enemy = new Enemy(
                 this.scene,
                 new THREE.Vector3(data.position.x, data.position.y, data.position.z),
@@ -167,7 +181,8 @@ export class Game {
                 data.type as EnemyType,
                 data.id,
                 data.health,
-                data.isAggressive
+                data.isAggressive,
+                data.rarity
             );
             this.enemies.set(data.id, enemy);
         });
@@ -637,7 +652,7 @@ export class Game {
         this.setupEnemyEvents();
 
         // Wave and XP events
-        this.socket.on('waveStart', (data: { wave: number }) => {
+        this.socket.on('waveStart', (data: { wave: number, minRarity: Rarity }) => {
             // Clear all existing enemies
             this.enemies.forEach(enemy => {
                 enemy.remove();
@@ -648,7 +663,7 @@ export class Game {
             this.currentWave = data.wave;
             this.enemiesKilled = 0;
             this.totalXP = 0;
-            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, data.minRarity);
         });
 
         this.socket.on('playerXP', (data: { id: string, xp: number }) => {
@@ -989,11 +1004,11 @@ export class Game {
     private setupWaveEvents(): void {
         if (!this.socket) return;
 
-        this.socket.on('waveStart', (data: { wave: number }) => {
+        this.socket.on('waveStart', (data: { wave: number, minRarity: Rarity }) => {
             this.currentWave = data.wave;
             this.enemiesKilled = 0;
             this.totalXP = 0;
-            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, data.minRarity);
         });
 
         this.socket.on('playerXP', (data: { id: string, xp: number }) => {
@@ -1383,6 +1398,53 @@ export class Game {
                 }
             });
         }
+    }
+
+    private setupConnectionMonitoring(): void {
+        if (!this.socket) return;
+
+        // Handle disconnection
+        this.socket.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
+            
+            if (reason === 'io server disconnect' || reason === 'transport close') {
+                // Server is down, attempt to reconnect
+                this.attemptReconnect();
+            }
+        });
+
+        // Handle connection error
+        this.socket.on('connect_error', (error) => {
+            console.log('Connection error:', error);
+            this.attemptReconnect();
+        });
+
+        // Reset reconnection attempts on successful connection
+        this.socket.on('connect', () => {
+            console.log('Connected to server');
+            this.reconnectAttempts = 0;
+        });
+    }
+
+    private attemptReconnect(): void {
+        this.reconnectAttempts++;
+        console.log(`Reconnection attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS}`);
+
+        if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
+            console.log('Max reconnection attempts reached. Reloading page...');
+            // Add a small delay before reloading to allow for console message
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+            return;
+        }
+
+        // Try to reconnect after delay
+        setTimeout(() => {
+            if (this.socket) {
+                this.socket.connect();
+            }
+        }, this.RECONNECT_DELAY);
     }
 }
 
