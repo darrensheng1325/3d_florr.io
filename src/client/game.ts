@@ -363,11 +363,20 @@ export class Game {
         this.scene.background = new THREE.Color(0x87CEEB);
 
         // Add lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        // Ambient light for general illumination
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         this.scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0xffffff, 1.0);
-        pointLight.position.set(5, 10, 5);
-        this.scene.add(pointLight);
+
+        // Directional light from above (sun)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(0, 10, 0); // Position above the scene
+        directionalLight.target.position.set(0, 0, 0);
+        this.scene.add(directionalLight);
+        this.scene.add(directionalLight.target);
+
+        // Add hemisphere light for better sky/ground illumination
+        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x00cf2d, 0.6);
+        this.scene.add(hemisphereLight);
 
         // Add ground to scene
         this.scene.add(this.ground);

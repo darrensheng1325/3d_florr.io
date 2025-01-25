@@ -187,25 +187,81 @@ function spawnEnemy(type, position) {
 function updateEnemies() {
     const currentTime = Date.now();
     enemies.forEach((enemy, enemyId) => {
-        // Skip all movement for centipedes and their segments
-        if (enemy.type !== 'centipede' && enemy.type !== 'centipede_segment') {
-            // Only passive wandering behavior for non-centipede enemies
+        // Handle passive movement for all enemies
+        if (!enemy.isAggressive) {
             // Update wander direction periodically
             if (currentTime >= enemy.wanderTime) {
                 enemy.wanderAngle = Math.random() * Math.PI * 2;
                 enemy.wanderTime = currentTime + 2000 + Math.random() * 2000;
             }
-            const speed = ENEMY_STATS[enemy.type].passiveSpeed;
-            enemy.position.x += Math.cos(enemy.wanderAngle) * speed;
-            enemy.position.z += Math.sin(enemy.wanderAngle) * speed;
-            // Keep within map bounds
-            enemy.position.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.x));
-            enemy.position.z = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.z));
-            io.emit('enemyMoved', {
-                id: enemyId,
-                position: enemy.position,
-                rotation: enemy.wanderAngle - Math.PI / 2
-            });
+            // Different movement for different enemy types
+            if (enemy.type === 'centipede') {
+                // Centipede head moves in a smooth snake-like pattern
+                const speed = ENEMY_STATS[enemy.type].passiveSpeed;
+                const time = currentTime * 0.001; // Convert to seconds
+                // Add sinusoidal movement to create snake-like pattern
+                const baseX = Math.cos(enemy.wanderAngle) * speed;
+                const baseZ = Math.sin(enemy.wanderAngle) * speed;
+                const sineWave = Math.sin(time * 2) * 0.02; // Adjust frequency and amplitude
+                enemy.position.x += baseX + sineWave * Math.cos(enemy.wanderAngle + Math.PI / 2);
+                enemy.position.z += baseZ + sineWave * Math.sin(enemy.wanderAngle + Math.PI / 2);
+                // Keep within map bounds and bounce off walls
+                if (enemy.position.x <= -MAP_SIZE || enemy.position.x >= MAP_SIZE) {
+                    enemy.wanderAngle = Math.PI - enemy.wanderAngle;
+                }
+                if (enemy.position.z <= -MAP_SIZE || enemy.position.z >= MAP_SIZE) {
+                    enemy.wanderAngle = -enemy.wanderAngle;
+                }
+                // Emit position update with rotation based on movement direction
+                io.emit('enemyMoved', {
+                    id: enemyId,
+                    position: enemy.position,
+                    rotation: enemy.wanderAngle - Math.PI / 2
+                });
+            }
+            else if (enemy.type === 'centipede_segment') {
+                // Segments are handled by the follow logic below
+            }
+            else {
+                // Regular enemies (ladybugs and bees) use normal wandering
+                const speed = ENEMY_STATS[enemy.type].passiveSpeed;
+                enemy.position.x += Math.cos(enemy.wanderAngle) * speed;
+                enemy.position.z += Math.sin(enemy.wanderAngle) * speed;
+                // Keep within map bounds
+                enemy.position.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.x));
+                enemy.position.z = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.z));
+                io.emit('enemyMoved', {
+                    id: enemyId,
+                    position: enemy.position,
+                    rotation: enemy.wanderAngle - Math.PI / 2
+                });
+            }
+        }
+        else if (enemy.target) { // Add aggressive chasing behavior
+            // Get target player
+            const targetPlayer = players.get(enemy.target);
+            if (targetPlayer) {
+                // Calculate direction to player
+                const dx = targetPlayer.position.x - enemy.position.x;
+                const dz = targetPlayer.position.z - enemy.position.z;
+                const distance = Math.sqrt(dx * dx + dz * dz);
+                // Move towards player
+                if (distance > 0.5) { // Don't get too close
+                    const speed = ENEMY_STATS[enemy.type].speed;
+                    enemy.position.x += (dx / distance) * speed;
+                    enemy.position.z += (dz / distance) * speed;
+                    // Keep within map bounds
+                    enemy.position.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.x));
+                    enemy.position.z = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.z));
+                    // Calculate rotation to face player
+                    const rotation = Math.atan2(dx, dz);
+                    io.emit('enemyMoved', {
+                        id: enemyId,
+                        position: enemy.position,
+                        rotation: rotation
+                    });
+                }
+            }
         }
         // Update centipede segment positions to follow their leader
         if (enemy.type === 'centipede_segment' && enemy.followsId) {

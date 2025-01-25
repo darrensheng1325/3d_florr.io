@@ -67,13 +67,18 @@ export class Enemy {
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
             texture.center.set(0.5, 0.5);
-            texture.rotation = 0;
+            texture.rotation = -Math.PI / 2;  // Rotate texture -90 degrees (left)
 
-            const material = new THREE.MeshBasicMaterial({
+            const material = new THREE.MeshPhongMaterial({
                 map: texture,
-                side: THREE.FrontSide
+                side: THREE.FrontSide,
+                shininess: 30,
+                specular: 0x333333,
+                emissive: 0x000000,
+                color: 0xffffff
             });
             this.mesh = new THREE.Mesh(geometry, material);
+            this.mesh.rotateY(-Math.PI / 2);  // Rotate mesh -90 degrees (left) around Y axis
         } else if (type === EnemyType.BEE) {
             // For bees, create an invisible mesh as the base while we load the model
             const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
@@ -120,13 +125,21 @@ export class Enemy {
         } else if (type === EnemyType.CENTIPEDE || type === EnemyType.CENTIPEDE_SEGMENT) {
             // Create the main sphere for the body segment
             const geometry = new THREE.SphereGeometry(stats.size);
-            const material = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+            const material = new THREE.MeshPhongMaterial({ 
+                color: 0x8fc45b,
+                shininess: 30,
+                specular: 0x333333
+            });
             this.mesh = new THREE.Mesh(geometry, material);
 
             // Add antennae only for the head segment
             if (type === EnemyType.CENTIPEDE) {
                 const antennaGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.4);
-                const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+                const antennaMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x000000,
+                    shininess: 30,
+                    specular: 0x333333
+                });
                 
                 // Left antenna
                 const leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
@@ -165,13 +178,18 @@ export class Enemy {
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
             texture.center.set(0.5, 0.5);
-            texture.rotation = 0;
+            texture.rotation = -Math.PI / 2;  // Rotate texture -90 degrees (left)
 
-            const material = new THREE.MeshBasicMaterial({
+            const material = new THREE.MeshPhongMaterial({
                 map: texture,
-                side: THREE.FrontSide
+                side: THREE.FrontSide,
+                shininess: 30,
+                specular: 0x333333,
+                emissive: 0x000000,
+                color: 0xffffff
             });
             this.mesh = new THREE.Mesh(geometry, material);
+            this.mesh.rotateY(-Math.PI / 2);  // Rotate mesh -90 degrees (left) around Y axis
         } else if (this.type === EnemyType.BEE) {
             // For bees, create an invisible mesh as the base while we load the model
             const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
@@ -218,13 +236,21 @@ export class Enemy {
         } else if (this.type === EnemyType.CENTIPEDE || this.type === EnemyType.CENTIPEDE_SEGMENT) {
             // Create the main sphere for the body segment
             const geometry = new THREE.SphereGeometry(stats.size);
-            const material = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+            const material = new THREE.MeshPhongMaterial({ 
+                color: 0x8fc45b,
+                shininess: 30,
+                specular: 0x333333
+            });
             this.mesh = new THREE.Mesh(geometry, material);
 
             // Add antennae only for the head segment
             if (this.type === EnemyType.CENTIPEDE) {
                 const antennaGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.4);
-                const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x8fc45b });
+                const antennaMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x000000,
+                    shininess: 30,
+                    specular: 0x333333
+                });
                 
                 // Left antenna
                 const leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
@@ -258,10 +284,22 @@ export class Enemy {
         }
     }
 
-    public updatePosition(position: { x: number; y: number; z: number }, rotation: number): void {
+    public updatePosition(position: { x: number, y: number, z: number }, rotation: number): void {
         this.mesh.position.set(position.x, position.y, position.z);
-        this.mesh.rotation.y = rotation;
-        this.healthBar.updatePosition();
+        
+        // Update rotation based on enemy type
+        if (this.type === EnemyType.LADYBUG) {
+            // For ladybug, subtract 90 degrees to make it face the movement direction
+            this.mesh.rotation.y = rotation - Math.PI/2;
+        } else {
+            // For other enemies, use rotation directly
+            this.mesh.rotation.y = rotation;
+        }
+
+        // Update health bar position
+        if (this.healthBar) {
+            this.healthBar.updatePosition();
+        }
     }
 
     public takeDamage(amount: number): boolean {
