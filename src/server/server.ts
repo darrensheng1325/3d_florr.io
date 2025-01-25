@@ -13,7 +13,7 @@ interface Player {
 
 interface Enemy {
     id: string;
-    type: 'ladybug' | 'bee' | 'centipede' | 'centipede_segment';
+    type: 'ladybug' | 'bee' | 'centipede' | 'centipede_segment' | 'spider';  // Add spider type
     position: { x: number; y: number; z: number };
     health: number;
     isAggressive: boolean;
@@ -63,7 +63,7 @@ type EnemyStats = {
     xp: number;
 };
 
-type EnemyType = 'ladybug' | 'bee' | 'centipede' | 'centipede_segment';
+type EnemyType = 'ladybug' | 'bee' | 'centipede' | 'centipede_segment' | 'spider';
 
 const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
     ladybug: {
@@ -97,6 +97,14 @@ const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
         damage: 10,
         size: 0.3,
         xp: 150
+    },
+    spider: {
+        health: 10,      // Dies in 2 hits (assuming 5 damage per hit)
+        speed: 0.12,     // Faster than player's moveSpeed of 0.05
+        passiveSpeed: 0.06,
+        damage: 15,
+        size: 0.4,
+        xp: 250
     }
 };
 
@@ -313,7 +321,27 @@ function updateEnemies() {
             }
 
             // Different movement for different enemy types
-            if (enemy.type === 'centipede') {
+            if (enemy.type === 'spider') {
+                // Spiders are always aggressive, find nearest player
+                let nearestPlayer: Player | null = null;
+                let minDistance = Infinity;
+                
+                for (const [playerId, player] of players.entries()) {
+                    const dx = player.position.x - enemy.position.x;
+                    const dz = player.position.z - enemy.position.z;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestPlayer = player;
+                    }
+                }
+
+                if (nearestPlayer) {
+                    enemy.isAggressive = true;
+                    enemy.target = nearestPlayer.id;
+                }
+            } else if (enemy.type === 'centipede') {
                 // Centipede head moves in a smooth snake-like pattern
                 const speed = ENEMY_STATS[enemy.type].passiveSpeed;
                 const time = currentTime * 0.001; // Convert to seconds
@@ -384,7 +412,7 @@ function updateEnemies() {
                     rotation: enemy.wanderAngle - Math.PI / 2
                 });
             }
-        } else if (enemy.target) { // Add aggressive chasing behavior
+        } else if (enemy.target) {
             // Get target player
             const targetPlayer = players.get(enemy.target);
             if (targetPlayer) {
@@ -413,7 +441,7 @@ function updateEnemies() {
                     io.emit('enemyMoved', {
                         id: enemyId,
                         position: enemy.position,
-                        rotation: rotation
+                        rotation: enemy.type === 'spider' ? rotation - Math.PI/2 : rotation
                     });
                 }
             }
@@ -560,9 +588,20 @@ function spawnRandomEnemy() {
 
     // Randomly choose enemy type with more balanced weights
     const rand = Math.random();
-    const type: EnemyType = rand < 0.4 ? 'ladybug' : (rand < 0.7 ? 'bee' : 'centipede');
+    let type: EnemyType;
     
-    console.log('Spawning enemy:', type); // Add debug logging
+    if (currentWave >= 5) {
+        // Include spiders after wave 5
+        type = rand < 0.35 ? 'ladybug' : 
+               (rand < 0.6 ? 'bee' : 
+               (rand < 0.85 ? 'centipede' : 'spider')); // 15% chance for spider
+    } else {
+        // Before wave 5, only basic enemies
+        type = rand < 0.4 ? 'ladybug' : 
+               (rand < 0.7 ? 'bee' : 'centipede');
+    }
+    
+    console.log('Spawning enemy:', type);
     
     spawnEnemy(type, { 
         x, 
@@ -786,6 +825,67 @@ startNewWave();
 
 // Start enemy update loop
 setInterval(updateEnemies, 1000 / 60);  // 60 updates per second
+
+// Add command line interface for spawning enemies
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (data: string) => {
+    const command = data.trim();
+    const [cmd, ...args] = command.split(' ');
+
+    switch (cmd) {
+        case 'spawn':
+            if (args.length === 0) {
+                console.log('Usage: spawn <type> [count]');
+                console.log('Available types: ladybug, bee, centipede, spider');
+                console.log('Example: spawn spider 3');
+                return;
+            }
+
+            const type = args[0].toLowerCase() as EnemyType;
+            const count = parseInt(args[1]) || 1;
+
+            if (!['ladybug', 'bee', 'centipede', 'spider'].includes(type)) {
+                console.log('Invalid enemy type. Available types: ladybug, bee, centipede, spider');
+                return;
+            }
+
+            console.log(`Spawning ${count} ${type}(s)...`);
+            for (let i = 0; i < count; i++) {
+                // Spawn at random edge of map
+                const edge = Math.floor(Math.random() * 4);
+                let x, z;
+                switch (edge) {
+                    case 0: x = -MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;
+                    case 1: x = MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;
+                    case 2: x = (Math.random() * 2 - 1) * MAP_SIZE; z = -MAP_SIZE; break;
+                    case 3: x = (Math.random() * 2 - 1) * MAP_SIZE; z = MAP_SIZE; break;
+                    default: x = -MAP_SIZE; z = -MAP_SIZE;
+                }
+                
+                spawnEnemy(type, { 
+                    x, 
+                    y: ENEMY_STATS[type].size, 
+                    z 
+                });
+            }
+            break;
+
+        case 'help':
+            console.log('Available commands:');
+            console.log('  spawn <type> [count] - Spawn enemies');
+            console.log('  help                 - Show this help message');
+            break;
+
+        default:
+            if (cmd !== '') {
+                console.log('Unknown command. Type "help" for available commands.');
+            }
+            break;
+    }
+});
+
+console.log('Server running on port 3000');
+console.log('Type "help" for available commands.');
 
 httpServer.listen(3000, () => {
     console.log('Server running on port 3000');

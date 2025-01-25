@@ -7,7 +7,8 @@ export enum EnemyType {
     LADYBUG = 'ladybug',
     BEE = 'bee',
     CENTIPEDE = 'centipede',
-    CENTIPEDE_SEGMENT = 'centipede_segment'  // For the body segments
+    CENTIPEDE_SEGMENT = 'centipede_segment',
+    SPIDER = 'spider'  // Add spider type
 }
 
 interface EnemyStats {
@@ -31,6 +32,10 @@ const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
     [EnemyType.CENTIPEDE_SEGMENT]: {
         health: 25,
         size: 0.3
+    },
+    [EnemyType.SPIDER]: {  // Add spider stats
+        health: 60,
+        size: 0.4
     }
 };
 
@@ -120,6 +125,49 @@ export class Enemy {
                 },
                 (error) => {
                     console.error('Error loading bee model:', error);
+                }
+            );
+        } else if (type === EnemyType.SPIDER) {
+            // For spiders, create an invisible mesh as the base while we load the model
+            const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+            const material = new THREE.MeshBasicMaterial({ visible: false });
+            this.mesh = new THREE.Mesh(geometry, material);
+            
+            // Load the spider model
+            Enemy.gltfLoader.load(
+                '/spider.glb',
+                (gltf) => {
+                    console.log('Spider model loaded successfully');
+                    const model = gltf.scene;
+                    
+                    // Apply MeshBasicMaterial to all meshes in the model
+                    model.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            const oldMaterial = child.material as THREE.MeshStandardMaterial;
+                            // Create a flat, unlit material that ignores lighting
+                            const newMaterial = new THREE.MeshBasicMaterial({
+                                color: oldMaterial.color,
+                                map: oldMaterial.map,
+                                side: THREE.DoubleSide,  // Render both sides
+                                toneMapped: false,       // Disable tone mapping
+                                fog: false               // Disable fog effect
+                            });
+                            child.material = newMaterial;
+                        }
+                    });
+
+                    // Scale the model to match our game size
+                    model.scale.set(0.5, 0.5, 0.5);
+                    // Rotate 90 degrees to the right
+                    model.rotation.y = -Math.PI / 2;
+                    // Add the model to our base mesh
+                    this.mesh.add(model);
+                },
+                (progress) => {
+                    console.log('Loading spider model:', (progress.loaded / progress.total * 100) + '%');
+                },
+                (error) => {
+                    console.error('Error loading spider model:', error);
                 }
             );
         } else if (type === EnemyType.CENTIPEDE || type === EnemyType.CENTIPEDE_SEGMENT) {
@@ -233,6 +281,49 @@ export class Enemy {
                     console.error('Error loading bee model:', error);
                 }
             );
+        } else if (this.type === EnemyType.SPIDER) {
+            // For spiders, create an invisible mesh as the base while we load the model
+            const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+            const material = new THREE.MeshBasicMaterial({ visible: false });
+            this.mesh = new THREE.Mesh(geometry, material);
+            
+            // Load the spider model
+            Enemy.gltfLoader.load(
+                '/spider.glb',
+                (gltf) => {
+                    console.log('Spider model loaded successfully');
+                    const model = gltf.scene;
+                    
+                    // Apply MeshBasicMaterial to all meshes in the model
+                    model.traverse((child) => {
+                        if (child instanceof THREE.Mesh) {
+                            const oldMaterial = child.material as THREE.MeshStandardMaterial;
+                            // Create a flat, unlit material that ignores lighting
+                            const newMaterial = new THREE.MeshBasicMaterial({
+                                color: oldMaterial.color,
+                                map: oldMaterial.map,
+                                side: THREE.DoubleSide,  // Render both sides
+                                toneMapped: false,       // Disable tone mapping
+                                fog: false               // Disable fog effect
+                            });
+                            child.material = newMaterial;
+                        }
+                    });
+
+                    // Scale the model to match our game size
+                    model.scale.set(0.5, 0.5, 0.5);
+                    // Rotate 90 degrees to the right
+                    model.rotation.y = -Math.PI / 2;
+                    // Add the model to our base mesh
+                    this.mesh.add(model);
+                },
+                (progress) => {
+                    console.log('Loading spider model:', (progress.loaded / progress.total * 100) + '%');
+                },
+                (error) => {
+                    console.error('Error loading spider model:', error);
+                }
+            );
         } else if (this.type === EnemyType.CENTIPEDE || this.type === EnemyType.CENTIPEDE_SEGMENT) {
             // Create the main sphere for the body segment
             const geometry = new THREE.SphereGeometry(stats.size);
@@ -273,6 +364,8 @@ export class Enemy {
                 return 0xff0000; // Red
             case EnemyType.BEE:
                 return 0xffff00; // Gold
+            case EnemyType.SPIDER:
+                return 0x4a4a4a; // Dark gray
             default:
                 return 0xff0000;
         }
@@ -288,8 +381,8 @@ export class Enemy {
         this.mesh.position.set(position.x, position.y, position.z);
         
         // Update rotation based on enemy type
-        if (this.type === EnemyType.LADYBUG) {
-            // For ladybug, subtract 90 degrees to make it face the movement direction
+        if (this.type === EnemyType.LADYBUG || this.type === EnemyType.SPIDER) {
+            // For ladybug and spider, subtract 90 degrees to make it face the movement direction
             this.mesh.rotation.y = rotation - Math.PI/2;
         } else {
             // For other enemies, use rotation directly
