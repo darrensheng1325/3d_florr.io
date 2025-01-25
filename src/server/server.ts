@@ -236,10 +236,74 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
     });
 }
 
+// Add this helper function to constrain position within map bounds
+function constrainToMap(position: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
+    return {
+        x: Math.max(-MAP_SIZE, Math.min(MAP_SIZE, position.x)),
+        y: position.y,
+        z: Math.max(-MAP_SIZE, Math.min(MAP_SIZE, position.z))
+    };
+}
+
+// Add helper function to calculate avoidance vector
+function calculateAvoidanceVector(enemy: Enemy): { x: number, z: number } {
+    const avoidanceRadius = 1.5; // Radius to start avoiding other enemies
+    const avoidanceForce = 0.02; // Strength of avoidance
+    let avoidX = 0;
+    let avoidZ = 0;
+
+    enemies.forEach((otherEnemy) => {
+        if (otherEnemy.id !== enemy.id) {
+            const dx = enemy.position.x - otherEnemy.position.x;
+            const dz = enemy.position.z - otherEnemy.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+
+            if (distance < avoidanceRadius && distance > 0) {
+                // Calculate avoidance force inversely proportional to distance
+                const force = (avoidanceRadius - distance) * avoidanceForce / distance;
+                avoidX += dx * force;
+                avoidZ += dz * force;
+            }
+        }
+    });
+
+    return { x: avoidX, z: avoidZ };
+}
+
 function updateEnemies() {
     const currentTime = Date.now();
     
     enemies.forEach((enemy, enemyId) => {
+        // Check for player collisions and apply knockback
+        players.forEach((player) => {
+            const dx = enemy.position.x - player.position.x;
+            const dz = enemy.position.z - player.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            
+            // If enemy is touching player's center
+            if (distance < 1.0) {
+                // Calculate knockback direction (away from player)
+                const knockbackDir = {
+                    x: dx / distance,
+                    z: dz / distance
+                };
+
+                // Apply same knockback force as player hits
+                const knockbackForce = 0.8;
+                enemy.velocity.x = knockbackDir.x * knockbackForce;
+                enemy.velocity.z = knockbackDir.z * knockbackForce;
+
+                // Emit damage to player
+                io.emit('playerDamaged', {
+                    id: player.id,
+                    health: player.health - 10
+                });
+
+                // Update player health on server
+                player.health -= 10;
+            }
+        });
+
         // Handle passive movement for all enemies
         if (!enemy.isAggressive) {
             // Update wander direction periodically
@@ -259,15 +323,22 @@ function updateEnemies() {
                 const baseZ = Math.sin(enemy.wanderAngle) * speed;
                 const sineWave = Math.sin(time * 2) * 0.02; // Adjust frequency and amplitude
                 
-                enemy.position.x += baseX + sineWave * Math.cos(enemy.wanderAngle + Math.PI/2);
-                enemy.position.z += baseZ + sineWave * Math.sin(enemy.wanderAngle + Math.PI/2);
+                // Calculate avoidance
+                const avoidance = calculateAvoidanceVector(enemy);
+                
+                const newPosition = {
+                    x: enemy.position.x + baseX + sineWave * Math.cos(enemy.wanderAngle + Math.PI/2) + avoidance.x,
+                    y: enemy.position.y,
+                    z: enemy.position.z + baseZ + sineWave * Math.sin(enemy.wanderAngle + Math.PI/2) + avoidance.z
+                };
 
-                // Keep within map bounds and bounce off walls
-                if (enemy.position.x <= -MAP_SIZE || enemy.position.x >= MAP_SIZE) {
+                // Check if new position would be out of bounds
+                if (newPosition.x <= -MAP_SIZE || newPosition.x >= MAP_SIZE) {
                     enemy.wanderAngle = Math.PI - enemy.wanderAngle;
-                }
-                if (enemy.position.z <= -MAP_SIZE || enemy.position.z >= MAP_SIZE) {
+                } else if (newPosition.z <= -MAP_SIZE || newPosition.z >= MAP_SIZE) {
                     enemy.wanderAngle = -enemy.wanderAngle;
+                } else {
+                    enemy.position = newPosition;
                 }
 
                 // Emit position update with rotation based on movement direction
@@ -281,12 +352,31 @@ function updateEnemies() {
             } else {
                 // Regular enemies (ladybugs and bees) use normal wandering
                 const speed = ENEMY_STATS[enemy.type].passiveSpeed;
-                enemy.position.x += Math.cos(enemy.wanderAngle) * speed;
-                enemy.position.z += Math.sin(enemy.wanderAngle) * speed;
+                
+                // Calculate avoidance
+                const avoidance = calculateAvoidanceVector(enemy);
+                
+                const newPosition = {
+                    x: enemy.position.x + Math.cos(enemy.wanderAngle) * speed + avoidance.x,
+                    y: enemy.position.y,
+                    z: enemy.position.z + Math.sin(enemy.wanderAngle) * speed + avoidance.z
+                };
 
-                // Keep within map bounds
-                enemy.position.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.x));
-                enemy.position.z = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.z));
+                // Check if new position would be out of bounds
+                if (newPosition.x <= -MAP_SIZE || newPosition.x >= MAP_SIZE ||
+                    newPosition.z <= -MAP_SIZE || newPosition.z >= MAP_SIZE) {
+                    // Reverse direction if would go out of bounds
+                    enemy.wanderAngle = Math.PI + enemy.wanderAngle;
+                } else {
+                    enemy.position = newPosition;
+                    
+                    // Gradually adjust wanderAngle based on avoidance
+                    if (Math.abs(avoidance.x) > 0.001 || Math.abs(avoidance.z) > 0.001) {
+                        const avoidanceAngle = Math.atan2(avoidance.z, avoidance.x);
+                        const angleDiff = avoidanceAngle - enemy.wanderAngle;
+                        enemy.wanderAngle += angleDiff * 0.1; // Smooth turning
+                    }
+                }
 
                 io.emit('enemyMoved', {
                     id: enemyId,
@@ -306,12 +396,16 @@ function updateEnemies() {
                 // Move towards player
                 if (distance > 0.5) {  // Don't get too close
                     const speed = ENEMY_STATS[enemy.type].speed;
-                    enemy.position.x += (dx / distance) * speed;
-                    enemy.position.z += (dz / distance) * speed;
+                    const newPosition = {
+                        x: enemy.position.x + (dx / distance) * speed,
+                        y: enemy.position.y,
+                        z: enemy.position.z + (dz / distance) * speed
+                    };
 
-                    // Keep within map bounds
-                    enemy.position.x = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.x));
-                    enemy.position.z = Math.max(-MAP_SIZE, Math.min(MAP_SIZE, enemy.position.z));
+                    // Only update position if it's within bounds
+                    if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
+                        enemy.position = newPosition;
+                    }
 
                     // Calculate rotation to face player
                     const rotation = Math.atan2(dx, dz);
@@ -343,9 +437,16 @@ function updateEnemies() {
                     const dirZ = dz / distance;
                     
                     // Set position directly behind leader
-                    enemy.position.x = leader.position.x - dirX * segmentLength;
-                    enemy.position.z = leader.position.z - dirZ * segmentLength;
-                    enemy.position.y = leader.position.y;
+                    const newPosition = {
+                        x: leader.position.x - dirX * segmentLength,
+                        y: leader.position.y,
+                        z: leader.position.z - dirZ * segmentLength
+                    };
+
+                    // Only update if within bounds
+                    if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
+                        enemy.position = newPosition;
+                    }
 
                     // Calculate rotation to face movement direction
                     const rotation = Math.atan2(dx, dz);
@@ -357,6 +458,34 @@ function updateEnemies() {
                         rotation: rotation
                     });
                 }
+            }
+        }
+
+        // Apply velocity decay (for knockback)
+        if (enemy.velocity.x !== 0 || enemy.velocity.z !== 0) {
+            const decay = 0.7; // 30% decay per frame (increased from 10%)
+            
+            // Apply stronger decay for very small velocities to prevent micro-movements
+            if (Math.abs(enemy.velocity.x) < 0.01) enemy.velocity.x = 0;
+            if (Math.abs(enemy.velocity.z) < 0.01) enemy.velocity.z = 0;
+            
+            enemy.velocity.x *= decay;
+            enemy.velocity.z *= decay;
+
+            // Apply velocity while respecting bounds
+            const newPosition = {
+                x: enemy.position.x + enemy.velocity.x,
+                y: enemy.position.y,
+                z: enemy.position.z + enemy.velocity.z
+            };
+
+            // Only update if within bounds
+            if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
+                enemy.position = newPosition;
+            } else {
+                // If hitting boundary, stop velocity
+                enemy.velocity.x = 0;
+                enemy.velocity.z = 0;
             }
         }
     });
@@ -442,6 +571,59 @@ function spawnRandomEnemy() {
     });
 }
 
+// Function to check and reset server state if needed
+function checkAndResetServer() {
+    // Reset if there are no players
+    if (players.size === 0) {
+        console.log('No players connected. Resetting server state...');
+        resetServerState();
+        return;
+    }
+
+    // Check if all players are dead (health <= 0)
+    let allPlayersDead = true;
+    players.forEach((player) => {
+        if (player.health > 0) {
+            allPlayersDead = false;
+        }
+    });
+
+    if (allPlayersDead && players.size > 0) {
+        console.log('All players are dead. Resetting server state...');
+        resetServerState();
+    }
+}
+
+function resetServerState() {
+    // Clear all existing enemies
+    enemies.forEach((_, enemyId) => {
+        io.emit('enemyDied', { 
+            enemyId,
+            position: { x: 0, y: 0, z: 0 },
+            itemType: ''
+        });
+    });
+    enemies.clear();
+
+    // Reset wave state
+    currentWave = 1;
+    enemiesKilledInWave = 0;
+    totalXPInWave = 0;
+    enemiesSpawnedInWave = 0;
+
+    // Clear any existing spawn interval
+    if (waveSpawnInterval) {
+        clearInterval(waveSpawnInterval);
+        waveSpawnInterval = null;
+    }
+
+    // Broadcast wave reset
+    io.emit('waveStart', { wave: currentWave });
+
+    // Start a new wave
+    startNewWave();
+}
+
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
@@ -511,12 +693,25 @@ io.on('connection', (socket) => {
                 enemy.target = socket.id;
             }
             
-            const knockbackForce = 1.0;
+            const knockbackForce = 0.8; // Reduced from 1.0 to compensate for slower decay
             enemy.velocity.x = knockback.x * knockbackForce;
             enemy.velocity.z = knockback.z * knockbackForce;
             
-            enemy.position.x += enemy.velocity.x;
-            enemy.position.z += enemy.velocity.z;
+            // Apply knockback while respecting bounds
+            const newPosition = {
+                x: enemy.position.x + enemy.velocity.x,
+                y: enemy.position.y,
+                z: enemy.position.z + enemy.velocity.z
+            };
+
+            // Only update if within bounds
+            if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
+                enemy.position = newPosition;
+            } else {
+                // If hitting boundary, stop velocity
+                enemy.velocity.x = 0;
+                enemy.velocity.z = 0;
+            }
             
             if (enemy.health <= 0) {
                 // Store position before any modifications
@@ -565,6 +760,24 @@ io.on('connection', (socket) => {
         console.log('Player disconnected:', socket.id);
         players.delete(socket.id);
         io.emit('playerLeft', socket.id);
+        
+        // Check if server needs to be reset after player disconnects
+        checkAndResetServer();
+    });
+
+    // Handle player damage
+    socket.on('playerDamaged', ({ damage }) => {
+        const player = players.get(socket.id);
+        if (player) {
+            player.health -= damage;
+            io.emit('playerDamaged', {
+                id: socket.id,
+                health: player.health
+            });
+
+            // Check if server needs to be reset after player takes damage
+            checkAndResetServer();
+        }
     });
 });
 
