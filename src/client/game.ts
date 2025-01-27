@@ -3,11 +3,11 @@ import { io, Socket } from 'socket.io-client';
 import playerSvg from './player.svg';
 import { Petal } from './petal';
 import { HealthBar } from './health';
-import { Enemy, EnemyType } from './enemy';
+import { Enemy } from './enemy';
 import { Inventory, PetalType, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { Rarity } from '../shared/types';
+import { Rarity, EnemyType } from '../shared/types';
 
 export class Game {
     private scene: THREE.Scene;

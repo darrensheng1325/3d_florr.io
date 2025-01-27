@@ -117,18 +117,18 @@ function determineRarity(forcedRarity?: Rarity, waveNumber: number = currentWave
         minRarity = Rarity.COMMON;
     }
 
-    // Get available rarities based on minimum rarity
+    // Get available rarities (only minimum and one above)
     const rarityLevels = Object.values(Rarity);
     const minRarityIndex = rarityLevels.indexOf(minRarity);
-    const availableRarities = rarityLevels.slice(minRarityIndex);
+    const availableRarities = rarityLevels.slice(minRarityIndex, minRarityIndex + 2);
 
-    // Weighted random selection from available rarities
+    // 70% chance for minimum rarity, 30% chance for one rarity above (if available)
     const rand = Math.random();
-    if (rand < 0.50) return availableRarities[0];                     // 50% for minimum rarity
-    if (rand < 0.80 && availableRarities[1]) return availableRarities[1];  // 30% for next rarity
-    if (rand < 0.95 && availableRarities[2]) return availableRarities[2];  // 15% for next rarity
-    if (rand < 0.99 && availableRarities[3]) return availableRarities[3];  // 4% for next rarity
-    return availableRarities[availableRarities.length - 1];           // Remaining % for highest available rarity
+    if (rand < 0.7 || availableRarities.length === 1) {
+        return availableRarities[0]; // Minimum rarity
+    } else {
+        return availableRarities[1]; // One rarity above
+    }
 }
 
 // Function to get enemy stats with rarity multipliers
@@ -169,7 +169,10 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
         const headEnemy: Enemy = {
             id: headId,
             type: 'centipede',
-            position,
+            position: {
+                ...position,
+                y: stats.size
+            },
             health: stats.health,
             isAggressive: false,
             velocity: { x: 0, y: 0, z: 0 },
@@ -189,10 +192,22 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
             rarity: headEnemy.rarity
         });
 
-        // Create segments
-        const segmentCount = 3;
+        // Generate random length with weighted distribution
+        let segmentCount: number;
+        const rand = Math.random();
+        if (rand < 0.7) {
+            // 70% chance for length between 5 and 9 (centered around 7)
+            segmentCount = 5 + Math.floor(Math.random() * 5);
+        } else if (rand < 0.9) {
+            // 20% chance for length between 10 and 20
+            segmentCount = 10 + Math.floor(Math.random() * 11);
+        } else {
+            // 10% chance for length between 21 and 40
+            segmentCount = 21 + Math.floor(Math.random() * 20);
+        }
+
         const segmentSpacing = 0.6;
-        let lastSegmentPos = { ...position };
+        let lastSegmentPos = { ...headEnemy.position };
         const directionX = Math.cos(headEnemy.wanderAngle);
         const directionZ = Math.sin(headEnemy.wanderAngle);
 
@@ -276,9 +291,12 @@ function constrainToMap(position: { x: number; y: number; z: number }): { x: num
 function calculateAvoidanceVector(enemy: Enemy): { x: number, z: number } {
     const avoidanceRadius = 1.5; // Radius to start avoiding other enemies
     const avoidanceForce = 0.02; // Strength of avoidance
+    const boundaryAvoidanceRadius = 2; // Start avoiding boundaries when this close
+    const boundaryForce = 0.03; // Stronger force for boundary avoidance
     let avoidX = 0;
     let avoidZ = 0;
 
+    // Avoid other enemies
     enemies.forEach((otherEnemy) => {
         if (otherEnemy.id !== enemy.id) {
             const dx = enemy.position.x - otherEnemy.position.x;
@@ -293,6 +311,26 @@ function calculateAvoidanceVector(enemy: Enemy): { x: number, z: number } {
             }
         }
     });
+
+    // Avoid map boundaries
+    const distanceToLeft = enemy.position.x + MAP_SIZE;
+    const distanceToRight = MAP_SIZE - enemy.position.x;
+    const distanceToBottom = enemy.position.z + MAP_SIZE;
+    const distanceToTop = MAP_SIZE - enemy.position.z;
+
+    // Add boundary avoidance forces
+    if (distanceToLeft < boundaryAvoidanceRadius) {
+        avoidX += boundaryForce * (1 - distanceToLeft / boundaryAvoidanceRadius);
+    }
+    if (distanceToRight < boundaryAvoidanceRadius) {
+        avoidX -= boundaryForce * (1 - distanceToRight / boundaryAvoidanceRadius);
+    }
+    if (distanceToBottom < boundaryAvoidanceRadius) {
+        avoidZ += boundaryForce * (1 - distanceToBottom / boundaryAvoidanceRadius);
+    }
+    if (distanceToTop < boundaryAvoidanceRadius) {
+        avoidZ -= boundaryForce * (1 - distanceToTop / boundaryAvoidanceRadius);
+    }
 
     return { x: avoidX, z: avoidZ };
 }

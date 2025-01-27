@@ -2,15 +2,7 @@ import * as THREE from 'three';
 import { HealthBar } from './health';
 import ladybugSvg from './ladybug.svg';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS, BASE_SIZES, MODEL_BASE_SIZES } from '../shared/types';
-
-export enum EnemyType {
-    LADYBUG = 'ladybug',
-    BEE = 'bee',
-    CENTIPEDE = 'centipede',
-    CENTIPEDE_SEGMENT = 'centipede_segment',
-    SPIDER = 'spider'  // Add spider type
-}
+import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS, BASE_SIZES, MODEL_BASE_SIZES, EnemyType } from '../shared/types';
 
 interface EnemyStats {
     health: number;
@@ -18,23 +10,23 @@ interface EnemyStats {
 }
 
 const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
-    [EnemyType.LADYBUG]: {
+    ladybug: {
         health: 50,
         size: BASE_SIZES.ladybug
     },
-    [EnemyType.BEE]: {
+    bee: {
         health: 30,
         size: BASE_SIZES.bee
     },
-    [EnemyType.CENTIPEDE]: {
+    centipede: {
         health: 40,
         size: BASE_SIZES.centipede
     },
-    [EnemyType.CENTIPEDE_SEGMENT]: {
+    centipede_segment: {
         health: 25,
         size: BASE_SIZES.centipede_segment
     },
-    [EnemyType.SPIDER]: {
+    spider: {
         health: 60,
         size: BASE_SIZES.spider
     }
@@ -81,7 +73,7 @@ export class Enemy {
         const rarityMultiplier = 1 + (RARITY_MULTIPLIERS[rarity] - 1) * 0.5; // Same formula as server
         const finalSize = baseSize * rarityMultiplier;
 
-        if (type === EnemyType.LADYBUG) {
+        if (type === 'ladybug') {
             // Create the base mesh with appropriate material based on type
             const geometry = new THREE.SphereGeometry(finalSize, 64, 32);
             // Load the SVG texture with clean mapping
@@ -103,14 +95,14 @@ export class Enemy {
             });
             this.mesh = new THREE.Mesh(geometry, material);
             this.mesh.rotateY(-Math.PI / 2);  // Rotate mesh -90 degrees (left) around Y axis
-        } else if (type === EnemyType.BEE || type === EnemyType.SPIDER) {
+        } else if (type === 'bee' || type === 'spider') {
             // For bees and spiders, create an invisible mesh as the base while we load the model
             const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
             const material = new THREE.MeshBasicMaterial({ visible: false });
             this.mesh = new THREE.Mesh(geometry, material);
             
             // Load the model
-            const modelPath = type === EnemyType.BEE ? '/bee.glb' : '/spider.glb';
+            const modelPath = type === 'bee' ? '/bee.glb' : '/spider.glb';
             Enemy.gltfLoader.load(
                 modelPath,
                 (gltf) => {
@@ -132,7 +124,7 @@ export class Enemy {
                     });
 
                     // Scale the model based on final size
-                    const modelBaseSize = type === EnemyType.BEE ? MODEL_BASE_SIZES.bee : MODEL_BASE_SIZES.spider;
+                    const modelBaseSize = type === 'bee' ? MODEL_BASE_SIZES.bee : MODEL_BASE_SIZES.spider;
                     const modelScale = finalSize / modelBaseSize;
                     model.scale.set(modelScale, modelScale, modelScale);
                     model.rotation.y = -Math.PI / 2;
@@ -145,7 +137,7 @@ export class Enemy {
                     console.error(`Error loading ${type} model:`, error);
                 }
             );
-        } else if (type === EnemyType.CENTIPEDE || type === EnemyType.CENTIPEDE_SEGMENT) {
+        } else if (type === 'centipede' || type === 'centipede_segment') {
             // Create the main sphere for the body segment
             const geometry = new THREE.SphereGeometry(finalSize);
             const material = new THREE.MeshPhongMaterial({ 
@@ -156,28 +148,29 @@ export class Enemy {
             this.mesh = new THREE.Mesh(geometry, material);
 
             // Add antennae only for the head segment
-            if (type === EnemyType.CENTIPEDE) {
+            if (type === 'centipede') {
                 const antennaGeometry = new THREE.CylinderGeometry(
-                    0.02 * rarityMultiplier, // Scale antenna thickness with rarity
-                    0.02 * rarityMultiplier,
-                    finalSize * 0.8
+                    0.02 * rarityMultiplier, // Base thickness
+                    0.01 * rarityMultiplier, // Tip thickness (tapered)
+                    finalSize * 1.2, // Make them longer
+                    8 // segments
                 );
                 const antennaMaterial = new THREE.MeshPhongMaterial({ 
-                    color: 0x000000,
-                    shininess: 30,
-                    specular: 0x333333
+                    color: 0x000000, // Pure black
+                    shininess: 10,
+                    specular: 0x111111
                 });
                 
                 // Left antenna
                 const leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-                leftAntenna.position.set(-finalSize * 0.3, finalSize * 0.4, 0);
-                leftAntenna.rotation.z = Math.PI / 4;
+                leftAntenna.position.set(-finalSize * 0.3, finalSize * 0.6, 0);
+                leftAntenna.rotation.z = Math.PI / 3; // Adjust angle
                 this.mesh.add(leftAntenna);
                 
                 // Right antenna
                 const rightAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-                rightAntenna.position.set(finalSize * 0.3, finalSize * 0.4, 0);
-                rightAntenna.rotation.z = -Math.PI / 4;
+                rightAntenna.position.set(finalSize * 0.3, finalSize * 0.6, 0);
+                rightAntenna.rotation.z = -Math.PI / 3; // Adjust angle
                 this.mesh.add(rightAntenna);
             }
         }
@@ -194,11 +187,11 @@ export class Enemy {
 
     protected getBaseColor(): number {
         switch (this.type) {
-            case EnemyType.LADYBUG:
+            case 'ladybug':
                 return 0xff0000; // Red
-            case EnemyType.BEE:
+            case 'bee':
                 return 0xffff00; // Gold
-            case EnemyType.SPIDER:
+            case 'spider':
                 return 0x4a4a4a; // Dark gray
             default:
                 return 0xff0000;
@@ -206,7 +199,7 @@ export class Enemy {
     }
 
     protected addDecorativeElements(): void {
-        if (this.type === EnemyType.BEE) {
+        if (this.type === 'bee') {
             // Nothing needed here anymore as we're using the model
         }
     }
