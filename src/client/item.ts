@@ -28,8 +28,10 @@ export class Item {
             geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
         }
 
-        const material = new THREE.MeshBasicMaterial({
-            color: type === ItemType.TETRAHEDRON ? 0xff0000 : 0x0000ff
+        const material = new THREE.MeshPhongMaterial({
+            color: type === ItemType.TETRAHEDRON ? 0xff0000 : 0x0000ff,
+            shininess: 100,
+            specular: 0xffffff
         });
 
         this.mesh = new THREE.Mesh(geometry, material);

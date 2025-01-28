@@ -220,7 +220,7 @@ function spawnEnemy(type, position, forcedRarity) {
         type,
         position: {
             x: position.x,
-            y: BASE_ENEMY_STATS[type].size,
+            y: type === 'bee' ? BASE_ENEMY_STATS[type].size + 0.5 : BASE_ENEMY_STATS[type].size,
             z: position.z
         },
         health: stats.health,
@@ -290,6 +290,10 @@ function calculateAvoidanceVector(enemy) {
         avoidZ -= boundaryForce * (1 - distanceToTop / boundaryAvoidanceRadius);
     }
     return { x: avoidX, z: avoidZ };
+}
+// Helper function to get rotation based on enemy type and angle
+function getEnemyRotation(enemy, angle) {
+    return enemy.type === 'ladybug' ? angle : angle - Math.PI / 2;
 }
 function updateEnemies() {
     const currentTime = Date.now();
@@ -372,10 +376,11 @@ function updateEnemies() {
                     enemy.position = newPosition;
                 }
                 // Emit position update with rotation based on movement direction
+                const wanderRotation = getEnemyRotation(enemy, enemy.wanderAngle);
                 io.emit('enemyMoved', {
                     id: enemyId,
                     position: enemy.position,
-                    rotation: enemy.wanderAngle - Math.PI / 2
+                    rotation: wanderRotation
                 });
             }
             else if (enemy.type === 'centipede_segment') {
@@ -386,11 +391,25 @@ function updateEnemies() {
                 const speed = enemyStats.passiveSpeed;
                 // Calculate avoidance
                 const avoidance = calculateAvoidanceVector(enemy);
-                const newPosition = {
-                    x: enemy.position.x + Math.cos(enemy.wanderAngle) * speed + avoidance.x,
-                    y: enemy.position.y,
-                    z: enemy.position.z + Math.sin(enemy.wanderAngle) * speed + avoidance.z
-                };
+                let newPosition;
+                if (enemy.type === 'bee') {
+                    // Bees have gentle vertical movement
+                    const time = currentTime * 0.001; // Convert to seconds
+                    const verticalOffset = Math.sin(time) * 0.2; // Reduced oscillation amplitude
+                    const baseHeight = BASE_ENEMY_STATS.bee.size + 0.5; // Lower base hover height
+                    newPosition = {
+                        x: enemy.position.x + Math.cos(enemy.wanderAngle) * speed + avoidance.x,
+                        y: baseHeight + verticalOffset, // Gentler height variation
+                        z: enemy.position.z + Math.sin(enemy.wanderAngle) * speed + avoidance.z
+                    };
+                }
+                else {
+                    newPosition = {
+                        x: enemy.position.x + Math.cos(enemy.wanderAngle) * speed + avoidance.x,
+                        y: enemy.position.y,
+                        z: enemy.position.z + Math.sin(enemy.wanderAngle) * speed + avoidance.z
+                    };
+                }
                 // Check if new position would be out of bounds
                 if (newPosition.x <= -MAP_SIZE || newPosition.x >= MAP_SIZE ||
                     newPosition.z <= -MAP_SIZE || newPosition.z >= MAP_SIZE) {
@@ -406,10 +425,11 @@ function updateEnemies() {
                         enemy.wanderAngle += angleDiff * 0.1; // Smooth turning
                     }
                 }
+                const wanderRotation = getEnemyRotation(enemy, enemy.wanderAngle);
                 io.emit('enemyMoved', {
                     id: enemyId,
                     position: enemy.position,
-                    rotation: enemy.wanderAngle - Math.PI / 2
+                    rotation: wanderRotation
                 });
             }
         }
@@ -434,11 +454,11 @@ function updateEnemies() {
                         enemy.position = newPosition;
                     }
                     // Calculate rotation to face player
-                    const rotation = Math.atan2(dx, dz);
+                    const targetRotation = getEnemyRotation(enemy, Math.atan2(dx, dz));
                     io.emit('enemyMoved', {
                         id: enemyId,
                         position: enemy.position,
-                        rotation: enemy.type === 'spider' ? rotation - Math.PI / 2 : rotation
+                        rotation: targetRotation
                     });
                 }
             }
@@ -473,7 +493,7 @@ function updateEnemies() {
                     io.emit('enemyMoved', {
                         id: enemyId,
                         position: enemy.position,
-                        rotation: rotation
+                        rotation: Math.atan2(dx, dz) - Math.PI / 2
                     });
                 }
             }
@@ -503,6 +523,12 @@ function updateEnemies() {
                 enemy.velocity.x = 0;
                 enemy.velocity.z = 0;
             }
+            const velocityRotation = getEnemyRotation(enemy, Math.atan2(enemy.velocity.x, enemy.velocity.z));
+            io.emit('enemyMoved', {
+                id: enemyId,
+                position: enemy.position,
+                rotation: velocityRotation
+            });
         }
     });
 }
@@ -769,10 +795,11 @@ io.on('connection', (socket) => {
                     id: enemyId,
                     health: enemy.health
                 });
+                const velocityRotation = getEnemyRotation(enemy, Math.atan2(enemy.velocity.x, enemy.velocity.z));
                 io.emit('enemyMoved', {
                     id: enemyId,
                     position: enemy.position,
-                    rotation: Math.atan2(enemy.velocity.x, enemy.velocity.z) - Math.PI / 2
+                    rotation: velocityRotation
                 });
             }
         }

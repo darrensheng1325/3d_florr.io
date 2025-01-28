@@ -42,7 +42,6 @@ export class Enemy {
     private health: number;
     private isAggressive: boolean;
     private camera: THREE.Camera;
-    private aura: THREE.Mesh | null = null;
     private position: THREE.Vector3;
     private maxHealth: number;
     private rarity: Rarity;
@@ -152,7 +151,7 @@ export class Enemy {
                 const antennaGeometry = new THREE.CylinderGeometry(
                     0.02 * rarityMultiplier, // Base thickness
                     0.01 * rarityMultiplier, // Tip thickness (tapered)
-                    finalSize * 1.2, // Make them longer
+                    finalSize * 2.0, // Make them much longer (increased from 1.2)
                     8 // segments
                 );
                 const antennaMaterial = new THREE.MeshPhongMaterial({ 
@@ -163,13 +162,13 @@ export class Enemy {
                 
                 // Left antenna
                 const leftAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-                leftAntenna.position.set(-finalSize * 0.3, finalSize * 0.6, 0);
+                leftAntenna.position.set(-finalSize * 0.3, finalSize * 0.8, 0); // Higher position
                 leftAntenna.rotation.z = Math.PI / 3; // Adjust angle
                 this.mesh.add(leftAntenna);
                 
                 // Right antenna
                 const rightAntenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-                rightAntenna.position.set(finalSize * 0.3, finalSize * 0.6, 0);
+                rightAntenna.position.set(finalSize * 0.3, finalSize * 0.8, 0); // Higher position
                 rightAntenna.rotation.z = -Math.PI / 3; // Adjust angle
                 this.mesh.add(rightAntenna);
             }
@@ -180,9 +179,6 @@ export class Enemy {
 
         // Add health bar
         this.healthBar = new HealthBar(camera, this.mesh, health);
-
-        // Create rarity aura
-        this.createAura(scene, finalSize);
     }
 
     protected getBaseColor(): number {
@@ -207,16 +203,17 @@ export class Enemy {
     public updatePosition(position: { x: number, y: number, z: number }, rotation: number): void {
         this.position.set(position.x, position.y, position.z);
         this.mesh.position.copy(this.position);
-        this.mesh.rotation.y = rotation;
+        
+        // Apply rotation based on enemy type
+        if (this.type === 'ladybug') {
+            this.mesh.rotation.y = rotation - Math.PI / 2; // Always rotate ladybugs 90 degrees left
+        } else {
+            this.mesh.rotation.y = rotation;
+        }
 
         // Update health bar position
         if (this.healthBar) {
             this.healthBar.updatePosition();
-        }
-
-        // Update aura position
-        if (this.aura) {
-            this.aura.position.copy(this.position);
         }
     }
 
@@ -227,9 +224,6 @@ export class Enemy {
     public remove(): void {
         this.scene.remove(this.mesh);
         this.healthBar.remove();
-        if (this.aura && this.aura.parent) {
-            this.aura.parent.remove(this.aura);
-        }
     }
 
     public getPosition(): THREE.Vector3 {
@@ -238,63 +232,5 @@ export class Enemy {
 
     public getId(): string {
         return this.id;
-    }
-
-    private createAura(scene: THREE.Scene, size: number): void {
-        // Create aura geometry slightly larger than the enemy
-        const auraGeometry = new THREE.SphereGeometry(
-            size * 1.5, // Use the final size for the aura
-            32,
-            32
-        );
-
-        // Create aura material with rarity color
-        const auraMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                color: { value: new THREE.Color(RARITY_COLORS[this.rarity]) },
-                time: { value: 0 }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                varying vec3 vPosition;
-                void main() {
-                    vUv = uv;
-                    vPosition = position;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 color;
-                uniform float time;
-                varying vec2 vUv;
-                varying vec3 vPosition;
-                
-                void main() {
-                    float pulse = sin(time * 2.0) * 0.5 + 0.5;
-                    float edge = 1.0 - smoothstep(0.4, 0.5, length(vPosition));
-                    // Make aura more intense for higher rarities
-                    float intensity = ${this.rarity === Rarity.LEGENDARY ? '0.6' : 
-                                     this.rarity === Rarity.EPIC ? '0.5' :
-                                     this.rarity === Rarity.RARE ? '0.4' :
-                                     this.rarity === Rarity.UNCOMMON ? '0.3' : '0.2'};
-                    float alpha = edge * (intensity + pulse * 0.2);
-                    gl_FragColor = vec4(color, alpha);
-                }
-            `,
-            transparent: true,
-            side: THREE.DoubleSide
-        });
-
-        this.aura = new THREE.Mesh(auraGeometry, auraMaterial);
-        scene.add(this.aura);
-        
-        // Start aura animation
-        const animate = () => {
-            if (this.aura) {
-                (this.aura.material as THREE.ShaderMaterial).uniforms.time.value = performance.now() / 1000;
-            }
-            requestAnimationFrame(animate);
-        };
-        animate();
     }
 } 
