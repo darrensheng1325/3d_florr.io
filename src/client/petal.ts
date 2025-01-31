@@ -1,19 +1,43 @@
 import * as THREE from 'three';
 import { PetalType } from './inventory';
+import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS } from '../shared/types';
 
 // Stats for different petal types
-const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: number }> = {
+const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: number; rarity: Rarity }> = {
     'basic': {
         maxHealth: 50,
         cooldownTime: 3000, // 3 seconds
+        rarity: Rarity.COMMON
+    },
+    'basic_uncommon': {
+        maxHealth: 75,
+        cooldownTime: 2800,
+        rarity: Rarity.UNCOMMON
+    },
+    'basic_rare': {
+        maxHealth: 112,
+        cooldownTime: 2600,
+        rarity: Rarity.RARE
     },
     'tetrahedron': {
         maxHealth: 100,
         cooldownTime: 5000, // 5 seconds
+        rarity: Rarity.COMMON
+    },
+    'tetrahedron_epic': {
+        maxHealth: 337,
+        cooldownTime: 4000,
+        rarity: Rarity.EPIC
     },
     'cube': {
         maxHealth: 75,
         cooldownTime: 4000, // 4 seconds
+        rarity: Rarity.COMMON
+    },
+    'cube_legendary': {
+        maxHealth: 375,
+        cooldownTime: 3000,
+        rarity: Rarity.LEGENDARY
     }
 };
 
@@ -86,14 +110,33 @@ export class Petal {
     }
 
     private getPetalColor(): number {
+        // Get base color based on type
+        let baseColor: number;
         switch (this.type) {
             case PetalType.TETRAHEDRON:
-                return 0xff0000; // Red
+            case PetalType.TETRAHEDRON_EPIC:
+                baseColor = 0xff0000; // Red
+                break;
             case PetalType.CUBE:
-                return 0x0000ff; // Blue
+            case PetalType.CUBE_LEGENDARY:
+                baseColor = 0x0000ff; // Blue
+                break;
             default:
-                return 0xffffff; // White for basic
+                baseColor = 0xffffff; // White for basic
         }
+
+        // Get rarity color
+        const stats = PETAL_STATS[this.type];
+        const rarityColor = RARITY_COLORS[stats.rarity];
+        
+        // Create a new color that blends the base color with the rarity color
+        const baseThreeColor = new THREE.Color(baseColor);
+        const rarityThreeColor = new THREE.Color(rarityColor);
+        
+        // Blend colors (70% base, 30% rarity)
+        baseThreeColor.lerp(rarityThreeColor, 0.3);
+        
+        return baseThreeColor.getHex();
     }
 
     public getType(): PetalType {

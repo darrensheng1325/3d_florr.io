@@ -3,8 +3,12 @@ import { Petal } from './petal';
 
 export enum PetalType {
     BASIC = 'basic',
+    BASIC_UNCOMMON = 'basic_uncommon',
+    BASIC_RARE = 'basic_rare',
     TETRAHEDRON = 'tetrahedron',
-    CUBE = 'cube'
+    TETRAHEDRON_EPIC = 'tetrahedron_epic',
+    CUBE = 'cube',
+    CUBE_LEGENDARY = 'cube_legendary'
 }
 
 export interface PetalSlot {

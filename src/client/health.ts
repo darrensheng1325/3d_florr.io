@@ -106,9 +106,14 @@ export class HealthBar {
         this.updateHealthBar();
     }
 
+    public setHealth(percentage: number): void {
+        this.currentHealth = (percentage / 100) * this.maxHealth;
+        this.updateHealthBar();
+    }
+
     private updateHealthBar(): void {
-        const healthPercent = (this.currentHealth / this.maxHealth) * 100;
-        this.fill.style.width = `${healthPercent}%`;
+        const percentage = (this.currentHealth / this.maxHealth) * 100;
+        this.fill.style.width = `${percentage}%`;
     }
 
     public remove(): void {

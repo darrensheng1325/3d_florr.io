@@ -162,6 +162,45 @@ export class Game {
         this.setupConnectionMonitoring();
     }
 
+    private determinePetalDrop(enemyRarity: Rarity): { shouldDrop: boolean; dropRarity: Rarity; petalType: PetalType } {
+        // 50% chance to drop a petal
+        if (Math.random() > 0.5) {
+            return { shouldDrop: false, dropRarity: Rarity.COMMON, petalType: PetalType.BASIC };
+        }
+
+        let dropRarity: Rarity;
+        if (enemyRarity === Rarity.COMMON) {
+            // Common mobs have 30% chance to drop uncommon
+            dropRarity = Math.random() < 0.3 ? Rarity.UNCOMMON : Rarity.COMMON;
+        } else {
+            // For other rarities: 30% chance to drop same rarity, 70% chance to drop one rarity below
+            const dropSameRarity = Math.random() < 0.3;
+            dropRarity = dropSameRarity ? enemyRarity : Object.values(Rarity)[Object.values(Rarity).indexOf(enemyRarity) - 1];
+        }
+
+        // Determine petal type based on rarity
+        let possibleTypes: PetalType[] = [];
+        switch (dropRarity) {
+            case Rarity.LEGENDARY:
+                possibleTypes = [PetalType.CUBE_LEGENDARY];
+                break;
+            case Rarity.EPIC:
+                possibleTypes = [PetalType.TETRAHEDRON_EPIC];
+                break;
+            case Rarity.RARE:
+                possibleTypes = [PetalType.BASIC_RARE];
+                break;
+            case Rarity.UNCOMMON:
+                possibleTypes = [PetalType.BASIC_UNCOMMON];
+                break;
+            default:
+                possibleTypes = [PetalType.BASIC, PetalType.TETRAHEDRON, PetalType.CUBE];
+        }
+
+        const randomType = possibleTypes[Math.floor(Math.random() * possibleTypes.length)];
+        return { shouldDrop: true, dropRarity, petalType: randomType };
+    }
+
     private setupEnemyEvents(): void {
         if (!this.socket) return;
 
@@ -194,13 +233,27 @@ export class Game {
             }
         });
 
-        this.socket.on('enemyDied', (data: { enemyId: string, position: { x: number, y: number, z: number }, itemType: string}) => {
+        this.socket.on('enemyDied', (data: { enemyId: string, position: { x: number, y: number, z: number }, itemType: string, enemyRarity: Rarity }) => {
             const enemy = this.enemies.get(data.enemyId);
             if (enemy) {
                 enemy.remove();
                 this.enemies.delete(data.enemyId);
                 this.enemiesKilled++;
                 this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+
+                // Handle petal drops
+                const dropResult = this.determinePetalDrop(data.enemyRarity);
+                if (dropResult.shouldDrop) {
+                    // Find first empty inventory slot
+                    const inventory = this.playerInventories.get(this.socket?.id || '');
+                    if (inventory) {
+                        const slots = inventory.getSlots();
+                        const emptySlotIndex = slots.findIndex(slot => slot.petal === null);
+                        if (emptySlotIndex !== -1) {
+                            inventory.addPetal(dropResult.petalType, emptySlotIndex);
+                        }
+                    }
+                }
 
                 // If there's an item drop, create it
                 if (data.itemType) {
@@ -619,6 +672,14 @@ export class Game {
                         this.showDeathScreen();
                     }
                 }
+            }
+        });
+
+        // Add enemy damage event handler
+        this.socket.on('enemyDamaged', (data: { enemyId: string, damage: number, health: number }) => {
+            const enemy = this.enemies.get(data.enemyId);
+            if (enemy) {
+                enemy.takeDamage(data.damage);
             }
         });
 

@@ -784,15 +784,18 @@ io.on('connection', (socket) => {
                 io.emit('enemyDied', {
                     enemyId,
                     position: deathPosition,
-                    itemType
+                    itemType,
+                    enemyRarity: enemy.rarity
                 });
                 // Distribute XP and update wave progress
                 distributeXP(BASE_ENEMY_STATS[enemy.type].xp);
                 enemiesKilledInWave++;
             }
             else {
+                // Update format to match what client expects
                 io.emit('enemyDamaged', {
-                    id: enemyId,
+                    enemyId,
+                    damage,
                     health: enemy.health
                 });
                 const velocityRotation = getEnemyRotation(enemy, Math.atan2(enemy.velocity.x, enemy.velocity.z));

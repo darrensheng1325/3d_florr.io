@@ -209,8 +209,8 @@ export class Enemy {
         this.mesh.position.copy(position);
         this.scene.add(this.mesh);
 
-        // Add health bar
-        this.healthBar = new HealthBar(camera, this.mesh, health);
+        // Add health bar with correct max health
+        this.healthBar = new HealthBar(camera, this.mesh, this.maxHealth);
     }
 
     protected getBaseColor(): number {
@@ -270,8 +270,19 @@ export class Enemy {
         }
     }
 
-    public takeDamage(amount: number): boolean {
-        return this.healthBar.takeDamage(amount);
+    public takeDamage(amount: number): void {
+        this.health = Math.max(0, this.health - amount);
+        // Update health bar with current health percentage
+        const healthPercentage = (this.health / this.maxHealth) * 100;
+        this.healthBar.setHealth(healthPercentage);
+    }
+
+    public getHealth(): number {
+        return this.health;
+    }
+
+    public getMaxHealth(): number {
+        return this.maxHealth;
     }
 
     public remove(): void {
