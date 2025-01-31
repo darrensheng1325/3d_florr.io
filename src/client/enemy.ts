@@ -32,6 +32,15 @@ const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
     }
 };
 
+// Add name mapping for enemies
+const ENEMY_NAMES: Record<EnemyType, string> = {
+    ladybug: 'Ladybug',
+    bee: 'Bee',
+    centipede: 'Centipede',
+    centipede_segment: 'Segment',
+    spider: 'Spider'
+};
+
 export class Enemy {
     private scene: THREE.Scene;
     private mesh: THREE.Mesh;
@@ -45,6 +54,7 @@ export class Enemy {
     private position: THREE.Vector3;
     private maxHealth: number;
     private rarity: Rarity;
+    private descriptionElement?: HTMLDivElement;
 
     constructor(
         scene: THREE.Scene,
@@ -66,6 +76,28 @@ export class Enemy {
         this.rarity = rarity;
         this.position = position;
         this.mesh = new THREE.Mesh(); // Initialize with empty mesh
+
+        // Create description element only for non-segment enemies
+        if (type !== 'centipede_segment') {
+            this.descriptionElement = document.createElement('div');
+            this.descriptionElement.style.position = 'absolute';
+            this.descriptionElement.style.textAlign = 'center';
+            this.descriptionElement.style.color = '#ffffff';
+            this.descriptionElement.style.fontFamily = 'Arial, sans-serif';
+            this.descriptionElement.style.fontSize = '8px';
+            this.descriptionElement.style.textShadow = '1px 1px 1px rgba(0,0,0,0.5)';
+            this.descriptionElement.style.pointerEvents = 'none';
+            this.descriptionElement.style.userSelect = 'none';
+            this.descriptionElement.style.whiteSpace = 'nowrap';
+            this.descriptionElement.style.opacity = '0.8';
+            
+            // Set the text content with name and rarity
+            const enemyName = ENEMY_NAMES[type];
+            const rarityColor = RARITY_COLORS[rarity];
+            this.descriptionElement.innerHTML = `${enemyName} <span style="color: ${rarityColor}">[${rarity}]</span>`;
+            
+            document.body.appendChild(this.descriptionElement);
+        }
 
         // Calculate base size and rarity multiplier
         const baseSize = ENEMY_STATS[type].size;
@@ -215,6 +247,27 @@ export class Enemy {
         if (this.healthBar) {
             this.healthBar.updatePosition();
         }
+
+        // Update description position only if it exists
+        if (this.descriptionElement) {
+            const screenPosition = this.position.clone();
+            screenPosition.y -= ENEMY_STATS[this.type].size * 1.2;
+            screenPosition.project(this.camera);
+            
+            const x = (screenPosition.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-screenPosition.y * 0.5 + 0.5) * window.innerHeight;
+            
+            this.descriptionElement.style.transform = `translate(-50%, -50%)`;
+            this.descriptionElement.style.left = x + 'px';
+            this.descriptionElement.style.top = y + 'px';
+            
+            // Hide if behind camera
+            if (screenPosition.z > 1) {
+                this.descriptionElement.style.display = 'none';
+            } else {
+                this.descriptionElement.style.display = 'block';
+            }
+        }
     }
 
     public takeDamage(amount: number): boolean {
@@ -224,6 +277,10 @@ export class Enemy {
     public remove(): void {
         this.scene.remove(this.mesh);
         this.healthBar.remove();
+        // Remove description element if it exists
+        if (this.descriptionElement && this.descriptionElement.parentNode) {
+            this.descriptionElement.parentNode.removeChild(this.descriptionElement);
+        }
     }
 
     public getPosition(): THREE.Vector3 {

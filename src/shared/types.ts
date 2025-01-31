@@ -7,11 +7,11 @@ export enum Rarity {
 }
 
 export const RARITY_COLORS = {
-    [Rarity.COMMON]: '#ffffff',     // White
-    [Rarity.UNCOMMON]: '#2ecc71',   // Green
-    [Rarity.RARE]: '#3498db',       // Blue
-    [Rarity.EPIC]: '#9b59b6',       // Purple
-    [Rarity.LEGENDARY]: '#f1c40f'   // Gold
+    [Rarity.COMMON]: '#82ee6c',     // White
+    [Rarity.UNCOMMON]: '#ffe55e',   // Green
+    [Rarity.RARE]: '#4f51e2',       // Blue
+    [Rarity.EPIC]: '#861ee0',       // Purple
+    [Rarity.LEGENDARY]: '#ff0000'   // Gold
 };
 
 export const RARITY_MULTIPLIERS = {
