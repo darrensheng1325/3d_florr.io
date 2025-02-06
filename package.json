@@ -9,9 +9,14 @@
     "watch:server": "tsc -p tsconfig.server.json --watch"
   },
   "dependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/uuid": "^10.0.0",
+    "better-sqlite3": "^11.8.1",
     "socket.io": "^4.7.4",
     "socket.io-client": "^4.7.4",
-    "three": "^0.161.0"
+    "sqlite3": "^5.1.7",
+    "three": "^0.161.0",
+    "uuid": "^11.0.5"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

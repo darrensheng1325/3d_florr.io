@@ -532,6 +532,21 @@ function updateEnemies() {
         }
     });
 }
+function distributeXP(amount) {
+    const playerCount = players.size;
+    if (playerCount === 0)
+        return;
+    const xpPerPlayer = Math.floor(amount / playerCount);
+    players.forEach((player) => {
+        player.xp += xpPerPlayer;
+        io.emit('playerXP', { id: player.id, xp: player.xp });
+    });
+    totalXPInWave += amount;
+    // Only progress wave when all enemies are killed
+    if (enemiesKilledInWave >= ENEMIES_PER_WAVE) {
+        startNewWave();
+    }
+}
 function startNewWave() {
     // Clear all existing enemies
     enemies.forEach((_, enemyId) => {
@@ -575,25 +590,11 @@ function startNewWave() {
             if (enemiesSpawnedInWave >= ENEMIES_PER_WAVE) {
                 if (waveSpawnInterval) {
                     clearInterval(waveSpawnInterval);
+                    waveSpawnInterval = null;
                 }
             }
         }
     }, WAVE_SPAWN_INTERVAL);
-}
-function distributeXP(amount) {
-    const playerCount = players.size;
-    if (playerCount === 0)
-        return;
-    const xpPerPlayer = Math.floor(amount / playerCount);
-    players.forEach((player) => {
-        player.xp += xpPerPlayer;
-        io.emit('playerXP', { id: player.id, xp: player.xp });
-    });
-    totalXPInWave += amount;
-    // Check if wave should end
-    if (enemiesKilledInWave >= ENEMIES_PER_WAVE || totalXPInWave >= XP_PER_WAVE) {
-        startNewWave();
-    }
 }
 function spawnRandomEnemy() {
     // Spawn at random edge of map
@@ -649,17 +650,6 @@ function checkAndResetServer() {
         resetServerState();
         return;
     }
-    // Check if all players are dead (health <= 0)
-    let allPlayersDead = true;
-    players.forEach((player) => {
-        if (player.health > 0) {
-            allPlayersDead = false;
-        }
-    });
-    if (allPlayersDead && players.size > 0) {
-        console.log('All players are dead. Resetting server state...');
-        resetServerState();
-    }
 }
 function resetServerState() {
     // Clear all existing enemies
@@ -672,7 +662,7 @@ function resetServerState() {
     });
     enemies.clear();
     // Reset wave state
-    currentWave = 1;
+    currentWave = 1; // Reset to wave 1 instead of incrementing
     enemiesKilledInWave = 0;
     totalXPInWave = 0;
     enemiesSpawnedInWave = 0;
@@ -681,19 +671,38 @@ function resetServerState() {
         clearInterval(waveSpawnInterval);
         waveSpawnInterval = null;
     }
-    // Broadcast wave reset
-    io.emit('waveStart', { wave: currentWave });
-    // Start a new wave
-    startNewWave();
+    // Broadcast wave reset with wave 1
+    io.emit('waveStart', {
+        wave: currentWave,
+        minRarity: types_1.Rarity.COMMON
+    });
+    // Start spawning enemies for wave 1
+    waveSpawnInterval = setInterval(() => {
+        if (enemiesSpawnedInWave < ENEMIES_PER_WAVE) {
+            spawnRandomEnemy();
+            enemiesSpawnedInWave++;
+            if (enemiesSpawnedInWave >= ENEMIES_PER_WAVE) {
+                if (waveSpawnInterval) {
+                    clearInterval(waveSpawnInterval);
+                    waveSpawnInterval = null;
+                }
+            }
+        }
+    }, WAVE_SPAWN_INTERVAL);
 }
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
-    // Store new player with XP
+    // Store new player with XP and join time
     players.set(socket.id, {
         id: socket.id,
         position: { x: 0, y: 0.5, z: 0 },
         health: 100,
-        xp: 0
+        xp: 0,
+        joinTime: Date.now() // Add join time
+    });
+    // Send initial health state to the new player
+    socket.emit('healthSync', {
+        health: 100
     });
     // Send existing players and enemies to the new player
     players.forEach((player) => {
@@ -748,7 +757,7 @@ io.on('connection', (socket) => {
                 enemy.isAggressive = true;
                 enemy.target = socket.id;
             }
-            const knockbackForce = 0.8; // Reduced from 1.0 to compensate for slower decay
+            const knockbackForce = 0.8;
             enemy.velocity.x = knockback.x * knockbackForce;
             enemy.velocity.z = knockback.z * knockbackForce;
             // Apply knockback while respecting bounds
@@ -787,8 +796,12 @@ io.on('connection', (socket) => {
                     itemType,
                     enemyRarity: enemy.rarity
                 });
+                // Get base XP and apply rarity multiplier
+                const baseXP = BASE_ENEMY_STATS[enemy.type].xp;
+                const rarityMultiplier = types_1.RARITY_MULTIPLIERS[enemy.rarity];
+                const totalXP = Math.round(baseXP * rarityMultiplier);
                 // Distribute XP and update wave progress
-                distributeXP(BASE_ENEMY_STATS[enemy.type].xp);
+                distributeXP(totalXP);
                 enemiesKilledInWave++;
             }
             else {
@@ -815,17 +828,74 @@ io.on('connection', (socket) => {
         // Check if server needs to be reset after player disconnects
         checkAndResetServer();
     });
+    // Add health sync request handler
+    socket.on('requestHealthSync', () => {
+        const player = players.get(socket.id);
+        if (player) {
+            socket.emit('healthSync', {
+                health: player.health
+            });
+        }
+    });
     // Handle player damage
     socket.on('playerDamaged', ({ damage }) => {
         const player = players.get(socket.id);
         if (player) {
-            player.health -= damage;
+            // Validate damage amount
+            const validatedDamage = Math.max(0, Math.min(damage, player.health));
+            player.health = Math.max(0, player.health - validatedDamage);
+            // Broadcast the new health state to all clients
             io.emit('playerDamaged', {
                 id: socket.id,
                 health: player.health
             });
-            // Check if server needs to be reset after player takes damage
-            checkAndResetServer();
+            // Send a health sync to the affected player
+            socket.emit('healthSync', {
+                health: player.health
+            });
+            // Handle player death
+            if (player.health <= 0) {
+                console.log('Player died:', socket.id);
+                // First, notify all clients to freeze the game state
+                io.emit('playerDeathSequence', {
+                    id: socket.id,
+                    position: player.position
+                });
+                // Calculate detailed stats for death screen
+                const deathStats = {
+                    finalScore: player.xp,
+                    wave: currentWave,
+                    enemiesKilled: enemiesKilledInWave,
+                    totalWaveProgress: Math.floor((enemiesKilledInWave / ENEMIES_PER_WAVE) * 100),
+                    position: player.position,
+                    gameStats: {
+                        timeAlive: Date.now() - player.joinTime, // Add joinTime to player object when creating
+                        highestWave: currentWave,
+                        finalPosition: player.position,
+                        totalXP: player.xp
+                    }
+                };
+                // Send initial death event to start death sequence
+                socket.emit('playerDied', deathStats);
+                // Keep the player in the game state briefly for death animation
+                setTimeout(() => {
+                    // Send final death confirmation to trigger death screen
+                    socket.emit('showDeathScreen', deathStats);
+                    // Remove the player from the game state
+                    players.delete(socket.id);
+                    io.emit('playerLeft', socket.id);
+                    // Set a longer timeout for the death screen to be visible
+                    setTimeout(() => {
+                        if (socket.connected) {
+                            // Send one final message before disconnect
+                            socket.emit('deathScreenComplete');
+                            socket.disconnect(true);
+                        }
+                        // Check if server needs reset (no players left)
+                        checkAndResetServer();
+                    }, 5000); // 5 second delay to show death screen
+                }, 1000); // 1 second for death animation
+            }
         }
     });
 });
