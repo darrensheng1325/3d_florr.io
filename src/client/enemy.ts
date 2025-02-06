@@ -29,6 +29,18 @@ const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
     spider: {
         health: 60,
         size: BASE_SIZES.spider
+    },
+    soldier_ant: {
+        health: 80,
+        size: BASE_SIZES.soldier_ant
+    },
+    worker_ant: {
+        health: 100,  // 2x ladybug health
+        size: BASE_SIZES.worker_ant
+    },
+    baby_ant: {
+        health: 50,   // Same as ladybug
+        size: BASE_SIZES.baby_ant
     }
 };
 
@@ -38,7 +50,10 @@ const ENEMY_NAMES: Record<EnemyType, string> = {
     bee: 'Bee',
     centipede: 'Centipede',
     centipede_segment: 'Segment',
-    spider: 'Spider'
+    spider: 'Spider',
+    soldier_ant: 'Soldier Ant',
+    worker_ant: 'Worker Ant',
+    baby_ant: 'Baby Ant'
 };
 
 export class Enemy {
@@ -126,14 +141,18 @@ export class Enemy {
             });
             this.mesh = new THREE.Mesh(geometry, material);
             this.mesh.rotateY(-Math.PI / 2);  // Rotate mesh -90 degrees (left) around Y axis
-        } else if (type === 'bee' || type === 'spider') {
-            // For bees and spiders, create an invisible mesh as the base while we load the model
+        } else if (type === 'bee' || type === 'spider' || type === 'soldier_ant' || type === 'worker_ant' || type === 'baby_ant') {
+            // For bees, spiders, and ants, create an invisible mesh as the base while we load the model
             const geometry = new THREE.BoxGeometry(0.01, 0.01, 0.01);
             const material = new THREE.MeshBasicMaterial({ visible: false });
             this.mesh = new THREE.Mesh(geometry, material);
             
             // Load the model
-            const modelPath = type === 'bee' ? '/bee.glb' : '/spider.glb';
+            const modelPath = type === 'bee' ? '/bee.glb' : 
+                             type === 'spider' ? '/spider.glb' : 
+                             type === 'soldier_ant' ? '/soldier_ant.glb' :
+                             type === 'worker_ant' ? '/worker_ant.glb' :
+                             '/baby_ant.glb';
             Enemy.gltfLoader.load(
                 modelPath,
                 (gltf) => {
@@ -142,20 +161,27 @@ export class Enemy {
                     // Apply materials and setup model
                     model.traverse((child) => {
                         if (child instanceof THREE.Mesh) {
-                            const oldMaterial = child.material as THREE.MeshStandardMaterial;
-                            const newMaterial = new THREE.MeshBasicMaterial({
-                                color: oldMaterial.color,
-                                map: oldMaterial.map,
-                                side: THREE.DoubleSide,
-                                toneMapped: false,
-                                fog: false
-                            });
-                            child.material = newMaterial;
+                            // For ants, keep original materials
+                            if (type === 'bee' || type === 'spider') {
+                                const oldMaterial = child.material as THREE.MeshStandardMaterial;
+                                const newMaterial = new THREE.MeshBasicMaterial({
+                                    color: oldMaterial.color,
+                                    map: oldMaterial.map,
+                                    side: THREE.DoubleSide,
+                                    toneMapped: false,
+                                    fog: false
+                                });
+                                child.material = newMaterial;
+                            }
                         }
                     });
 
                     // Scale the model based on final size
-                    const modelBaseSize = type === 'bee' ? MODEL_BASE_SIZES.bee : MODEL_BASE_SIZES.spider;
+                    const modelBaseSize = type === 'bee' ? MODEL_BASE_SIZES.bee : 
+                                        type === 'spider' ? MODEL_BASE_SIZES.spider :
+                                        type === 'soldier_ant' ? MODEL_BASE_SIZES.soldier_ant :
+                                        type === 'worker_ant' ? MODEL_BASE_SIZES.worker_ant :
+                                        MODEL_BASE_SIZES.baby_ant;
                     const modelScale = finalSize / modelBaseSize;
                     model.scale.set(modelScale, modelScale, modelScale);
                     model.rotation.y = -Math.PI / 2;

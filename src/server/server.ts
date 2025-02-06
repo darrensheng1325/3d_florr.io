@@ -15,7 +15,7 @@ interface Player {
 
 interface Enemy {
     id: string;
-    type: 'ladybug' | 'bee' | 'centipede' | 'centipede_segment' | 'spider';  // Add spider type
+    type: 'ladybug' | 'bee' | 'centipede' | 'centipede_segment' | 'spider' | 'soldier_ant' | 'worker_ant' | 'baby_ant';  // Add soldier ant type
     position: { x: number; y: number; z: number };
     health: number;
     isAggressive: boolean;
@@ -97,6 +97,30 @@ const BASE_ENEMY_STATS: Record<EnemyType, Omit<EnemyStats, 'rarity'>> = {
         damage: 15,
         size: BASE_SIZES.spider,
         xp: 250
+    },
+    soldier_ant: {
+        health: 80,
+        speed: 0.05,        // Reduced from 0.06 to match player speed
+        passiveSpeed: 0.02, // Reduced from 0.03 to be proportional
+        damage: 20,
+        size: BASE_SIZES.soldier_ant,
+        xp: 350
+    },
+    worker_ant: {
+        health: 100,  // 2x ladybug health
+        speed: 0.03,  // Same as ladybug
+        passiveSpeed: 0.02,  // Same as ladybug
+        damage: 10,   // Same as ladybug
+        size: BASE_SIZES.worker_ant,
+        xp: 200
+    },
+    baby_ant: {
+        health: 50,   // Same as ladybug
+        speed: 0.03,  // Same as ladybug
+        passiveSpeed: 0.02,  // Same as ladybug
+        damage: 5,    // Half ladybug damage
+        size: BASE_SIZES.baby_ant,
+        xp: 50
     }
 };
 
@@ -164,6 +188,9 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
     const id = generateId();
     const rarity = determineRarity(forcedRarity, currentWave);
     const stats = getEnemyStats(type, rarity);
+
+    // Set initial aggression based on type
+    const isInitiallyAggressive = type === 'spider' || type === 'soldier_ant';
 
     if (type === 'centipede') {
         const headId = generateId();
@@ -260,13 +287,35 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
             z: position.z
         },
         health: stats.health,
-        isAggressive: false,
+        isAggressive: isInitiallyAggressive,
         velocity: { x: 0, y: 0, z: 0 },
         wanderAngle: Math.random() * Math.PI * 2,
         wanderTime: Date.now() + 2000 + Math.random() * 2000,
         segments: [],
         rarity
     };
+
+    // Find nearest player for initially aggressive enemies
+    if (isInitiallyAggressive) {
+        let nearestPlayer: Player | null = null;
+        let minDistance = Infinity;
+        
+        for (const [playerId, player] of players.entries()) {
+            const dx = player.position.x - enemy.position.x;
+            const dz = player.position.z - enemy.position.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestPlayer = player;
+            }
+        }
+
+        if (nearestPlayer) {
+            enemy.target = nearestPlayer.id;
+        }
+    }
+
     enemies.set(id, enemy);
     
     io.emit('enemySpawned', {
@@ -274,7 +323,7 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
         type: enemy.type,
         position: enemy.position,
         health: enemy.health,
-        isAggressive: false,
+        isAggressive: enemy.isAggressive,
         rarity: enemy.rarity
     });
 }
@@ -386,8 +435,8 @@ function updateEnemies() {
             }
 
             // Different movement for different enemy types
-            if (enemy.type === 'spider') {
-                // Spiders are always aggressive, find nearest player
+            if (enemy.type === 'spider' || enemy.type === 'soldier_ant') {
+                // These enemies should already be aggressive from spawn, but just in case:
                 let nearestPlayer: Player | null = null;
                 let minDistance = Infinity;
                 
@@ -692,14 +741,18 @@ function spawnRandomEnemy() {
     let type: EnemyType;
     
     if (currentWave >= 5) {
-        // Include spiders after wave 5
+        // Include spiders and soldier ants after wave 5
+        type = rand < 0.25 ? 'ladybug' : 
+               (rand < 0.45 ? 'bee' : 
+               (rand < 0.6 ? 'centipede' :
+               (rand < 0.75 ? 'spider' :
+               (rand < 0.85 ? 'soldier_ant' :
+               (rand < 0.95 ? 'worker_ant' : 'baby_ant'))))); // 10% each for worker and baby ants
+    } else {
+        // Before wave 5, only basic enemies and baby ants
         type = rand < 0.35 ? 'ladybug' : 
                (rand < 0.6 ? 'bee' : 
-               (rand < 0.85 ? 'centipede' : 'spider')); // 15% chance for spider
-    } else {
-        // Before wave 5, only basic enemies
-        type = rand < 0.4 ? 'ladybug' : 
-               (rand < 0.7 ? 'bee' : 'centipede');
+               (rand < 0.85 ? 'centipede' : 'baby_ant')); // 15% chance for baby ant
     }
     
     console.log('Spawning enemy:', type);
@@ -1021,7 +1074,7 @@ process.stdin.on('data', (data: string) => {
         case 'spawn':
             if (args.length === 0) {
                 console.log('Usage: spawn <type> [count] [rarity]');
-                console.log('Available types: ladybug, bee, centipede, spider');
+                console.log('Available types: ladybug, bee, centipede, spider, soldier_ant, worker_ant, baby_ant');
                 console.log('Available rarities: common, uncommon, rare, epic, legendary');
                 console.log('Example: spawn spider 3 rare');
                 return;
@@ -1042,8 +1095,8 @@ process.stdin.on('data', (data: string) => {
                 }
             }
 
-            if (!['ladybug', 'bee', 'centipede', 'spider'].includes(type)) {
-                console.log('Invalid enemy type. Available types: ladybug, bee, centipede, spider');
+            if (!['ladybug', 'bee', 'centipede', 'spider', 'soldier_ant', 'worker_ant', 'baby_ant'].includes(type)) {
+                console.log('Invalid enemy type. Available types: ladybug, bee, centipede, spider, soldier_ant, worker_ant, baby_ant');
                 return;
             }
 
@@ -1071,7 +1124,7 @@ process.stdin.on('data', (data: string) => {
         case 'help':
             console.log('Available commands:');
             console.log('  spawn <type> [count] [rarity] - Spawn enemies');
-            console.log('    - type: ladybug, bee, centipede, spider');
+            console.log('    - type: ladybug, bee, centipede, spider, soldier_ant, worker_ant, baby_ant');
             console.log('    - count: number of enemies to spawn (default: 1)');
             console.log('    - rarity: common, uncommon, rare, epic, legendary (default: random)');
             console.log('  help                          - Show this help message');

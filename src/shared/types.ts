@@ -28,16 +28,22 @@ export const BASE_SIZES = {
     bee: 0.15,      // Reduced from 0.25
     centipede: 0.3,
     centipede_segment: 0.3,
-    spider: 0.4
+    spider: 0.4,
+    soldier_ant: 0.2,
+    worker_ant: 0.2,
+    baby_ant: 0.15  // Same size as bee
 } as const;
 
 // Base model sizes (for 3D models)
 export const MODEL_BASE_SIZES = {
     bee: 0.4,       // The size the bee model was designed for
-    spider: 0.4     // The size the spider model was designed for
+    spider: 0.4,    // The size the spider model was designed for
+    soldier_ant: 0.2, // The size the soldier ant model was designed for
+    worker_ant: 0.2,  // The size the worker ant model was designed for
+    baby_ant: 0.15    // The size the baby ant model was designed for
 } as const;
 
-export type EnemyType = 'ladybug' | 'bee' | 'centipede' | 'centipede_segment' | 'spider';
+export type EnemyType = 'ladybug' | 'bee' | 'centipede' | 'centipede_segment' | 'spider' | 'soldier_ant' | 'worker_ant' | 'baby_ant';
 
 export interface EnemyStats {
     health: number;

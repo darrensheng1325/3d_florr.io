@@ -29,11 +29,17 @@ exports.BASE_SIZES = {
     bee: 0.15, // Reduced from 0.25
     centipede: 0.3,
     centipede_segment: 0.3,
-    spider: 0.4
+    spider: 0.4,
+    soldier_ant: 0.2,
+    worker_ant: 0.2,
+    baby_ant: 0.15 // Same size as bee
 };
 // Base model sizes (for 3D models)
 exports.MODEL_BASE_SIZES = {
     bee: 0.4, // The size the bee model was designed for
-    spider: 0.4 // The size the spider model was designed for
+    spider: 0.4, // The size the spider model was designed for
+    soldier_ant: 0.2, // The size the soldier ant model was designed for
+    worker_ant: 0.2, // The size the worker ant model was designed for
+    baby_ant: 0.15 // The size the baby ant model was designed for
 };
 //# sourceMappingURL=types.js.map
