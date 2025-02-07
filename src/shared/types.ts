@@ -59,4 +59,26 @@ export interface PetalStats {
     health: number;
     damage: number;
     rarity: Rarity;
+}
+
+export interface LightingConfig {
+    ambientLight: {
+        color: number;
+        intensity: number;
+    };
+    directionalLight: {
+        color: number;
+        intensity: number;
+        position: {
+            x: number;
+            y: number;
+            z: number;
+        };
+    };
+    hemisphereLight: {
+        skyColor: number;
+        groundColor: number;
+        intensity: number;
+    };
+    skyColor: number;
 } 

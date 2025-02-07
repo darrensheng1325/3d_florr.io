@@ -7,7 +7,7 @@ import { Enemy } from './enemy';
 import { Inventory, PetalType, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { Rarity, EnemyType } from '../shared/types';
+import { Rarity, EnemyType, LightingConfig } from '../shared/types';
 
 export class Game {
     private scene: THREE.Scene;
@@ -58,6 +58,9 @@ export class Game {
     private reconnectAttempts: number = 0;
     private readonly MAX_RECONNECT_ATTEMPTS = 3;
     private readonly RECONNECT_DELAY = 2000; // 2 seconds
+    private ambientLight: THREE.AmbientLight;
+    private directionalLight: THREE.DirectionalLight;
+    private hemisphereLight: THREE.HemisphereLight;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -66,6 +69,11 @@ export class Game {
         this.players = new Map();
         this.textureLoader = new THREE.TextureLoader();
         this.waveUI = new WaveUI();
+
+        // Initialize lights with default values (will be updated from server)
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        this.hemisphereLight = new THREE.HemisphereLight(0x9BE2FF, 0x00ff2d, 0.8);
 
         // Create title canvas overlay
         this.titleCanvas = document.createElement('canvas');
@@ -121,7 +129,7 @@ export class Game {
             this.inventorySlotCameras.push(camera);
 
             // Add lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1);
             scene.add(ambientLight);
             const pointLight = new THREE.PointLight(0xffffff, 1.0);
             pointLight.position.set(2, 2, 2);
@@ -427,24 +435,16 @@ export class Game {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.body.appendChild(this.renderer.domElement);
 
-        // Set background color to sky blue
+        // Set default background color (will be updated from server)
         this.scene.background = new THREE.Color(0x87CEEB);
 
-        // Add lights
-        // Ambient light for general illumination
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
-
-        // Directional light from above (sun)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(0, 10, 0); // Position above the scene
-        directionalLight.target.position.set(0, 0, 0);
-        this.scene.add(directionalLight);
-        this.scene.add(directionalLight.target);
-
-        // Add hemisphere light for better sky/ground illumination
-        const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x00cf2d, 0.6);
-        this.scene.add(hemisphereLight);
+        // Add lights (positions will be updated from server)
+        this.scene.add(this.ambientLight);
+        this.directionalLight.position.set(0, 10, 0);
+        this.directionalLight.target.position.set(0, 0, 0);
+        this.scene.add(this.directionalLight);
+        this.scene.add(this.directionalLight.target);
+        this.scene.add(this.hemisphereLight);
 
         // Add ground to scene
         this.scene.add(this.ground);
@@ -659,7 +659,15 @@ export class Game {
             if (this.socket?.id) {
                 this.createPlayer(this.socket.id);
                 this.playerVelocities.set(this.socket.id, new THREE.Vector3());
+
+                // Request lighting configuration from server
+                this.socket.emit('requestLightingConfig');
             }
+        });
+
+        // Add lighting configuration handler
+        this.socket.on('lightingConfig', (config: LightingConfig) => {
+            this.updateLighting(config);
         });
 
         // Add player damage event handler
@@ -1506,6 +1514,29 @@ export class Game {
                 this.socket.connect();
             }
         }, this.RECONNECT_DELAY);
+    }
+
+    private updateLighting(config: LightingConfig): void {
+        // Update ambient light
+        this.ambientLight.color.setHex(config.ambientLight.color);
+        this.ambientLight.intensity = config.ambientLight.intensity;
+
+        // Update directional light
+        this.directionalLight.color.setHex(config.directionalLight.color);
+        this.directionalLight.intensity = config.directionalLight.intensity;
+        this.directionalLight.position.set(
+            config.directionalLight.position.x,
+            config.directionalLight.position.y,
+            config.directionalLight.position.z
+        );
+
+        // Update hemisphere light
+        this.hemisphereLight.color.setHex(config.hemisphereLight.skyColor);
+        this.hemisphereLight.groundColor.setHex(config.hemisphereLight.groundColor);
+        this.hemisphereLight.intensity = config.hemisphereLight.intensity;
+
+        // Update sky color
+        this.scene.background = new THREE.Color(config.skyColor);
     }
 }
 
