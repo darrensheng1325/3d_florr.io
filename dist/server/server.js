@@ -1015,12 +1015,41 @@ process.stdin.on('data', (data) => {
                 }, specifiedRarity);
             }
             break;
+        case 'spawnitem':
+            if (args.length === 0) {
+                console.log('Usage: spawnitem <type> [count]');
+                console.log('Available types: tetrahedron, cube, leaf');
+                console.log('Example: spawnitem tetrahedron 3');
+                return;
+            }
+            const itemType = args[0].toLowerCase();
+            const itemCount = parseInt(args[1]) || 1;
+            if (!['tetrahedron', 'cube', 'leaf'].includes(itemType)) {
+                console.log('Invalid item type. Available types: tetrahedron, cube, leaf');
+                return;
+            }
+            console.log(`Spawning ${itemCount} ${itemType}(s) at center of map...`);
+            for (let i = 0; i < itemCount; i++) {
+                // Add some random offset around center
+                const offset = 2; // 2 units max offset
+                const x = (Math.random() * 2 - 1) * offset;
+                const z = (Math.random() * 2 - 1) * offset;
+                io.emit('itemSpawned', {
+                    id: generateId(),
+                    type: itemType,
+                    position: { x, y: 0.5, z }
+                });
+            }
+            break;
         case 'help':
             console.log('Available commands:');
             console.log('  spawn <type> [count] [rarity] - Spawn enemies');
             console.log('    - type: ladybug, bee, centipede, spider, soldier_ant, worker_ant, baby_ant');
             console.log('    - count: number of enemies to spawn (default: 1)');
             console.log('    - rarity: common, uncommon, rare, epic, legendary (default: random)');
+            console.log('  spawnitem <type> [count]      - Spawn items at center of map');
+            console.log('    - type: tetrahedron, cube, leaf');
+            console.log('    - count: number of items to spawn (default: 1)');
             console.log('  help                          - Show this help message');
             break;
         default:

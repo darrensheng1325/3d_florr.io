@@ -81,4 +81,15 @@ export interface LightingConfig {
         intensity: number;
     };
     skyColor: number;
+}
+
+export enum PetalType {
+    BASIC = 'basic',
+    BASIC_UNCOMMON = 'basic_uncommon',
+    BASIC_RARE = 'basic_rare',
+    TETRAHEDRON = 'tetrahedron',
+    TETRAHEDRON_EPIC = 'tetrahedron_epic',
+    CUBE = 'cube',
+    CUBE_LEGENDARY = 'cube_legendary',
+    LEAF = 'leaf'
 } 

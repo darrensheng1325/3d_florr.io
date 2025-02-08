@@ -4,10 +4,11 @@ import playerSvg from './player.svg';
 import { Petal } from './petal';
 import { HealthBar } from './health';
 import { Enemy } from './enemy';
-import { Inventory, PetalType, PetalSlot } from './inventory';
+import { Inventory, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { Rarity, EnemyType, LightingConfig } from '../shared/types';
+import { Rarity, EnemyType, LightingConfig, PetalType } from '../shared/types';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 export class Game {
     private scene: THREE.Scene;
@@ -53,7 +54,7 @@ export class Game {
         renderer: THREE.WebGLRenderer;
         scene: THREE.Scene;
         camera: THREE.PerspectiveCamera;
-        mesh: THREE.Mesh;
+        mesh: THREE.Mesh | THREE.Group;
     }> = new Map();
     private reconnectAttempts: number = 0;
     private readonly MAX_RECONNECT_ATTEMPTS = 3;
@@ -241,7 +242,7 @@ export class Game {
             }
         });
 
-        this.socket.on('enemyDied', (data: { enemyId: string, position: { x: number, y: number, z: number }, itemType: string, enemyRarity: Rarity }) => {
+        this.socket.on('enemyDied', (data: { enemyId: string, position: { x: number, y: number, z: number }, itemType: string, enemyRarity: Rarity, enemyType: EnemyType }) => {
             const enemy = this.enemies.get(data.enemyId);
             if (enemy) {
                 enemy.remove();
@@ -249,22 +250,35 @@ export class Game {
                 this.enemiesKilled++;
                 this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
 
-                // Handle petal drops
-                const dropResult = this.determinePetalDrop(data.enemyRarity);
-                if (dropResult.shouldDrop) {
-                    // Find first empty inventory slot
-                    const inventory = this.playerInventories.get(this.socket?.id || '');
-                    if (inventory) {
-                        const slots = inventory.getSlots();
-                        const emptySlotIndex = slots.findIndex(slot => slot.petal === null);
-                        if (emptySlotIndex !== -1) {
-                            inventory.addPetal(dropResult.petalType, emptySlotIndex);
+                // Handle petal drops - skip for worker ants
+                if (data.enemyType !== 'worker_ant') {
+                    const dropResult = this.determinePetalDrop(data.enemyRarity);
+                    if (dropResult.shouldDrop) {
+                        // Find first empty inventory slot
+                        const inventory = this.playerInventories.get(this.socket?.id || '');
+                        if (inventory) {
+                            const slots = inventory.getSlots();
+                            const emptySlotIndex = slots.findIndex(slot => slot.petal === null);
+                            if (emptySlotIndex !== -1) {
+                                inventory.addPetal(dropResult.petalType, emptySlotIndex);
+                            }
                         }
                     }
                 }
 
-                // If there's an item drop, create it
-                if (data.itemType) {
+                // Handle item drops
+                if (data.enemyType === 'worker_ant') {
+                    // Worker ants always drop leaves
+                    const itemId = `item_${data.enemyId}`;
+                    const item = new Item(
+                        this.scene,
+                        new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                        ItemType.LEAF,
+                        itemId
+                    );
+                    this.items.set(itemId, item);
+                } else if (data.itemType) {
+                    // Handle other enemy drops
                     const itemId = `item_${data.enemyId}`;
                     const item = new Item(
                         this.scene,
@@ -510,15 +524,32 @@ export class Game {
     }
 
     private updateHealthRegeneration(): void {
-        if (!this.socket?.id) return;
+        const socketId = this.socket?.id;
+        if (!socketId) return;
 
         const currentTime = Date.now();
+        
+        // Natural health regeneration
         if (currentTime - this.lastHealTime >= this.HEAL_INTERVAL) {
-            const healthBar = this.playerHealthBars.get(this.socket.id);
+            const healthBar = this.playerHealthBars.get(socketId);
             if (healthBar) {
                 healthBar.heal(this.HEAL_AMOUNT);
             }
             this.lastHealTime = currentTime;
+        }
+
+        // Leaf petal passive healing
+        const inventory = this.playerInventories.get(socketId);
+        if (inventory) {
+            const slots = inventory.getSlots();
+            slots.forEach(slot => {
+                if (slot.petal?.getType() === PetalType.LEAF && !slot.petal.isBrokenState()) {
+                    const healthBar = this.playerHealthBars.get(socketId);
+                    if (healthBar) {
+                        healthBar.heal(0.1); // Passive healing from leaf petal
+                    }
+                }
+            });
         }
     }
 
@@ -681,6 +712,17 @@ export class Game {
                     }
                 }
             }
+        });
+
+        // Add item spawn event handler
+        this.socket.on('itemSpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
+            const item = new Item(
+                this.scene,
+                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                data.type as ItemType,
+                data.id
+            );
+            this.items.set(data.id, item);
         });
 
         // Add enemy damage event handler
@@ -928,18 +970,19 @@ export class Game {
             // If player touches item
             if (distance < 1.0) {
                 // Convert item type to petal type and add to inventory
-                const petalType = item.getType() === ItemType.TETRAHEDRON ? 
-                    PetalType.TETRAHEDRON : PetalType.CUBE;
+                const petalType = item.getType() === ItemType.TETRAHEDRON ? PetalType.TETRAHEDRON :
+                                item.getType() === ItemType.LEAF ? PetalType.LEAF :
+                                PetalType.CUBE;
                 this.collectedPetals.push(petalType);
-
-                // Remove item
-                item.remove();
-                this.items.delete(itemId);
 
                 // Update inventory display if open
                 if (this.isInventoryOpen) {
                     this.updateInventoryDisplay();
                 }
+
+                // Remove item
+                item.remove();
+                this.items.delete(itemId);
             }
         });
     }
@@ -1302,39 +1345,59 @@ export class Game {
             scene.add(pointLight);
 
             // Create preview mesh based on type
-            let geometry: THREE.BufferGeometry;
-            let material: THREE.Material;
+            if (type === PetalType.LEAF) {
+                // Use the same GLTFLoader and model as the Item class
+                const modelLoader = new GLTFLoader();
+                modelLoader.load('leaf.glb', (gltf) => {
+                    const leafMesh = gltf.scene;
+                    leafMesh.scale.set(0.3, 0.3, 0.3);
+                    scene.add(leafMesh);
+                    
+                    // Store renderer, scene, camera, and mesh for updates
+                    this.inventoryPreviews.set(type, {
+                        renderer,
+                        scene,
+                        camera,
+                        mesh: leafMesh
+                    });
+                });
+            } else {
+                let geometry: THREE.BufferGeometry;
+                let material: THREE.Material;
 
-            switch (type) {
-                case PetalType.TETRAHEDRON:
-                    geometry = new THREE.TetrahedronGeometry(0.8);
-                    material = new THREE.MeshBasicMaterial({ 
-                        color: 0xff0000,
-                    });
-                    break;
-                case PetalType.CUBE:
-                    geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-                    material = new THREE.MeshBasicMaterial({ 
-                        color: 0x0000ff,
-                    });
-                    break;
-                default:
-                    geometry = new THREE.SphereGeometry(0.8, 32, 32);
-                    material = new THREE.MeshBasicMaterial({ 
-                        color: 0xffffff,
-                    });
+                switch (type) {
+                    case PetalType.TETRAHEDRON:
+                    case PetalType.TETRAHEDRON_EPIC:
+                        geometry = new THREE.TetrahedronGeometry(0.8);
+                        material = new THREE.MeshBasicMaterial({ 
+                            color: 0xff0000,
+                        });
+                        break;
+                    case PetalType.CUBE:
+                    case PetalType.CUBE_LEGENDARY:
+                        geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+                        material = new THREE.MeshBasicMaterial({ 
+                            color: 0x0000ff,
+                        });
+                        break;
+                    default:
+                        geometry = new THREE.SphereGeometry(0.8, 32, 32);
+                        material = new THREE.MeshBasicMaterial({ 
+                            color: 0xffffff,
+                        });
+                }
+
+                const mesh = new THREE.Mesh(geometry, material);
+                scene.add(mesh);
+
+                // Store renderer, scene, camera, and mesh for updates
+                this.inventoryPreviews.set(type, {
+                    renderer,
+                    scene,
+                    camera,
+                    mesh
+                });
             }
-
-            const mesh = new THREE.Mesh(geometry, material);
-            scene.add(mesh);
-
-            // Store renderer, scene, camera, and mesh for updates
-            this.inventoryPreviews.set(type, {
-                renderer,
-                scene,
-                camera,
-                mesh
-            });
         });
 
         document.body.appendChild(menu);

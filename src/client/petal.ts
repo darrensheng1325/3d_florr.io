@@ -1,48 +1,20 @@
 import * as THREE from 'three';
-import { PetalType } from './inventory';
-import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS } from '../shared/types';
+import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS, PetalType } from '../shared/types';
 
 // Stats for different petal types
-const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: number; rarity: Rarity }> = {
-    'basic': {
-        maxHealth: 50,
-        cooldownTime: 3000, // 3 seconds
-        rarity: Rarity.COMMON
-    },
-    'basic_uncommon': {
-        maxHealth: 75,
-        cooldownTime: 2800,
-        rarity: Rarity.UNCOMMON
-    },
-    'basic_rare': {
-        maxHealth: 112,
-        cooldownTime: 2600,
-        rarity: Rarity.RARE
-    },
-    'tetrahedron': {
-        maxHealth: 100,
-        cooldownTime: 5000, // 5 seconds
-        rarity: Rarity.COMMON
-    },
-    'tetrahedron_epic': {
-        maxHealth: 337,
-        cooldownTime: 4000,
-        rarity: Rarity.EPIC
-    },
-    'cube': {
-        maxHealth: 75,
-        cooldownTime: 4000, // 4 seconds
-        rarity: Rarity.COMMON
-    },
-    'cube_legendary': {
-        maxHealth: 375,
-        cooldownTime: 3000,
-        rarity: Rarity.LEGENDARY
-    }
+export const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: number; rarity: Rarity }> = {
+    [PetalType.BASIC]: { maxHealth: 100, cooldownTime: 1000, rarity: Rarity.COMMON },
+    [PetalType.BASIC_UNCOMMON]: { maxHealth: 150, cooldownTime: 800, rarity: Rarity.UNCOMMON },
+    [PetalType.BASIC_RARE]: { maxHealth: 225, cooldownTime: 600, rarity: Rarity.RARE },
+    [PetalType.TETRAHEDRON]: { maxHealth: 80, cooldownTime: 1200, rarity: Rarity.COMMON },
+    [PetalType.TETRAHEDRON_EPIC]: { maxHealth: 270, cooldownTime: 400, rarity: Rarity.EPIC },
+    [PetalType.CUBE]: { maxHealth: 120, cooldownTime: 800, rarity: Rarity.COMMON },
+    [PetalType.CUBE_LEGENDARY]: { maxHealth: 600, cooldownTime: 200, rarity: Rarity.LEGENDARY },
+    [PetalType.LEAF]: { maxHealth: 50, cooldownTime: 0, rarity: Rarity.COMMON }
 };
 
 export class Petal {
-    private mesh: THREE.Mesh;
+    private mesh!: THREE.Mesh; // Use definite assignment assertion
     private currentRadius: number = 1.5;
     private baseRadius: number = 1.5;
     private expandedRadius: number = 3.0;
@@ -59,11 +31,16 @@ export class Petal {
     private onRespawn: (() => void) | null = null;  // Callback for respawn
     
     // New attributes
-    private isBroken: boolean = false;
     private health: number;
     private maxHealth: number;
     private cooldownTime: number;
     private breakTime: number = 0;
+    private lastDamageTime: number = 0;
+    private readonly HEAL_DELAY = 5000; // 5 seconds before healing starts
+    private readonly HEAL_RATE = 0.1; // Heal 10% per second
+    private readonly HEAL_INTERVAL = 100; // Heal every 100ms
+    private lastHealTime: number = 0;
+    private isBroken: boolean = false;
 
     constructor(scene: THREE.Scene, parent: THREE.Mesh, index: number, totalPetals: number, type: PetalType = PetalType.BASIC) {
         this.scene = scene;
@@ -79,22 +56,7 @@ export class Petal {
         this.cooldownTime = stats.cooldownTime;
 
         // Create petal mesh with properties based on type
-        let geometry: THREE.BufferGeometry;
-        switch (type) {
-            case PetalType.TETRAHEDRON:
-                geometry = new THREE.TetrahedronGeometry(0.2);
-                break;
-            case PetalType.CUBE:
-                geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-                break;
-            default:
-                geometry = new THREE.SphereGeometry(0.2, 32, 32);
-        }
-
-        const material = new THREE.MeshBasicMaterial({ 
-            color: this.getPetalColor()
-        });
-        this.mesh = new THREE.Mesh(geometry, material);
+        this.createMesh();
         
         // Use same radius and speed for all types
         this.baseRadius = 1.5;
@@ -109,6 +71,55 @@ export class Petal {
         scene.add(this.mesh);
     }
 
+    private createMesh(): void {
+        // Create geometry based on type
+        let geometry: THREE.BufferGeometry;
+        if (this.type === PetalType.TETRAHEDRON || this.type === PetalType.TETRAHEDRON_EPIC) {
+            geometry = new THREE.TetrahedronGeometry(0.3);
+        } else if (this.type === PetalType.LEAF) {
+            // Create a custom leaf shape using a custom geometry
+            geometry = new THREE.BufferGeometry();
+            
+            // Define vertices for a simple leaf shape
+            const vertices = new Float32Array([
+                0, 0, 0,      // base
+                -0.2, 0.2, 0, // left point
+                0, 0.4, 0,    // top point
+                0.2, 0.2, 0,  // right point
+            ]);
+            
+            // Define indices for triangles
+            const indices = new Uint16Array([
+                0, 1, 2,
+                0, 2, 3
+            ]);
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+            geometry.computeVertexNormals();
+        } else if (this.type === 'basic' || this.type === 'basic_uncommon' || this.type === 'basic_rare') {
+            geometry = new THREE.SphereGeometry(0.15, 32, 32);
+        } else {
+            geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+        }
+
+        // Create material based on type and rarity
+        const material = new THREE.MeshPhongMaterial({
+            color: this.getPetalColor(),
+            shininess: this.type === PetalType.LEAF ? 10 : 30,
+            side: THREE.DoubleSide,
+            transparent: this.type === 'basic' ? false : true, // Basic petals are opaque
+            opacity: this.type === 'basic' ? 1.0 : 0.9
+        });
+
+        this.mesh = new THREE.Mesh(geometry, material);
+        
+        // Rotate leaf to be more visible
+        if (this.type === PetalType.LEAF) {
+            this.mesh.rotation.x = -Math.PI / 4;
+        }
+    }
+
     private getPetalColor(): number {
         // Get base color based on type
         let baseColor: number;
@@ -121,22 +132,31 @@ export class Petal {
             case PetalType.CUBE_LEGENDARY:
                 baseColor = 0x0000ff; // Blue
                 break;
+            case PetalType.LEAF:
+                baseColor = 0x2ecc71; // Green
+                break;
+            case 'basic':
+                return 0xffffff; // Pure white for basic, no rarity blending
             default:
-                baseColor = 0xffffff; // White for basic
+                baseColor = 0xffffff; // White for other basic variants
         }
 
         // Get rarity color
-        const stats = PETAL_STATS[this.type];
-        const rarityColor = RARITY_COLORS[stats.rarity];
-        
-        // Create a new color that blends the base color with the rarity color
-        const baseThreeColor = new THREE.Color(baseColor);
-        const rarityThreeColor = new THREE.Color(rarityColor);
-        
-        // Blend colors (70% base, 30% rarity)
-        baseThreeColor.lerp(rarityThreeColor, 0.3);
-        
-        return baseThreeColor.getHex();
+        if (this.type !== PetalType.LEAF && this.type !== 'basic') { // Skip rarity blending for leaf and basic
+            const stats = PETAL_STATS[this.type];
+            const rarityColor = RARITY_COLORS[stats.rarity];
+            
+            // Create a new color that blends the base color with the rarity color
+            const baseThreeColor = new THREE.Color(baseColor);
+            const rarityThreeColor = new THREE.Color(rarityColor);
+            
+            // Blend colors (70% base, 30% rarity)
+            baseThreeColor.lerp(rarityThreeColor, 0.3);
+            
+            return baseThreeColor.getHex();
+        }
+
+        return baseColor;
     }
 
     public getType(): PetalType {
