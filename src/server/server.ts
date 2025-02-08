@@ -930,6 +930,9 @@ io.on('connection', (socket) => {
                 if (enemy.type === 'worker_ant') {
                     // Worker ants always drop leaves
                     itemType = 'leaf';
+                } else if (enemy.type === 'bee') {
+                    // Bees always drop stingers
+                    itemType = 'stinger';
                 } else if (Math.random() < 0.5) {
                     // Other enemies have 50% chance to drop tetrahedron or cube
                     itemType = Math.random() < 0.7 ? 'tetrahedron' : 'cube';
@@ -1127,7 +1130,7 @@ process.stdin.on('data', (data: string) => {
         case 'spawnitem':
             if (args.length === 0) {
                 console.log('Usage: spawnitem <type> [count]');
-                console.log('Available types: tetrahedron, cube, leaf');
+                console.log('Available types: tetrahedron, cube, leaf, stinger');
                 console.log('Example: spawnitem tetrahedron 3');
                 return;
             }
@@ -1135,8 +1138,8 @@ process.stdin.on('data', (data: string) => {
             const itemType = args[0].toLowerCase();
             const itemCount = parseInt(args[1]) || 1;
 
-            if (!['tetrahedron', 'cube', 'leaf'].includes(itemType)) {
-                console.log('Invalid item type. Available types: tetrahedron, cube, leaf');
+            if (!['tetrahedron', 'cube', 'leaf', 'stinger'].includes(itemType)) {
+                console.log('Invalid item type. Available types: tetrahedron, cube, leaf, stinger');
                 return;
             }
 
@@ -1162,7 +1165,7 @@ process.stdin.on('data', (data: string) => {
             console.log('    - count: number of enemies to spawn (default: 1)');
             console.log('    - rarity: common, uncommon, rare, epic, legendary (default: random)');
             console.log('  spawnitem <type> [count]      - Spawn items at center of map');
-            console.log('    - type: tetrahedron, cube, leaf');
+            console.log('    - type: tetrahedron, cube, leaf, stinger');
             console.log('    - count: number of items to spawn (default: 1)');
             console.log('  help                          - Show this help message');
             break;

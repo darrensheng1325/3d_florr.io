@@ -921,10 +921,16 @@ export class Game {
                         .subVectors(enemyPosition, petalPosition)
                         .normalize();
 
+                    // Calculate damage based on petal type
+                    let damage = 5; // Base damage
+                    if (petal.getType() === PetalType.STINGER) {
+                        damage *= 5; // Stinger does 5x damage
+                    }
+
                     // Send damage event to server
                     this.socket?.emit('enemyDamaged', {
                         enemyId: enemy.getId(),
-                        damage: 5,
+                        damage: damage,
                         knockback: { x: knockbackDir.x, z: knockbackDir.z }
                     });
 
@@ -969,9 +975,10 @@ export class Game {
             
             // If player touches item
             if (distance < 1.0) {
-                // Convert item type to petal type and add to inventory
+                // Convert item type to petal type
                 const petalType = item.getType() === ItemType.TETRAHEDRON ? PetalType.TETRAHEDRON :
                                 item.getType() === ItemType.LEAF ? PetalType.LEAF :
+                                item.getType() === ItemType.STINGER ? PetalType.STINGER :
                                 PetalType.CUBE;
                 this.collectedPetals.push(petalType);
 
@@ -1378,6 +1385,12 @@ export class Game {
                         geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
                         material = new THREE.MeshBasicMaterial({ 
                             color: 0x0000ff,
+                        });
+                        break;
+                    case PetalType.STINGER:
+                        geometry = new THREE.ConeGeometry(0.4, 1.0, 16); // Cone shape for stinger
+                        material = new THREE.MeshBasicMaterial({
+                            color: 0x000000, // Black for stinger
                         });
                         break;
                     default:

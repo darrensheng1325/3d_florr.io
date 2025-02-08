@@ -10,7 +10,8 @@ export const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: n
     [PetalType.TETRAHEDRON_EPIC]: { maxHealth: 270, cooldownTime: 400, rarity: Rarity.EPIC },
     [PetalType.CUBE]: { maxHealth: 120, cooldownTime: 800, rarity: Rarity.COMMON },
     [PetalType.CUBE_LEGENDARY]: { maxHealth: 600, cooldownTime: 200, rarity: Rarity.LEGENDARY },
-    [PetalType.LEAF]: { maxHealth: 50, cooldownTime: 0, rarity: Rarity.COMMON }
+    [PetalType.LEAF]: { maxHealth: 50, cooldownTime: 0, rarity: Rarity.COMMON },
+    [PetalType.STINGER]: { maxHealth: 20, cooldownTime: 1200, rarity: Rarity.COMMON } // 0.25x health of tetrahedron
 };
 
 export class Petal {
@@ -76,6 +77,8 @@ export class Petal {
         let geometry: THREE.BufferGeometry;
         if (this.type === PetalType.TETRAHEDRON || this.type === PetalType.TETRAHEDRON_EPIC) {
             geometry = new THREE.TetrahedronGeometry(0.3);
+        } else if (this.type === PetalType.STINGER) {
+            geometry = new THREE.ConeGeometry(0.15, 0.4, 16); // Cone shape for stinger
         } else if (this.type === PetalType.LEAF) {
             // Create a custom leaf shape using a custom geometry
             geometry = new THREE.BufferGeometry();
@@ -134,6 +137,9 @@ export class Petal {
                 break;
             case PetalType.LEAF:
                 baseColor = 0x2ecc71; // Green
+                break;
+            case PetalType.STINGER:
+                baseColor = 0x000000; // Black for stinger
                 break;
             case 'basic':
                 return 0xffffff; // Pure white for basic, no rarity blending

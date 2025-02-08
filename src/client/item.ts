@@ -4,7 +4,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 export enum ItemType {
     TETRAHEDRON = 'tetrahedron',
     CUBE = 'cube',
-    LEAF = 'leaf'
+    LEAF = 'leaf',
+    STINGER = 'stinger'
 }
 
 export class Item {
@@ -39,19 +40,35 @@ export class Item {
             let geometry: THREE.BufferGeometry;
             if (type === ItemType.TETRAHEDRON) {
                 geometry = new THREE.TetrahedronGeometry(0.3);
+            } else if (type === ItemType.STINGER) {
+                geometry = new THREE.ConeGeometry(0.15, 0.4, 16); // Cone shape for stinger
             } else {
                 geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
             }
 
             // Create material based on type
             const material = new THREE.MeshPhongMaterial({
-                color: type === ItemType.TETRAHEDRON ? 0xff0000 : 0x0000ff,
-                shininess: 30
+                color: this.getItemColor(),
+                shininess: 30,
+                transparent: type !== ItemType.STINGER // Make stinger opaque
             });
 
             this.mesh = new THREE.Mesh(geometry, material);
             this.mesh.position.copy(position);
             this.scene.add(this.mesh);
+        }
+    }
+
+    private getItemColor(): number {
+        switch (this.type) {
+            case ItemType.TETRAHEDRON:
+                return 0xff0000; // Red
+            case ItemType.CUBE:
+                return 0x0000ff; // Blue
+            case ItemType.STINGER:
+                return 0xffd700; // Gold/Yellow for stinger
+            default:
+                return 0xffffff; // White for unknown types
         }
     }
 

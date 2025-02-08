@@ -52,5 +52,6 @@ var PetalType;
     PetalType["CUBE"] = "cube";
     PetalType["CUBE_LEGENDARY"] = "cube_legendary";
     PetalType["LEAF"] = "leaf";
+    PetalType["STINGER"] = "stinger";
 })(PetalType || (exports.PetalType = PetalType = {}));
 //# sourceMappingURL=types.js.map

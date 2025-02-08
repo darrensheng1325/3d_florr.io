@@ -91,5 +91,6 @@ export enum PetalType {
     TETRAHEDRON_EPIC = 'tetrahedron_epic',
     CUBE = 'cube',
     CUBE_LEGENDARY = 'cube_legendary',
-    LEAF = 'leaf'
+    LEAF = 'leaf',
+    STINGER = 'stinger'
 } 
