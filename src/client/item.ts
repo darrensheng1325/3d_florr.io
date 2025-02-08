@@ -5,7 +5,8 @@ export enum ItemType {
     TETRAHEDRON = 'tetrahedron',
     CUBE = 'cube',
     LEAF = 'leaf',
-    STINGER = 'stinger'
+    STINGER = 'stinger',
+    PEA = 'pea'
 }
 
 export class Item {
@@ -16,6 +17,7 @@ export class Item {
     private floatOffset: number;
     private startTime: number;
     private static leafModel: THREE.Group | null = null;
+    private static peaModel: THREE.Group | null = null;
     private static modelLoader = new GLTFLoader();
 
     constructor(scene: THREE.Scene, position: THREE.Vector3, type: ItemType, id: string) {
@@ -34,6 +36,16 @@ export class Item {
                 });
             } else {
                 this.initLeafModel(position);
+            }
+        } else if (type === ItemType.PEA) {
+            // Load the pea model if not already loaded
+            if (!Item.peaModel) {
+                Item.modelLoader.load('peas.glb', (gltf) => {
+                    Item.peaModel = gltf.scene;
+                    this.initPeaModel(position);
+                });
+            } else {
+                this.initPeaModel(position);
             }
         } else {
             // Create geometry based on type
@@ -66,7 +78,9 @@ export class Item {
             case ItemType.CUBE:
                 return 0x0000ff; // Blue
             case ItemType.STINGER:
-                return 0xffd700; // Gold/Yellow for stinger
+                return 0x000000; // Black for stinger
+            case ItemType.PEA:
+                return 0x90EE90; // Light green for pea
             default:
                 return 0xffffff; // White for unknown types
         }
@@ -78,6 +92,48 @@ export class Item {
             this.mesh.position.copy(position);
             this.mesh.scale.set(0.3, 0.3, 0.3); // Adjust scale as needed
             this.scene.add(this.mesh);
+        }
+    }
+
+    private initPeaModel(position: THREE.Vector3): void {
+        if (Item.peaModel) {
+            this.mesh = Item.peaModel.clone();
+            this.mesh.position.copy(position);
+            this.mesh.scale.set(0.15, 0.15, 0.15);
+            
+            // Add green tint to all meshes in the model
+            this.mesh.traverse((child) => {
+                if (child instanceof THREE.Mesh && child.material) {
+                    // Create new material for each mesh to avoid sharing
+                    child.material = new THREE.MeshPhongMaterial({
+                        color: 0x90EE90, // Light green
+                        shininess: 30,
+                        transparent: false,
+                        side: THREE.DoubleSide
+                    });
+                }
+            });
+            
+            this.scene.add(this.mesh);
+        } else {
+            // Load the pea model if not already loaded
+            Item.modelLoader.load('peas.glb', (gltf) => {
+                Item.peaModel = gltf.scene;
+                
+                // Apply green tint to the cached model
+                Item.peaModel.traverse((child) => {
+                    if (child instanceof THREE.Mesh && child.material) {
+                        child.material = new THREE.MeshPhongMaterial({
+                            color: 0x90EE90,
+                            shininess: 30,
+                            transparent: false,
+                            side: THREE.DoubleSide
+                        });
+                    }
+                });
+                
+                this.initPeaModel(position);
+            });
         }
     }
 

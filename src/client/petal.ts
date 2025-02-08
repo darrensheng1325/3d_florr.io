@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS, PetalType } from '../shared/types';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 // Stats for different petal types
 export const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: number; rarity: Rarity }> = {
@@ -11,11 +12,12 @@ export const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: n
     [PetalType.CUBE]: { maxHealth: 120, cooldownTime: 800, rarity: Rarity.COMMON },
     [PetalType.CUBE_LEGENDARY]: { maxHealth: 600, cooldownTime: 200, rarity: Rarity.LEGENDARY },
     [PetalType.LEAF]: { maxHealth: 50, cooldownTime: 0, rarity: Rarity.COMMON },
-    [PetalType.STINGER]: { maxHealth: 20, cooldownTime: 1200, rarity: Rarity.COMMON } // 0.25x health of tetrahedron
+    [PetalType.STINGER]: { maxHealth: 20, cooldownTime: 1200, rarity: Rarity.COMMON },
+    [PetalType.PEA]: { maxHealth: 60, cooldownTime: 1500, rarity: Rarity.COMMON }
 };
 
 export class Petal {
-    private mesh!: THREE.Mesh; // Use definite assignment assertion
+    private mesh!: THREE.Mesh | THREE.Group;  // Update type to allow both Mesh and Group
     private currentRadius: number = 1.5;
     private baseRadius: number = 1.5;
     private expandedRadius: number = 3.0;
@@ -42,6 +44,8 @@ export class Petal {
     private readonly HEAL_INTERVAL = 100; // Heal every 100ms
     private lastHealTime: number = 0;
     private isBroken: boolean = false;
+
+    private miniPeas: THREE.Mesh[] = [];
 
     constructor(scene: THREE.Scene, parent: THREE.Mesh, index: number, totalPetals: number, type: PetalType = PetalType.BASIC) {
         this.scene = scene;
@@ -78,7 +82,48 @@ export class Petal {
         if (this.type === PetalType.TETRAHEDRON || this.type === PetalType.TETRAHEDRON_EPIC) {
             geometry = new THREE.TetrahedronGeometry(0.3);
         } else if (this.type === PetalType.STINGER) {
-            geometry = new THREE.ConeGeometry(0.15, 0.4, 16); // Cone shape for stinger
+            geometry = new THREE.ConeGeometry(0.15, 0.4, 16);
+        } else if (this.type === PetalType.PEA) {
+            // Create a temporary sphere while the model loads
+            geometry = new THREE.SphereGeometry(0.225, 32, 32);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x90EE90,
+                shininess: 30,
+                transparent: false,
+                side: THREE.DoubleSide
+            });
+            const tempSphere = new THREE.Mesh(geometry, material);
+            this.mesh = tempSphere;
+            this.scene.add(this.mesh);
+            this.updatePosition(); // Position the temporary sphere
+
+            // Load the pea model
+            const modelLoader = new GLTFLoader();
+            modelLoader.load('peas.glb', (gltf) => {
+                // Remove the temporary sphere
+                this.scene.remove(tempSphere);
+                
+                // Set up the actual pea model
+                this.mesh = gltf.scene;
+                this.mesh.scale.set(0.15, 0.15, 0.15);
+                
+                // Add green tint to all meshes in the model
+                this.mesh.traverse((child) => {
+                    if (child instanceof THREE.Mesh && child.material) {
+                        // Create new material for each mesh to avoid sharing
+                        child.material = new THREE.MeshPhongMaterial({
+                            color: 0x90EE90, // Light green
+                            shininess: 30,
+                            transparent: false,
+                            side: THREE.DoubleSide
+                        });
+                    }
+                });
+                
+                this.scene.add(this.mesh);
+                this.updatePosition();
+            });
+            return;
         } else if (this.type === PetalType.LEAF) {
             // Create a custom leaf shape using a custom geometry
             geometry = new THREE.BufferGeometry();
@@ -111,7 +156,7 @@ export class Petal {
             color: this.getPetalColor(),
             shininess: this.type === PetalType.LEAF ? 10 : 30,
             side: THREE.DoubleSide,
-            transparent: this.type === 'basic' ? false : true, // Basic petals are opaque
+            transparent: this.type === 'basic' ? false : true,
             opacity: this.type === 'basic' ? 1.0 : 0.9
         });
 
@@ -121,6 +166,9 @@ export class Petal {
         if (this.type === PetalType.LEAF) {
             this.mesh.rotation.x = -Math.PI / 4;
         }
+        
+        this.scene.add(this.mesh);
+        this.updatePosition();
     }
 
     private getPetalColor(): number {
@@ -176,7 +224,7 @@ export class Petal {
                 this.respawn();
             } else {
                 // Keep broken petal hidden
-                this.mesh.visible = false;
+                if (this.mesh) this.mesh.visible = false;
                 return;
             }
         }
@@ -188,17 +236,69 @@ export class Petal {
         this.currentRadius += (targetRadius - this.currentRadius) * this.transitionSpeed;
         
         this.updatePosition();
-        this.mesh.visible = true;
+        if (this.mesh) this.mesh.visible = true;
+
+        if (this.type === PetalType.PEA && this.isExpanded && this.miniPeas.length > 0) {
+            // Update mini peas positions and make them move outward
+            this.miniPeas.forEach((pea, index) => {
+                const angle = (index / 8) * Math.PI * 2 + this.angle;
+                const radius = 0.5 + (Date.now() - this.breakTime) * 0.001; // Increase radius over time
+                pea.position.x = this.mesh.position.x + Math.cos(angle) * radius;
+                pea.position.z = this.mesh.position.z + Math.sin(angle) * radius;
+                pea.position.y = this.mesh.position.y;
+                
+                // Remove peas that have traveled too far
+                if (radius > 5) {
+                    this.scene.remove(pea);
+                    const index = this.miniPeas.indexOf(pea);
+                    if (index > -1) {
+                        this.miniPeas.splice(index, 1);
+                    }
+                }
+            });
+        }
     }
 
     public expand(): void {
         if (!this.isBroken) {
             this.isExpanded = true;
+            if (this.type === PetalType.PEA) {
+                // Break the pea and shoot out mini peas
+                this.break();
+                
+                // Create and shoot out 8 mini peas in a circle
+                const radius = 0.5;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    const x = this.mesh.position.x + Math.cos(angle) * radius;
+                    const z = this.mesh.position.z + Math.sin(angle) * radius;
+                    
+                    const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+                    const material = new THREE.MeshPhongMaterial({
+                        color: 0x90EE90,
+                        shininess: 30,
+                        transparent: false,
+                        side: THREE.DoubleSide
+                    });
+                    
+                    const miniPea = new THREE.Mesh(geometry, material);
+                    miniPea.position.set(x, this.mesh.position.y, z);
+                    this.scene.add(miniPea);
+                    this.miniPeas.push(miniPea);
+                }
+            }
         }
     }
 
     public contract(): void {
         this.isExpanded = false;
+        if (this.type === PetalType.PEA) {
+            // Remove all mini peas
+            this.miniPeas.forEach(pea => {
+                this.scene.remove(pea);
+            });
+            this.miniPeas = [];
+        }
     }
 
     private updatePosition(): void {
@@ -211,6 +311,11 @@ export class Petal {
 
     public remove(scene: THREE.Scene): void {
         scene.remove(this.mesh);
+        if (this.type === PetalType.PEA) {
+            this.miniPeas.forEach(pea => {
+                scene.remove(pea);
+            });
+        }
     }
 
     public getPosition(): THREE.Vector3 {

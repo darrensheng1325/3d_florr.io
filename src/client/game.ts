@@ -979,6 +979,7 @@ export class Game {
                 const petalType = item.getType() === ItemType.TETRAHEDRON ? PetalType.TETRAHEDRON :
                                 item.getType() === ItemType.LEAF ? PetalType.LEAF :
                                 item.getType() === ItemType.STINGER ? PetalType.STINGER :
+                                item.getType() === ItemType.PEA ? PetalType.PEA :
                                 PetalType.CUBE;
                 this.collectedPetals.push(petalType);
 
@@ -1387,14 +1388,42 @@ export class Game {
                             color: 0x0000ff,
                         });
                         break;
+                    case PetalType.PEA:
+                        // Load the pea model for inventory preview
+                        const modelLoader = new GLTFLoader();
+                        modelLoader.load('peas.glb', (gltf) => {
+                            const peaMesh = gltf.scene;
+                            peaMesh.scale.set(0.15, 0.15, 0.15);
+                            
+                            // Add green tint to all meshes in the model
+                            peaMesh.traverse((child) => {
+                                if (child instanceof THREE.Mesh) {
+                                    child.material = new THREE.MeshPhongMaterial({
+                                        color: 0x90EE90,
+                                        shininess: 30
+                                    });
+                                }
+                            });
+                            
+                            scene.add(peaMesh);
+                            
+                            // Store renderer, scene, camera, and mesh for updates
+                            this.inventoryPreviews.set(type, {
+                                renderer,
+                                scene,
+                                camera,
+                                mesh: peaMesh
+                            });
+                        });
+                        return; // Return early as model loading is async
                     case PetalType.STINGER:
-                        geometry = new THREE.ConeGeometry(0.4, 1.0, 16); // Cone shape for stinger
+                        geometry = new THREE.ConeGeometry(0.4, 1.0, 16);
                         material = new THREE.MeshBasicMaterial({
-                            color: 0x000000, // Black for stinger
+                            color: 0x000000,
                         });
                         break;
                     default:
-                        geometry = new THREE.SphereGeometry(1.2, 32, 32);
+                        geometry = new THREE.SphereGeometry(0.4, 32, 32);
                         material = new THREE.MeshPhongMaterial({ 
                             color: 0xffffff,
                         });

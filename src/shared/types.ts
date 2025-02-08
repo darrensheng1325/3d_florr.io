@@ -92,5 +92,6 @@ export enum PetalType {
     CUBE = 'cube',
     CUBE_LEGENDARY = 'cube_legendary',
     LEAF = 'leaf',
-    STINGER = 'stinger'
+    STINGER = 'stinger',
+    PEA = 'pea'
 } 

@@ -933,6 +933,9 @@ io.on('connection', (socket) => {
                 } else if (enemy.type === 'bee') {
                     // Bees always drop stingers
                     itemType = 'stinger';
+                } else if (enemy.type === 'centipede' || enemy.type === 'centipede_segment') {
+                    // Centipedes and their segments always drop peas
+                    itemType = 'pea';
                 } else if (Math.random() < 0.5) {
                     // Other enemies have 50% chance to drop tetrahedron or cube
                     itemType = Math.random() < 0.7 ? 'tetrahedron' : 'cube';
@@ -943,7 +946,8 @@ io.on('connection', (socket) => {
                     enemyId,
                     position: deathPosition,
                     itemType,
-                    enemyRarity: enemy.rarity
+                    enemyRarity: enemy.rarity,
+                    enemyType: enemy.type
                 });
                 
                 // Get base XP and apply rarity multiplier
