@@ -152,7 +152,7 @@ export class Game {
         const groundGeometry = new THREE.PlaneGeometry(30, 30);
         const groundMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x00cf2d,
-            side: THREE.DoubleSide 
+            side: THREE.DoubleSide,
         });
         this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
         this.ground.rotation.x = Math.PI / 2;
@@ -1381,8 +1381,8 @@ export class Game {
                         });
                         break;
                     default:
-                        geometry = new THREE.SphereGeometry(0.8, 32, 32);
-                        material = new THREE.MeshBasicMaterial({ 
+                        geometry = new THREE.SphereGeometry(1.2, 32, 32);
+                        material = new THREE.MeshPhongMaterial({ 
                             color: 0xffffff,
                         });
                 }

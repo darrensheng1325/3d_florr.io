@@ -925,9 +925,13 @@ io.on('connection', (socket) => {
                 // Remove enemy first
                 enemies.delete(enemyId);
                 
-                // Determine item drop (50% chance)
-                let itemType: string = 'cube';
-                if (Math.random() < 0.5) {
+                // Determine item drop
+                let itemType: string = '';
+                if (enemy.type === 'worker_ant') {
+                    // Worker ants always drop leaves
+                    itemType = 'leaf';
+                } else if (Math.random() < 0.5) {
+                    // Other enemies have 50% chance to drop tetrahedron or cube
                     itemType = Math.random() < 0.7 ? 'tetrahedron' : 'cube';
                 }
                 

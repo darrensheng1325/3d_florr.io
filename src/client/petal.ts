@@ -98,7 +98,7 @@ export class Petal {
             geometry.setIndex(new THREE.BufferAttribute(indices, 1));
             geometry.computeVertexNormals();
         } else if (this.type === 'basic' || this.type === 'basic_uncommon' || this.type === 'basic_rare') {
-            geometry = new THREE.SphereGeometry(0.15, 32, 32);
+            geometry = new THREE.SphereGeometry(0.225, 32, 32);
         } else {
             geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
         }
