@@ -9,6 +9,7 @@ import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
 import { Rarity, EnemyType, LightingConfig, PetalType } from '../shared/types';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { CraftingSystem } from './crafting';
 
 export class Game {
     private scene: THREE.Scene;
@@ -62,6 +63,7 @@ export class Game {
     private ambientLight: THREE.AmbientLight;
     private directionalLight: THREE.DirectionalLight;
     private hemisphereLight: THREE.HemisphereLight;
+    private craftingSystem: CraftingSystem | null = null;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -631,6 +633,11 @@ export class Game {
                 inventory.addPetal(PetalType.BASIC, i);
             }
             this.playerInventories.set(playerId, inventory);
+
+            // Initialize crafting system if this is the local player
+            if (playerId === this.socket?.id) {
+                this.craftingSystem = new CraftingSystem(this.scene, player, this);
+            }
         });
     }
 
@@ -802,6 +809,11 @@ export class Game {
             // Toggle inventory menu with Z key
             if (event.code === 'KeyZ') {
                 this.toggleInventoryMenu();
+            }
+
+            // Toggle crafting menu with C key
+            if (event.code === 'KeyC' && this.craftingSystem) {
+                this.craftingSystem.toggleVisibility();
             }
         });
 
@@ -1642,6 +1654,10 @@ export class Game {
 
         // Update sky color
         this.scene.background = new THREE.Color(config.skyColor);
+    }
+
+    public getCollectedPetals(): PetalType[] {
+        return this.collectedPetals;
     }
 }
 
