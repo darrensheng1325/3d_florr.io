@@ -1,17 +1,19 @@
 export enum Rarity {
-    COMMON = 'common',
-    UNCOMMON = 'uncommon',
-    RARE = 'rare',
-    EPIC = 'epic',
-    LEGENDARY = 'legendary'
+    COMMON = 'COMMON',
+    UNCOMMON = 'UNCOMMON',
+    RARE = 'RARE',
+    EPIC = 'EPIC',
+    LEGENDARY = 'LEGENDARY',
+    MYTHIC = 'MYTHIC'
 }
 
 export const RARITY_COLORS = {
-    [Rarity.COMMON]: '#82ee6c',     // White
-    [Rarity.UNCOMMON]: '#ffe55e',   // Green
-    [Rarity.RARE]: '#4f51e2',       // Blue
-    [Rarity.EPIC]: '#861ee0',       // Purple
-    [Rarity.LEGENDARY]: '#ff0000'   // Gold
+    [Rarity.COMMON]: 0x82ee6c,     // Light green
+    [Rarity.UNCOMMON]: 0xffe55e,   // Yellow
+    [Rarity.RARE]: 0x4f51e2,       // Blue
+    [Rarity.EPIC]: 0x861ee0,       // Purple
+    [Rarity.LEGENDARY]: 0xff0000,   // Red
+    [Rarity.MYTHIC]: 0xff00ff       // Pink
 };
 
 export const RARITY_MULTIPLIERS = {
@@ -19,7 +21,8 @@ export const RARITY_MULTIPLIERS = {
     [Rarity.UNCOMMON]: 1.5,
     [Rarity.RARE]: 2.25,
     [Rarity.EPIC]: 3.375,
-    [Rarity.LEGENDARY]: 5
+    [Rarity.LEGENDARY]: 5,
+    [Rarity.MYTHIC]: 7.5
 };
 
 // Base sizes for each enemy type
@@ -56,9 +59,12 @@ export interface EnemyStats {
 }
 
 export interface PetalStats {
-    health: number;
-    damage: number;
+    maxHealth: number;
+    cooldownTime: number;
     rarity: Rarity;
+    damage: number;
+    health: number;
+    speed: number;
 }
 
 export interface LightingConfig {

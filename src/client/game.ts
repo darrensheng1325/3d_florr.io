@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 import playerSvg from './player.svg';
-import { Petal } from './petal';
+import { Petal, PETAL_STATS } from './petal';
 import { HealthBar } from './health';
 import { Enemy } from './enemy';
 import { Inventory, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { Rarity, EnemyType, LightingConfig, PetalType } from '../shared/types';
+import { Rarity, EnemyType, LightingConfig, PetalType, RARITY_COLORS } from '../shared/types';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { CraftingSystem } from './crafting';
 
@@ -64,6 +64,13 @@ export class Game {
     private directionalLight: THREE.DirectionalLight;
     private hemisphereLight: THREE.HemisphereLight;
     private craftingSystem: CraftingSystem | null = null;
+    private settingsMenu: HTMLDivElement | null = null;
+    private isSettingsOpen: boolean = false;
+    private settings = {
+        rarityTinting: true
+    };
+    private craftingMenu: HTMLDivElement | null = null;
+    private isCraftingOpen: boolean = false;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -171,6 +178,9 @@ export class Game {
 
         // Setup server connection monitoring
         this.setupConnectionMonitoring();
+
+        // Create settings button
+        this.createSettingsButton();
     }
 
     private determinePetalDrop(enemyRarity: Rarity): { shouldDrop: boolean; dropRarity: Rarity; petalType: PetalType } {
@@ -1321,7 +1331,7 @@ export class Game {
         // Style the menu for bottom left corner
         menu.style.position = 'fixed';
         menu.style.bottom = '20px';
-        menu.style.left = '20px';
+        menu.style.left = '20px';  // Ensure it's using left positioning
         menu.style.width = '300px';
         menu.style.backgroundColor = '#589ad4';
         menu.style.padding = '15px';
@@ -1458,6 +1468,14 @@ export class Game {
     }
 
     private toggleInventoryMenu(): void {
+        // Close crafting if open
+        if (this.isCraftingOpen) {
+            this.isCraftingOpen = false;
+            if (this.craftingMenu) {
+                this.craftingMenu.style.display = 'none';
+            }
+        }
+
         if (!this.inventoryMenu) {
             this.createInventoryMenu();
         }
@@ -1499,6 +1517,16 @@ export class Game {
             slot.draggable = true;
             slot.setAttribute('data-type', petalType);
 
+            // Set background color based on petal rarity
+            const rarity = PETAL_STATS[petalType as PetalType].rarity;
+            const rarityColor = this.settings.rarityTinting ? 
+                '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0') : 
+                'rgba(255, 255, 255, 0.2)';
+            slot.style.backgroundColor = rarityColor;
+            slot.style.border = this.settings.rarityTinting ? 
+                `2px solid ${rarityColor}` : 
+                '2px solid rgba(255, 255, 255, 0.3)';
+
             // Create canvas container
             const canvasContainer = document.createElement('div');
             canvasContainer.style.width = '100%';
@@ -1511,12 +1539,24 @@ export class Game {
             countBadge.style.position = 'absolute';
             countBadge.style.bottom = '2px';
             countBadge.style.right = '2px';
-            countBadge.style.backgroundColor = '#333';
+            countBadge.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             countBadge.style.color = 'white';
             countBadge.style.padding = '2px 6px';
             countBadge.style.borderRadius = '10px';
             countBadge.style.fontSize = '12px';
             slot.appendChild(countBadge);
+
+            // Add rarity label
+            const rarityLabel = document.createElement('div');
+            rarityLabel.textContent = rarity;
+            rarityLabel.style.position = 'absolute';
+            rarityLabel.style.top = '2px';
+            rarityLabel.style.left = '2px';
+            rarityLabel.style.color = 'white';
+            rarityLabel.style.fontSize = '10px';
+            rarityLabel.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.5)';
+            rarityLabel.style.fontWeight = 'bold';
+            slot.appendChild(rarityLabel);
 
             // Get the preview renderer for this type
             const preview = this.inventoryPreviews.get(petalType);
@@ -1658,6 +1698,387 @@ export class Game {
 
     public getCollectedPetals(): PetalType[] {
         return this.collectedPetals;
+    }
+
+    public isRarityTintingEnabled(): boolean {
+        return this.settings.rarityTinting;
+    }
+
+    private createSettingsButton(): void {
+        const settingsButton = document.createElement('button');
+        settingsButton.textContent = '⚙️';
+        settingsButton.style.position = 'fixed';
+        settingsButton.style.top = '20px';
+        settingsButton.style.left = '20px';
+        settingsButton.style.padding = '10px';
+        settingsButton.style.fontSize = '24px';
+        settingsButton.style.backgroundColor = '#2196F3';
+        settingsButton.style.border = 'none';
+        settingsButton.style.borderRadius = '5px';
+        settingsButton.style.color = 'white';
+        settingsButton.style.cursor = 'pointer';
+        settingsButton.style.zIndex = '1000';
+        settingsButton.addEventListener('click', () => this.toggleSettingsMenu());
+        document.body.appendChild(settingsButton);
+    }
+
+    private createSettingsMenu(): void {
+        this.settingsMenu = document.createElement('div');
+        const menu = this.settingsMenu;
+        
+        // Style the menu
+        menu.style.position = 'fixed';
+        menu.style.top = '20px';
+        menu.style.right = '20px';
+        menu.style.width = '200px';
+        menu.style.backgroundColor = '#77ea65';
+        menu.style.padding = '15px';
+        menu.style.borderRadius = '10px';
+        menu.style.display = 'none';
+        menu.style.zIndex = '1000';
+        menu.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+
+        // Add title
+        const title = document.createElement('h2');
+        title.textContent = 'Settings';
+        title.style.textAlign = 'left';
+        title.style.marginBottom = '15px';
+        title.style.fontSize = '18px';
+        title.style.color = 'white';
+        menu.appendChild(title);
+
+        // Create settings container
+        const settingsContainer = document.createElement('div');
+        settingsContainer.style.display = 'flex';
+        settingsContainer.style.flexDirection = 'column';
+        settingsContainer.style.gap = '10px';
+
+        // Add rarity tinting toggle
+        const rarityTintingContainer = document.createElement('div');
+        rarityTintingContainer.style.display = 'flex';
+        rarityTintingContainer.style.alignItems = 'center';
+        rarityTintingContainer.style.gap = '10px';
+
+        const rarityTintingLabel = document.createElement('label');
+        rarityTintingLabel.textContent = 'Rarity Tinting';
+        rarityTintingLabel.style.color = 'white';
+        rarityTintingLabel.htmlFor = 'rarity-tinting';
+
+        const rarityTintingToggle = document.createElement('input');
+        rarityTintingToggle.type = 'checkbox';
+        rarityTintingToggle.id = 'rarity-tinting';
+        rarityTintingToggle.checked = this.settings.rarityTinting;
+        
+        // Add change event listener
+        rarityTintingToggle.onchange = () => {
+            this.settings.rarityTinting = rarityTintingToggle.checked;
+            // Immediately update all petal colors
+            this.updateAllPetalColors();
+            // Update inventory previews
+            if (this.isInventoryOpen) {
+                this.updateInventoryDisplay();
+            }
+            // Update crafting previews if open
+            if (this.isCraftingOpen) {
+                this.updateCraftingDisplay();
+            }
+        };
+
+        rarityTintingContainer.appendChild(rarityTintingLabel);
+        rarityTintingContainer.appendChild(rarityTintingToggle);
+        settingsContainer.appendChild(rarityTintingContainer);
+
+        menu.appendChild(settingsContainer);
+        document.body.appendChild(menu);
+    }
+
+    private toggleSettingsMenu(): void {
+        if (!this.settingsMenu) {
+            this.createSettingsMenu();
+        }
+
+        this.isSettingsOpen = !this.isSettingsOpen;
+        if (this.settingsMenu) {
+            this.settingsMenu.style.display = this.isSettingsOpen ? 'block' : 'none';
+
+            // Get the checkbox
+            const rarityTintingCheckbox = this.settingsMenu.querySelector('#rarity-tinting') as HTMLInputElement;
+            if (rarityTintingCheckbox) {
+                // Update the setting when checkbox changes
+                rarityTintingCheckbox.onchange = () => {
+                    this.settings.rarityTinting = rarityTintingCheckbox.checked;
+                    // Immediately update all petal colors
+                    this.updateAllPetalColors();
+                    // Update inventory previews
+                    if (this.isInventoryOpen) {
+                        this.updateInventoryDisplay();
+                    }
+                    // Update crafting previews if open
+                    if (this.isCraftingOpen) {
+                        this.updateCraftingDisplay();
+                    }
+                };
+            }
+        }
+    }
+
+    private updateAllPetalColors(): void {
+        // Update inventory slots
+        const inventorySlots = document.querySelectorAll('[id^="inventory-slot-"]');
+        inventorySlots.forEach(slot => {
+            const petalType = (slot as HTMLElement).getAttribute('data-type');
+            if (petalType && PETAL_STATS[petalType as PetalType]) {
+                const stats = PETAL_STATS[petalType as PetalType];
+                // Basic petals should never be tinted
+                if (petalType === PetalType.BASIC) {
+                    (slot as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                } else {
+                    const color = this.settings.rarityTinting ? 
+                        `rgba(${(RARITY_COLORS[stats.rarity] >> 16) & 255}, ${(RARITY_COLORS[stats.rarity] >> 8) & 255}, ${RARITY_COLORS[stats.rarity] & 255}, 0.2)` : 
+                        'rgba(255, 255, 255, 0.2)';
+                    (slot as HTMLElement).style.backgroundColor = color;
+                }
+            }
+        });
+
+        // Update crafting slots if crafting menu exists
+        if (this.craftingMenu) {
+            const craftingSlots = document.querySelectorAll('[id^="crafting-slot-"]');
+            craftingSlots.forEach(slot => {
+                const petalType = (slot as HTMLElement).getAttribute('data-petal-type');
+                if (petalType && PETAL_STATS[petalType as PetalType]) {
+                    const stats = PETAL_STATS[petalType as PetalType];
+                    // Basic petals should never be tinted
+                    if (petalType === PetalType.BASIC) {
+                        (slot as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                    } else {
+                        const color = this.settings.rarityTinting ? 
+                            `rgba(${(RARITY_COLORS[stats.rarity] >> 16) & 255}, ${(RARITY_COLORS[stats.rarity] >> 8) & 255}, ${RARITY_COLORS[stats.rarity] & 255}, 0.2)` : 
+                            'rgba(255, 255, 255, 0.2)';
+                        (slot as HTMLElement).style.backgroundColor = color;
+                    }
+                }
+            });
+        }
+
+        // Update equipped petals if player inventory exists
+        if (this.socket?.id) {
+            const inventory = this.playerInventories.get(this.socket.id);
+            if (inventory) {
+                inventory.getPetals().forEach(petal => {
+                    if (petal.getType() !== PetalType.BASIC) {
+                        const stats = PETAL_STATS[petal.getType()];
+                        const color = this.settings.rarityTinting ? RARITY_COLORS[stats.rarity] : 0xffffff;
+                        petal.updateColor(color);
+                    }
+                });
+            }
+        }
+    }
+
+    private createCraftingMenu(): void {
+        if (this.craftingMenu) {
+            document.body.removeChild(this.craftingMenu);
+        }
+        
+        this.craftingMenu = document.createElement('div');
+        const menu = this.craftingMenu;
+        
+        // Style the menu for bottom left corner
+        menu.style.position = 'fixed';
+        menu.style.bottom = '20px';
+        menu.style.left = '20px';  // Position in bottom left
+        menu.style.width = '300px';
+        menu.style.backgroundColor = '#77ea65';  // Match inventory color
+        menu.style.padding = '15px';
+        menu.style.borderRadius = '10px';
+        menu.style.display = 'none';
+        menu.style.zIndex = '1000';
+        menu.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+
+        // Add title
+        const title = document.createElement('h2');
+        title.textContent = 'Crafting';
+        title.style.textAlign = 'left';
+        title.style.marginBottom = '15px';
+        title.style.fontSize = '18px';
+        title.style.color = 'white';
+        menu.appendChild(title);
+
+        // Create grid container for crafting slots
+        const grid = document.createElement('div');
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+        grid.style.gap = '8px';
+        grid.style.marginBottom = '15px';
+        menu.appendChild(grid);
+
+        // Create 5 crafting slots
+        for (let i = 0; i < 5; i++) {
+            const slot = document.createElement('div');
+            slot.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+            slot.style.padding = '5px';
+            slot.style.borderRadius = '5px';
+            slot.style.cursor = 'pointer';
+            slot.style.position = 'relative';
+            slot.style.height = '50px';
+            slot.style.border = '2px solid rgba(255, 255, 255, 0.3)';
+            grid.appendChild(slot);
+        }
+
+        // Add craft button
+        const craftButton = document.createElement('button');
+        craftButton.textContent = 'Craft';
+        craftButton.style.width = '100%';
+        craftButton.style.padding = '10px';
+        craftButton.style.backgroundColor = '#4CAF50';
+        craftButton.style.color = 'white';
+        craftButton.style.border = 'none';
+        craftButton.style.borderRadius = '5px';
+        craftButton.style.cursor = 'pointer';
+        craftButton.style.marginTop = '10px';
+        craftButton.style.fontSize = '16px';
+        
+        craftButton.onclick = () => this.attemptCraft();
+        menu.appendChild(craftButton);
+
+        document.body.appendChild(menu);
+    }
+
+    private attemptCraft(): void {
+        if (!this.craftingMenu) return;
+
+        const grid = this.craftingMenu.querySelector('div:nth-child(2)');
+        if (!grid) return;
+
+        // Get all petal types in crafting slots
+        const petalTypes = Array.from(grid.children)
+            .map(slot => slot.getAttribute('data-petal-type'))
+            .filter(type => type !== null) as PetalType[];
+
+        // Check if we have 5 of the same type
+        if (petalTypes.length !== 5 || !petalTypes.every(type => type === petalTypes[0])) {
+            // Show error message
+            alert('You need 5 of the same petal type to craft!');
+            return;
+        }
+
+        // Determine the upgrade path
+        const basePetalType = petalTypes[0];
+        let upgradedType: PetalType;
+
+        switch (basePetalType) {
+            case PetalType.BASIC:
+                upgradedType = PetalType.BASIC_UNCOMMON;
+                break;
+            case PetalType.BASIC_UNCOMMON:
+                upgradedType = PetalType.BASIC_RARE;
+                break;
+            case PetalType.TETRAHEDRON:
+                upgradedType = PetalType.TETRAHEDRON_EPIC;
+                break;
+            case PetalType.CUBE:
+                upgradedType = PetalType.CUBE_LEGENDARY;
+                break;
+            default:
+                alert('This petal type cannot be upgraded!');
+                return;
+        }
+
+        // Clear crafting slots
+        Array.from(grid.children).forEach(slot => {
+            slot.innerHTML = '';
+            slot.removeAttribute('data-petal-type');
+        });
+
+        // Add the upgraded petal to collected petals
+        this.collectedPetals.push(upgradedType);
+
+        // Update displays
+        this.updateCraftingDisplay();
+        if (this.isInventoryOpen) {
+            this.updateInventoryDisplay();
+        }
+
+        // Show success message
+        alert('Crafting successful!');
+    }
+
+    private updateCraftingDisplay(): void {
+        if (!this.craftingMenu || !this.socket?.id) return;
+
+        // Get the grid container
+        const grid = this.craftingMenu.querySelector('div:nth-child(2)');
+        if (!grid) return;
+
+        // Clear all slots first
+        Array.from(grid.children).forEach(slot => {
+            slot.innerHTML = '';
+            
+            // Create preview container
+            const previewContainer = document.createElement('div');
+            previewContainer.style.width = '100%';
+            previewContainer.style.height = '100%';
+            previewContainer.style.display = 'flex';
+            previewContainer.style.justifyContent = 'center';
+            previewContainer.style.alignItems = 'center';
+            slot.appendChild(previewContainer);
+
+            // Add drop functionality
+            (slot as HTMLDivElement).ondragover = (e: DragEvent) => {
+                e.preventDefault();
+                (slot as HTMLDivElement).style.backgroundColor = 'rgba(255, 255, 255, 0.4)';
+            };
+            
+            (slot as HTMLDivElement).ondragleave = () => {
+                (slot as HTMLDivElement).style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+            };
+            
+            (slot as HTMLDivElement).ondrop = (e: DragEvent) => {
+                e.preventDefault();
+                (slot as HTMLDivElement).style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                const petalType = e.dataTransfer?.getData('petalType');
+                if (petalType) {
+                    this.addPetalToCraftingSlot(petalType as PetalType, Array.from(grid.children).indexOf(slot));
+                }
+            };
+        });
+    }
+
+    private addPetalToCraftingSlot(petalType: PetalType, slotIndex: number): void {
+        if (!this.craftingMenu) return;
+
+        // Find and remove one petal of this type from collected petals
+        const petalIndex = this.collectedPetals.findIndex(p => p === petalType);
+        if (petalIndex !== -1) {
+            this.collectedPetals.splice(petalIndex, 1);
+            
+            // Add preview to crafting slot
+            const grid = this.craftingMenu.querySelector('div:nth-child(2)');
+            if (!grid) return;
+            
+            const slot = grid.children[slotIndex];
+            if (!slot) return;
+
+            const preview = this.inventoryPreviews.get(petalType);
+            if (preview) {
+                const { renderer } = preview;
+                const container = slot.querySelector('div');
+                if (container) {
+                    container.innerHTML = '';
+                    container.appendChild(renderer.domElement.cloneNode(true));
+                }
+            }
+
+            // Store the petal type in the slot's data
+            slot.setAttribute('data-petal-type', petalType);
+        }
+
+        // Update both displays
+        this.updateCraftingDisplay();
+        if (this.isInventoryOpen) {
+            this.updateInventoryDisplay();
+        }
     }
 }
 

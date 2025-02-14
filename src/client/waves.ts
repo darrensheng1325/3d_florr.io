@@ -125,10 +125,12 @@ export class WaveUI {
 
         if (minRarity) {
             this.rarityText.textContent = `Minimum Rarity: ${minRarity}`;
-            this.rarityText.style.color = RARITY_COLORS[minRarity];
+            // Update rarity color
+            const rarityColor = '#' + RARITY_COLORS[minRarity].toString(16).padStart(6, '0');
+            this.rarityText.style.color = rarityColor;
             // Add glow effect for higher rarities
             if (minRarity === Rarity.LEGENDARY || minRarity === Rarity.EPIC) {
-                this.rarityText.style.textShadow = `0 0 10px ${RARITY_COLORS[minRarity]}`;
+                this.rarityText.style.textShadow = `0 0 10px ${rarityColor}`;
             } else {
                 this.rarityText.style.textShadow = 'none';
             }

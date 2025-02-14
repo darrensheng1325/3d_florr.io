@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Petal, PETAL_STATS } from './petal';
-import { PetalType, Rarity, RARITY_COLORS } from '../shared/types';
+import { PetalType, Rarity, RARITY_COLORS, PetalStats } from '../shared/types';
 import { Inventory } from './inventory';
 import { Game } from './game';
 
@@ -27,8 +27,8 @@ export class CraftingSystem {
         // Create main container
         this.container = document.createElement('div');
         this.container.style.position = 'fixed';
-        this.container.style.bottom = '150px';  // Above inventory
-        this.container.style.left = '50%';
+        this.container.style.bottom = '20px';  // Match inventory position
+        this.container.style.left = '100px';
         this.container.style.transform = 'translateX(-50%)';
         this.container.style.display = 'flex';
         this.container.style.flexDirection = 'column';
@@ -38,21 +38,22 @@ export class CraftingSystem {
         this.container.style.background = 'rgba(0, 0, 0, 0.7)';
         this.container.style.borderRadius = '10px';
         this.container.style.display = 'none';  // Hidden by default
-        this.container.id = 'crafting-container'; // Add ID for debugging
+        this.container.id = 'crafting-container';
+        this.container.style.zIndex = '1000'; // Ensure it's above other elements
 
         // Create crafting area
         const craftingArea = document.createElement('div');
         craftingArea.style.display = 'flex';
         craftingArea.style.alignItems = 'center';
         craftingArea.style.gap = '20px';
-        craftingArea.id = 'crafting-area'; // Add ID for debugging
+        craftingArea.id = 'crafting-area';
 
         // Create crafting slots container
         const slotsContainer = document.createElement('div');
         slotsContainer.style.position = 'relative';
         slotsContainer.style.width = '200px';
         slotsContainer.style.height = '200px';
-        slotsContainer.id = 'slots-container'; // Add ID for debugging
+        slotsContainer.id = 'slots-container';
 
         // Create 5 slots in a circle
         for (let i = 0; i < 5; i++) {
@@ -154,17 +155,16 @@ export class CraftingSystem {
                 const inventoryDisplay = this.container.children[1] as HTMLElement;
                 inventoryDisplay.innerHTML = ''; // Clear existing slots
 
-                // Group collected petals by type
+                // Group collected petals by type AND rarity
                 const collectedPetals = this.game.getCollectedPetals();
-                console.log('Current collected petals:', collectedPetals);
-                
-                const groupedPetals = collectedPetals.reduce((acc: Map<PetalType, number>, type: PetalType) => {
+                const groupedPetals = collectedPetals.reduce((acc: Map<string, number>, type: PetalType) => {
+                    // Use both type and rarity as the key to prevent stacking different rarities
                     acc.set(type, (acc.get(type) || 0) + 1);
                     return acc;
-                }, new Map<PetalType, number>());
+                }, new Map<string, number>());
 
                 // Create slots for each type of petal
-                groupedPetals.forEach((count: number, petalType: PetalType) => {
+                groupedPetals.forEach((count: number, petalType: string) => {
                     const slot = document.createElement('div');
                     slot.id = `inventory-slot-${petalType}`;
                     
@@ -182,8 +182,8 @@ export class CraftingSystem {
                     slot.style.zIndex = '1000';
 
                     // Set background color based on rarity
-                    const rarity = PETAL_STATS[petalType].rarity;
-                    const color = RARITY_COLORS[rarity];
+                    const rarity = PETAL_STATS[petalType as PetalType].rarity;
+                    const color = '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0');
                     slot.style.backgroundColor = color;
 
                     // Create a container for the content to prevent click interference
@@ -218,6 +218,18 @@ export class CraftingSystem {
                     typeLabel.style.pointerEvents = 'none';
                     contentContainer.appendChild(typeLabel);
 
+                    // Add rarity label
+                    const rarityLabel = document.createElement('div');
+                    rarityLabel.textContent = rarity;
+                    rarityLabel.style.position = 'absolute';
+                    rarityLabel.style.top = '50%';
+                    rarityLabel.style.left = '50%';
+                    rarityLabel.style.transform = 'translate(-50%, -50%)';
+                    rarityLabel.style.color = 'white';
+                    rarityLabel.style.fontSize = '10px';
+                    rarityLabel.style.pointerEvents = 'none';
+                    contentContainer.appendChild(rarityLabel);
+
                     // Add the content container to the slot
                     slot.appendChild(contentContainer);
 
@@ -234,19 +246,11 @@ export class CraftingSystem {
                             slot.style.transform = 'scale(1)';
                         }, 100);
 
-                        this.handleInventorySlotClick(petalType);
+                        this.handleInventorySlotClick(petalType as PetalType);
                     };
 
                     slot.addEventListener('click', clickHandler);
                     slot.addEventListener('mousedown', clickHandler);
-
-                    // Debug click area
-                    console.log(`Created clickable slot for ${petalType} with dimensions:`, {
-                        width: slot.style.width,
-                        height: slot.style.height,
-                        position: slot.style.position,
-                        zIndex: slot.style.zIndex
-                    });
 
                     inventoryDisplay.appendChild(slot);
                 });
@@ -288,7 +292,9 @@ export class CraftingSystem {
                 
                 // Update slot visuals
                 const rarity = PETAL_STATS[petalType].rarity;
-                const color = RARITY_COLORS[rarity];
+                const color = this.game.isRarityTintingEnabled() ? 
+                    '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0') : 
+                    'rgba(255, 255, 255, 0.1)';
                 const slotElement = this.craftingSlots[i].element;
                 
                 // Clear existing content
@@ -413,7 +419,8 @@ export class CraftingSystem {
             Rarity.UNCOMMON,
             Rarity.RARE,
             Rarity.EPIC,
-            Rarity.LEGENDARY
+            Rarity.LEGENDARY,
+            Rarity.MYTHIC
         ];
         
         const currentIndex = rarityOrder.indexOf(rarity);
@@ -426,11 +433,24 @@ export class CraftingSystem {
 
     private getNextPetalType(currentType: PetalType, nextRarity: Rarity): PetalType {
         // Find the next petal type of the same base type but higher rarity
-        for (const [type, stats] of Object.entries(PETAL_STATS)) {
-            if (type.startsWith(currentType.split('_')[0]) && stats.rarity === nextRarity) {
-                return type as PetalType;
-            }
+        const baseName = currentType.split('_')[0];
+        const nextType = `${baseName}_${nextRarity.toLowerCase()}` as PetalType;
+        
+        // If the next type exists in PETAL_STATS, use it
+        if (PETAL_STATS[nextType]) {
+            return nextType;
         }
-        return currentType; // Fallback to current type if no upgrade found
+        
+        // Otherwise, create a new entry in PETAL_STATS for this rarity
+        PETAL_STATS[nextType] = {
+            maxHealth: PETAL_STATS[currentType].maxHealth * 1.5,
+            cooldownTime: PETAL_STATS[currentType].cooldownTime,
+            rarity: nextRarity,
+            damage: PETAL_STATS[currentType].damage * 1.5,
+            health: PETAL_STATS[currentType].health * 1.5,
+            speed: PETAL_STATS[currentType].speed * 1.2
+        };
+        
+        return nextType;
     }
 } 

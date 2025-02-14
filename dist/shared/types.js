@@ -3,25 +3,28 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PetalType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
 var Rarity;
 (function (Rarity) {
-    Rarity["COMMON"] = "common";
-    Rarity["UNCOMMON"] = "uncommon";
-    Rarity["RARE"] = "rare";
-    Rarity["EPIC"] = "epic";
-    Rarity["LEGENDARY"] = "legendary";
+    Rarity["COMMON"] = "COMMON";
+    Rarity["UNCOMMON"] = "UNCOMMON";
+    Rarity["RARE"] = "RARE";
+    Rarity["EPIC"] = "EPIC";
+    Rarity["LEGENDARY"] = "LEGENDARY";
+    Rarity["MYTHIC"] = "MYTHIC";
 })(Rarity || (exports.Rarity = Rarity = {}));
 exports.RARITY_COLORS = {
-    [Rarity.COMMON]: '#82ee6c', // White
-    [Rarity.UNCOMMON]: '#ffe55e', // Green
-    [Rarity.RARE]: '#4f51e2', // Blue
-    [Rarity.EPIC]: '#861ee0', // Purple
-    [Rarity.LEGENDARY]: '#ff0000' // Gold
+    [Rarity.COMMON]: 0x82ee6c, // Light green
+    [Rarity.UNCOMMON]: 0xffe55e, // Yellow
+    [Rarity.RARE]: 0x4f51e2, // Blue
+    [Rarity.EPIC]: 0x861ee0, // Purple
+    [Rarity.LEGENDARY]: 0xff0000, // Red
+    [Rarity.MYTHIC]: 0xff00ff // Pink
 };
 exports.RARITY_MULTIPLIERS = {
     [Rarity.COMMON]: 1,
     [Rarity.UNCOMMON]: 1.5,
     [Rarity.RARE]: 2.25,
     [Rarity.EPIC]: 3.375,
-    [Rarity.LEGENDARY]: 5
+    [Rarity.LEGENDARY]: 5,
+    [Rarity.MYTHIC]: 7.5
 };
 // Base sizes for each enemy type
 exports.BASE_SIZES = {

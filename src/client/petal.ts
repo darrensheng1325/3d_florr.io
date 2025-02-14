@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS, PetalType } from '../shared/types';
+import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS, PetalType, PetalStats } from '../shared/types';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 // Stats for different petal types
-export const PETAL_STATS: Record<PetalType, { maxHealth: number; cooldownTime: number; rarity: Rarity }> = {
-    [PetalType.BASIC]: { maxHealth: 100, cooldownTime: 1000, rarity: Rarity.COMMON },
-    [PetalType.BASIC_UNCOMMON]: { maxHealth: 150, cooldownTime: 800, rarity: Rarity.UNCOMMON },
-    [PetalType.BASIC_RARE]: { maxHealth: 225, cooldownTime: 600, rarity: Rarity.RARE },
-    [PetalType.TETRAHEDRON]: { maxHealth: 80, cooldownTime: 1200, rarity: Rarity.COMMON },
-    [PetalType.TETRAHEDRON_EPIC]: { maxHealth: 270, cooldownTime: 400, rarity: Rarity.EPIC },
-    [PetalType.CUBE]: { maxHealth: 120, cooldownTime: 800, rarity: Rarity.COMMON },
-    [PetalType.CUBE_LEGENDARY]: { maxHealth: 600, cooldownTime: 200, rarity: Rarity.LEGENDARY },
-    [PetalType.LEAF]: { maxHealth: 50, cooldownTime: 0, rarity: Rarity.COMMON },
-    [PetalType.STINGER]: { maxHealth: 20, cooldownTime: 1200, rarity: Rarity.COMMON },
-    [PetalType.PEA]: { maxHealth: 60, cooldownTime: 1500, rarity: Rarity.COMMON }
+export const PETAL_STATS: Record<PetalType, PetalStats> = {
+    [PetalType.BASIC]: { maxHealth: 100, cooldownTime: 1000, rarity: Rarity.COMMON, damage: 10, health: 100, speed: 1 },
+    [PetalType.BASIC_UNCOMMON]: { maxHealth: 150, cooldownTime: 800, rarity: Rarity.UNCOMMON, damage: 15, health: 150, speed: 1.2 },
+    [PetalType.BASIC_RARE]: { maxHealth: 225, cooldownTime: 600, rarity: Rarity.RARE, damage: 22, health: 225, speed: 1.4 },
+    [PetalType.TETRAHEDRON]: { maxHealth: 80, cooldownTime: 1200, rarity: Rarity.COMMON, damage: 15, health: 80, speed: 1.5 },
+    [PetalType.TETRAHEDRON_EPIC]: { maxHealth: 270, cooldownTime: 400, rarity: Rarity.EPIC, damage: 50, health: 270, speed: 2 },
+    [PetalType.CUBE]: { maxHealth: 120, cooldownTime: 800, rarity: Rarity.COMMON, damage: 12, health: 120, speed: 0.8 },
+    [PetalType.CUBE_LEGENDARY]: { maxHealth: 600, cooldownTime: 200, rarity: Rarity.LEGENDARY, damage: 60, health: 600, speed: 1 },
+    [PetalType.LEAF]: { maxHealth: 50, cooldownTime: 0, rarity: Rarity.COMMON, damage: 5, health: 50, speed: 2 },
+    [PetalType.STINGER]: { maxHealth: 20, cooldownTime: 1200, rarity: Rarity.COMMON, damage: 25, health: 20, speed: 2.5 },
+    [PetalType.PEA]: { maxHealth: 60, cooldownTime: 1500, rarity: Rarity.COMMON, damage: 8, health: 60, speed: 1.8 }
 };
 
 export class Petal {
@@ -77,53 +77,72 @@ export class Petal {
     }
 
     private createMesh(): void {
-        // Create geometry based on type
+        // Create geometry based on rarity
         let geometry: THREE.BufferGeometry;
-        if (this.type === PetalType.TETRAHEDRON || this.type === PetalType.TETRAHEDRON_EPIC) {
-            geometry = new THREE.TetrahedronGeometry(0.3);
-        } else if (this.type === PetalType.STINGER) {
-            geometry = new THREE.ConeGeometry(0.15, 0.4, 16);
-        } else if (this.type === PetalType.PEA) {
+        const stats = PETAL_STATS[this.type];
+        const rarity = stats.rarity;
+
+        // Check if this is a pea type petal
+        if (this.type.startsWith('pea')) {
             // Create a temporary sphere while the model loads
             geometry = new THREE.SphereGeometry(0.225, 32, 32);
             const material = new THREE.MeshPhongMaterial({
-                color: 0x90EE90,
+                color: RARITY_COLORS[rarity],
                 shininess: 30,
-                transparent: false,
+                transparent: true,
+                opacity: 0.9,
                 side: THREE.DoubleSide
             });
-            const tempSphere = new THREE.Mesh(geometry, material);
-            this.mesh = tempSphere;
-            this.scene.add(this.mesh);
-            this.updatePosition(); // Position the temporary sphere
+            this.mesh = new THREE.Mesh(geometry, material);
 
             // Load the pea model
             const modelLoader = new GLTFLoader();
             modelLoader.load('peas.glb', (gltf) => {
-                // Remove the temporary sphere
-                this.scene.remove(tempSphere);
+                const peaMesh = gltf.scene;
+                peaMesh.scale.set(0.15, 0.15, 0.15);
                 
-                // Set up the actual pea model
-                this.mesh = gltf.scene;
-                this.mesh.scale.set(0.15, 0.15, 0.15);
-                
-                // Add green tint to all meshes in the model
-                this.mesh.traverse((child) => {
-                    if (child instanceof THREE.Mesh && child.material) {
-                        // Create new material for each mesh to avoid sharing
+                // Apply rarity color to all meshes in the model
+                peaMesh.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
                         child.material = new THREE.MeshPhongMaterial({
-                            color: 0x90EE90, // Light green
+                            color: RARITY_COLORS[rarity],
                             shininess: 30,
-                            transparent: false,
+                            transparent: true,
+                            opacity: 0.9,
                             side: THREE.DoubleSide
                         });
                     }
                 });
-                
+
+                // Replace the temporary sphere with the loaded model
+                this.scene.remove(this.mesh);
+                this.mesh = peaMesh;
                 this.scene.add(this.mesh);
-                this.updatePosition();
+                
+                // Add glow effect for higher rarities
+                // if (rarity !== Rarity.COMMON) {
+                //     const glowMaterial = new THREE.MeshBasicMaterial({
+                //         color: RARITY_COLORS[rarity],
+                //         transparent: true,
+                //         opacity: 0.3,
+                //         side: THREE.BackSide
+                //     });
+                //     peaMesh.traverse((child) => {
+                //         if (child instanceof THREE.Mesh) {
+                //             const glowMesh = new THREE.Mesh(child.geometry.clone(), glowMaterial);
+                //             glowMesh.scale.multiplyScalar(1.2);
+                //             child.add(glowMesh);
+                //         }
+                //     });
+                // }
             });
-            return;
+        } else {
+            // Create geometry based on type
+        let geometry: THREE.BufferGeometry;
+        if (this.type === PetalType.TETRAHEDRON || this.type === PetalType.TETRAHEDRON_EPIC) {
+            geometry = new THREE.TetrahedronGeometry(0.3);
+        } else if (this.type === PetalType.STINGER) {
+            geometry = new THREE.ConeGeometry(0.15, 0.4, 16); // Cone shape for stinger
         } else if (this.type === PetalType.LEAF) {
             // Create a custom leaf shape using a custom geometry
             geometry = new THREE.BufferGeometry();
@@ -156,7 +175,7 @@ export class Petal {
             color: this.getPetalColor(),
             shininess: this.type === PetalType.LEAF ? 10 : 30,
             side: THREE.DoubleSide,
-            transparent: this.type === 'basic' ? false : true,
+            transparent: this.type === 'basic' ? false : true, // Basic petals are opaque
             opacity: this.type === 'basic' ? 1.0 : 0.9
         });
 
@@ -166,51 +185,52 @@ export class Petal {
         if (this.type === PetalType.LEAF) {
             this.mesh.rotation.x = -Math.PI / 4;
         }
+        }
         
         this.scene.add(this.mesh);
         this.updatePosition();
     }
 
+    public updateColor(color: number): void {
+        if (this.mesh) {
+            if (this.mesh instanceof THREE.Group) {
+                // For models (like pea), update all mesh materials
+                this.mesh.traverse((child) => {
+                    if (child instanceof THREE.Mesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                if (mat instanceof THREE.MeshPhongMaterial) {
+                                    mat.color.setHex(color);
+                                }
+                            });
+                        } else if (child.material instanceof THREE.MeshPhongMaterial) {
+                            child.material.color.setHex(color);
+                        }
+                    }
+                });
+            } else if (this.mesh instanceof THREE.Mesh) {
+                // For basic meshes, update the material directly
+                if (Array.isArray(this.mesh.material)) {
+                    this.mesh.material.forEach(mat => {
+                        if (mat instanceof THREE.MeshPhongMaterial) {
+                            mat.color.setHex(color);
+                        }
+                    });
+                } else if (this.mesh.material instanceof THREE.MeshPhongMaterial) {
+                    this.mesh.material.color.setHex(color);
+                }
+            }
+        }
+    }
+
     private getPetalColor(): number {
-        // Get base color based on type
-        let baseColor: number;
-        switch (this.type) {
-            case PetalType.TETRAHEDRON:
-            case PetalType.TETRAHEDRON_EPIC:
-                baseColor = 0xff0000; // Red
-                break;
-            case PetalType.CUBE:
-            case PetalType.CUBE_LEGENDARY:
-                baseColor = 0x0000ff; // Blue
-                break;
-            case PetalType.LEAF:
-                baseColor = 0x2ecc71; // Green
-                break;
-            case PetalType.STINGER:
-                baseColor = 0x000000; // Black for stinger
-                break;
-            case 'basic':
-                return 0xffffff; // Pure white for basic, no rarity blending
-            default:
-                baseColor = 0xffffff; // White for other basic variants
+        // Only return rarity color if not a basic petal
+        if (this.type === PetalType.BASIC) {
+            return 0xffffff;  // White for basic petals
         }
-
-        // Get rarity color
-        if (this.type !== PetalType.LEAF && this.type !== 'basic') { // Skip rarity blending for leaf and basic
-            const stats = PETAL_STATS[this.type];
-            const rarityColor = RARITY_COLORS[stats.rarity];
-            
-            // Create a new color that blends the base color with the rarity color
-            const baseThreeColor = new THREE.Color(baseColor);
-            const rarityThreeColor = new THREE.Color(rarityColor);
-            
-            // Blend colors (70% base, 30% rarity)
-            baseThreeColor.lerp(rarityThreeColor, 0.3);
-            
-            return baseThreeColor.getHex();
-        }
-
-        return baseColor;
+        // Use rarity color for other petals
+        const stats = PETAL_STATS[this.type];
+        return RARITY_COLORS[stats.rarity];
     }
 
     public getType(): PetalType {
