@@ -665,24 +665,8 @@ function spawnRandomEnemy() {
             x = -MAP_SIZE;
             z = -MAP_SIZE;
     }
-    // Randomly choose enemy type with more balanced weights
-    const rand = Math.random();
-    let type;
-    if (currentWave >= 5) {
-        // Include spiders and soldier ants after wave 5
-        type = rand < 0.25 ? 'ladybug' :
-            (rand < 0.45 ? 'bee' :
-                (rand < 0.6 ? 'centipede' :
-                    (rand < 0.75 ? 'spider' :
-                        (rand < 0.85 ? 'soldier_ant' :
-                            (rand < 0.95 ? 'worker_ant' : 'baby_ant'))))); // 10% each for worker and baby ants
-    }
-    else {
-        // Before wave 5, only basic enemies and baby ants
-        type = rand < 0.35 ? 'ladybug' :
-            (rand < 0.6 ? 'bee' :
-                (rand < 0.85 ? 'centipede' : 'baby_ant')); // 15% chance for baby ant
-    }
+    // Get random mob type based on configuration
+    const type = server_config_1.ServerConfig.getInstance().getRandomMobType(currentWave);
     console.log('Spawning enemy:', type);
     spawnEnemy(type, {
         x,
@@ -976,7 +960,7 @@ process.stdin.on('data', (data) => {
         case 'spawn':
             if (args.length === 0) {
                 console.log('Usage: spawn <type> [count] [rarity]');
-                console.log('Available types: ladybug, bee, centipede, spider, soldier_ant, worker_ant, baby_ant');
+                console.log('Available types:', server_config_1.ServerConfig.getInstance().getSpawnableMobs(currentWave).join(', '));
                 console.log('Available rarities: common, uncommon, rare, epic, legendary');
                 console.log('Example: spawn spider 3 rare');
                 return;
@@ -995,8 +979,10 @@ process.stdin.on('data', (data) => {
                     return;
                 }
             }
-            if (!['ladybug', 'bee', 'centipede', 'spider', 'soldier_ant', 'worker_ant', 'baby_ant'].includes(type)) {
-                console.log('Invalid enemy type. Available types: ladybug, bee, centipede, spider, soldier_ant, worker_ant, baby_ant');
+            // Validate mob type against current configuration
+            const spawnableMobs = server_config_1.ServerConfig.getInstance().getSpawnableMobs(currentWave);
+            if (!spawnableMobs.includes(type)) {
+                console.log(`Invalid or disabled enemy type. Available types: ${spawnableMobs.join(', ')}`);
                 return;
             }
             console.log(`Spawning ${count} ${specifiedRarity || 'random'} ${type}(s)...`);
@@ -1140,6 +1126,62 @@ process.stdin.on('data', (data) => {
                 console.log('Invalid position format. Use numbers for x, y, z coordinates');
             }
             break;
+        case 'setmob':
+            if (args.length < 3) {
+                console.log('Usage: setmob <type> <property> <value>');
+                console.log('Properties: enabled (true/false), weight (number), minwave (number)');
+                console.log('Example: setmob spider enabled false');
+                console.log('Example: setmob ladybug weight 50');
+                console.log('Example: setmob soldier_ant minwave 3');
+                return;
+            }
+            const mobTypeToSet = args[0].toLowerCase();
+            const mobProperty = args[1].toLowerCase();
+            const mobValue = args[2];
+            const validEnemyTypes = ['ladybug', 'bee', 'centipede', 'spider', 'soldier_ant', 'worker_ant', 'baby_ant', 'centipede_segment'];
+            if (!validEnemyTypes.includes(mobTypeToSet)) {
+                console.log('Invalid mob type');
+                return;
+            }
+            switch (mobProperty) {
+                case 'enabled':
+                    server_config_1.ServerConfig.getInstance().setMobEnabled(mobTypeToSet, mobValue === 'true');
+                    console.log(`${mobTypeToSet} enabled set to ${mobValue}`);
+                    break;
+                case 'weight':
+                    const weight = parseInt(mobValue);
+                    if (isNaN(weight) || weight < 0) {
+                        console.log('Weight must be a non-negative number');
+                        return;
+                    }
+                    server_config_1.ServerConfig.getInstance().setMobWeight(mobTypeToSet, weight);
+                    console.log(`${mobTypeToSet} weight set to ${weight}`);
+                    break;
+                case 'minwave':
+                    const wave = parseInt(mobValue);
+                    if (isNaN(wave) || wave < 1) {
+                        console.log('Minimum wave must be a positive number');
+                        return;
+                    }
+                    server_config_1.ServerConfig.getInstance().setMobMinWave(mobTypeToSet, wave);
+                    console.log(`${mobTypeToSet} minimum wave set to ${wave}`);
+                    break;
+                default:
+                    console.log('Invalid property. Use: enabled, weight, or minwave');
+            }
+            break;
+        case 'listmobs':
+            const mobConfig = server_config_1.ServerConfig.getInstance().getMobConfig();
+            console.log('\nCurrent mob configuration:');
+            Object.entries(mobConfig).forEach(([type, settings]) => {
+                if (type !== 'centipede_segment') {
+                    console.log(`\n${type}:`);
+                    console.log(`  Enabled: ${settings.enabled}`);
+                    console.log(`  Weight: ${settings.weight}`);
+                    console.log(`  Min Wave: ${settings.minWave}`);
+                }
+            });
+            break;
         case 'help':
             console.log('Available commands:');
             console.log('  spawn <type> [count] [rarity] - Spawn enemies');
@@ -1153,6 +1195,8 @@ process.stdin.on('data', (data) => {
             console.log('  setground <color>              - Set ground color (hex)');
             console.log('  setlight <type> <prop> <val>   - Set light properties');
             console.log('  setlightpos <x> <y> <z>       - Set directional light position');
+            console.log('  setmob <type> <property> <value> - Set mob properties');
+            console.log('  listmobs                      - List current mob configuration');
             console.log('  help                          - Show this help message');
             break;
         default:
