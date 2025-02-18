@@ -35,7 +35,7 @@ export class CraftingSystem {
         this.container.style.alignItems = 'center';
         this.container.style.gap = '20px';
         this.container.style.padding = '20px';
-        this.container.style.background = 'rgba(0, 0, 0, 0.7)';
+        this.container.style.background = 'rgba(221, 159, 96, 1)';
         this.container.style.borderRadius = '10px';
         this.container.style.display = 'none';  // Hidden by default
         this.container.id = 'crafting-container';
