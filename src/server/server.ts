@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import express from 'express';
 import path from 'path';
 import { Rarity, RARITY_MULTIPLIERS, EnemyType, EnemyStats, BASE_SIZES } from '../shared/types';
+import { ServerConfig } from './server_config';
 
 interface Player {
     id: string;
@@ -1066,6 +1067,9 @@ io.on('connection', (socket) => {
             }
         }
     });
+
+    // Send initial configuration to new client
+    socket.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
 });
 
 // Start the first wave when server starts
@@ -1162,6 +1166,88 @@ process.stdin.on('data', (data: string) => {
             }
             break;
 
+        case 'setsky':
+            if (args.length !== 1) {
+                console.log('Usage: setsky <color>');
+                console.log('Example: setsky 0x87ceeb');
+                return;
+            }
+            try {
+                const color = parseInt(args[0]);
+                ServerConfig.getInstance().setSkyColor(color);
+                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                console.log('Sky color updated');
+            } catch (e) {
+                console.log('Invalid color format. Use hexadecimal (e.g., 0x87ceeb)');
+            }
+            break;
+
+        case 'setground':
+            if (args.length !== 1) {
+                console.log('Usage: setground <color>');
+                console.log('Example: setground 0x90EE90');
+                return;
+            }
+            try {
+                const color = parseInt(args[0]);
+                ServerConfig.getInstance().setGroundColor(color);
+                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                console.log('Ground color updated');
+            } catch (e) {
+                console.log('Invalid color format. Use hexadecimal (e.g., 0x90EE90)');
+            }
+            break;
+
+        case 'setlight':
+            if (args.length !== 3) {
+                console.log('Usage: setlight <type> <prop> <val>');
+                console.log('Types: ambient, directional, hemisphere');
+                console.log('Properties: color, intensity');
+                console.log('Example: setlight ambient intensity 0.7');
+                console.log('Example: setlight directional color 0xffffff');
+                return;
+            }
+            
+            const [lightType, property, value] = args;
+            if (!['ambient', 'directional', 'hemisphere'].includes(lightType)) {
+                console.log('Invalid light type. Use: ambient, directional, or hemisphere');
+                return;
+            }
+
+            try {
+                if (property === 'intensity') {
+                    const intensity = parseFloat(value);
+                    ServerConfig.getInstance().setLightIntensity(lightType as any, intensity);
+                } else if (property === 'color' && lightType !== 'hemisphere') {
+                    const color = parseInt(value);
+                    ServerConfig.getInstance().setLightColor(lightType as any, color);
+                } else {
+                    console.log('Invalid property. Use: color or intensity');
+                    return;
+                }
+                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                console.log(`${lightType} light ${property} updated`);
+            } catch (e) {
+                console.log('Invalid value format');
+            }
+            break;
+
+        case 'setlightpos':
+            if (args.length !== 3) {
+                console.log('Usage: setlightpos <x> <y> <z>');
+                console.log('Example: setlightpos 5 10 5');
+                return;
+            }
+            try {
+                const [x, y, z] = args.map(Number);
+                ServerConfig.getInstance().setDirectionalLightPosition(x, y, z);
+                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                console.log('Directional light position updated');
+            } catch (e) {
+                console.log('Invalid position format. Use numbers for x, y, z coordinates');
+            }
+            break;
+
         case 'help':
             console.log('Available commands:');
             console.log('  spawn <type> [count] [rarity] - Spawn enemies');
@@ -1171,6 +1257,10 @@ process.stdin.on('data', (data: string) => {
             console.log('  spawnitem <type> [count]      - Spawn items at center of map');
             console.log('    - type: tetrahedron, cube, leaf, stinger');
             console.log('    - count: number of items to spawn (default: 1)');
+            console.log('  setsky <color>                 - Set sky color (hex)');
+            console.log('  setground <color>              - Set ground color (hex)');
+            console.log('  setlight <type> <prop> <val>   - Set light properties');
+            console.log('  setlightpos <x> <y> <z>       - Set directional light position');
             console.log('  help                          - Show this help message');
             break;
 

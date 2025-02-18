@@ -10,6 +10,9 @@ import { Item, ItemType } from './item';
 import { Rarity, EnemyType, LightingConfig, PetalType, RARITY_COLORS } from '../shared/types';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { CraftingSystem } from './crafting';
+import { ServerConfig } from '../server/server_config';
+
+const MAP_SIZE = 15;  // Match server's map size
 
 export class Game {
     private scene: THREE.Scene;
@@ -157,15 +160,17 @@ export class Game {
             slotContainer.appendChild(numberDiv);
         }
 
-        // Create ground
-        const groundGeometry = new THREE.PlaneGeometry(30, 30);
-        const groundMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x00cf2d,
+        // Create ground plane with MeshPhongMaterial
+        const groundGeometry = new THREE.PlaneGeometry(MAP_SIZE * 2, MAP_SIZE * 2);
+        const groundMaterial = new THREE.MeshPhongMaterial({
+            color: ServerConfig.getInstance().getCurrentConfig().hemisphereLight.groundColor,
             side: THREE.DoubleSide,
+            shininess: 0  // Make it matte
         });
         this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        this.ground.rotation.x = Math.PI / 2;
+        this.ground.rotation.x = -Math.PI / 2;
         this.ground.position.y = 0;
+        this.scene.add(this.ground);
 
         this.init();
         
@@ -798,6 +803,17 @@ export class Game {
             if (this.socket?.id === data.id) {
                 this.totalXP = data.xp % this.XP_PER_WAVE;
                 this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+            }
+        });
+
+        this.socket?.on('configUpdate', (config: LightingConfig) => {
+            this.updateLighting(config);
+            // Update sky color
+            this.scene.background = new THREE.Color(config.skyColor);
+            // Update ground color
+            if (this.ground && this.ground.material instanceof THREE.MeshPhongMaterial) {
+                this.ground.material.color.setHex(config.hemisphereLight.groundColor);
+                this.ground.material.needsUpdate = true;  // Ensure material updates
             }
         });
     }
@@ -1691,9 +1707,6 @@ export class Game {
         this.hemisphereLight.color.setHex(config.hemisphereLight.skyColor);
         this.hemisphereLight.groundColor.setHex(config.hemisphereLight.groundColor);
         this.hemisphereLight.intensity = config.hemisphereLight.intensity;
-
-        // Update sky color
-        this.scene.background = new THREE.Color(config.skyColor);
     }
 
     public getCollectedPetals(): PetalType[] {
