@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "start": "webpack serve --mode development",
+    "start": "npm run server",
     "build": "webpack --mode production",
     "build:server": "tsc -p tsconfig.server.json",
     "build:all": "npm run build && npm run build:server",
