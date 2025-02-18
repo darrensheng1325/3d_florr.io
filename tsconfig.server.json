@@ -11,6 +11,6 @@
     "sourceMap": true,
     "moduleResolution": "node"
   },
-  "include": ["src/server/**/*"],
+  "include": ["src/server/**/*", "src/ant_hell_server/**/*"],
   "exclude": ["src/client/**/*"]
 } 

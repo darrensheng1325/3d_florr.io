@@ -6,7 +6,8 @@
     "build:all": "npm run build && npm run build:server",
     "server": "npm run build:all && node dist/server/server.js",
     "dev:server": "mkdir -p dist && npm run server",
-    "watch:server": "tsc -p tsconfig.server.json --watch"
+    "watch:server": "tsc -p tsconfig.server.json --watch",
+    "ant-hell-server": "npm run build:all && node dist/ant_hell_server/server.js"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.12",
