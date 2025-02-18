@@ -27,6 +27,10 @@ interface Enemy {
     followsId?: string;   // ID of the segment this follows
     target?: string;      // Socket ID of target player
     rarity: Rarity;
+    lastKnockbackTime: number;
+    knockbackCooldown: number;
+    lastTargetChangeTime: number;
+    targetChangeCooldown: number;
 }
 
 const app = express();
@@ -44,16 +48,23 @@ const enemies = new Map<string, Enemy>();
 
 let enemyIdCounter = 0;
 const SPAWN_INTERVAL = 5000;  // Spawn enemy every 5 seconds
-const MAP_SIZE = 15;
+
+// Get server configuration type from environment variable or command line argument
+const configType = process.env.SERVER_TYPE || 'default';
+const serverConfig = ServerConfig.getInstance(configType);
+const gridConfig = serverConfig.getGridConfig();
+
+// Update constants to use grid configuration
+const MAP_SIZE = gridConfig.size;
+const ENEMIES_PER_WAVE = gridConfig.enemiesPerWave;
+const XP_PER_WAVE = gridConfig.xpPerWave;
+const WAVE_SPAWN_INTERVAL = gridConfig.spawnInterval;
 
 // Wave management
 let currentWave = 1;
 let enemiesKilledInWave = 0;
 let totalXPInWave = 0;
 let enemiesSpawnedInWave = 0;  // Track how many enemies we've spawned
-const ENEMIES_PER_WAVE = 20;
-const XP_PER_WAVE = 1000;
-const WAVE_SPAWN_INTERVAL = 1000;  // Spawn enemy every second during wave
 let waveSpawnInterval: NodeJS.Timeout | null = null;
 
 // Update ENEMY_STATS with base stats (before rarity multipliers)
@@ -207,7 +218,11 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
             wanderAngle: Math.random() * Math.PI * 2,
             wanderTime: Date.now() + 2000 + Math.random() * 2000,
             segments: [],
-            rarity
+            rarity,
+            lastKnockbackTime: 0,
+            knockbackCooldown: 500,
+            lastTargetChangeTime: 0,
+            targetChangeCooldown: 2000
         };
         enemies.set(headId, headEnemy);
 
@@ -261,7 +276,11 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
                 wanderAngle: Math.random() * Math.PI * 2,
                 wanderTime: Date.now() + 2000 + Math.random() * 2000,
                 segments: [],
-                rarity
+                rarity,
+                lastKnockbackTime: 0,
+                knockbackCooldown: 500,
+                lastTargetChangeTime: 0,
+                targetChangeCooldown: 2000
             };
             enemies.set(segmentId, segmentEnemy);
             headEnemy.segments.push(segmentId);
@@ -292,12 +311,16 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
         wanderAngle: Math.random() * Math.PI * 2,
         wanderTime: Date.now() + 2000 + Math.random() * 2000,
         segments: [],
-        rarity
+        rarity,
+        lastKnockbackTime: 0,
+        knockbackCooldown: 500,
+        lastTargetChangeTime: 0,
+        targetChangeCooldown: 2000
     };
 
     // Find nearest player for initially aggressive enemies
     if (isInitiallyAggressive) {
-        let nearestPlayer: Player | null = null;
+        let nearestPlayer: { id: string } | null = null;
         let minDistance = Infinity;
         
         for (const [playerId, player] of players.entries()) {
@@ -396,6 +419,64 @@ function updateEnemies() {
     enemies.forEach((enemy, enemyId) => {
         const enemyStats = getEnemyStats(enemy.type, enemy.rarity);
         
+        // Handle target selection and movement
+        if (enemy.isAggressive) {
+            // Only change target if enough time has passed
+            if (!enemy.target || (currentTime - enemy.lastTargetChangeTime > enemy.targetChangeCooldown)) {
+                let nearestPlayer: { id: string } | null = null;
+                let minDistance = Infinity;
+                
+                for (const [playerId, player] of players.entries()) {
+                    const dx = player.position.x - enemy.position.x;
+                    const dz = player.position.z - enemy.position.z;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestPlayer = player;
+                    }
+                }
+
+                if (nearestPlayer) {
+                    enemy.target = nearestPlayer.id;
+                    enemy.lastTargetChangeTime = currentTime;
+                }
+            }
+            
+            // Move towards target if we have one
+            if (enemy.target) {
+                const targetPlayer = players.get(enemy.target);
+                if (targetPlayer) {
+                    const dx = targetPlayer.position.x - enemy.position.x;
+                    const dz = targetPlayer.position.z - enemy.position.z;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
+
+                    // Move towards player if not too close
+                    if (distance > 0.5) {
+                        const speed = enemyStats.speed;
+                        const newPosition = {
+                            x: enemy.position.x + (dx / distance) * speed,
+                            y: enemy.position.y,
+                            z: enemy.position.z + (dz / distance) * speed
+                        };
+
+                        // Only update position if within bounds
+                        if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
+                            enemy.position = newPosition;
+                        }
+
+                        // Calculate rotation to face player
+                        const targetRotation = getEnemyRotation(enemy, Math.atan2(dx, dz));
+                        io.emit('enemyMoved', {
+                            id: enemyId,
+                            position: enemy.position,
+                            rotation: targetRotation
+                        });
+                    }
+                }
+            }
+        }
+
         // Check for player collisions and apply knockback
         players.forEach((player) => {
             const dx = enemy.position.x - player.position.x;
@@ -541,38 +622,6 @@ function updateEnemies() {
                     position: enemy.position,
                     rotation: wanderRotation
                 });
-            }
-        } else if (enemy.target) {
-            // Get target player
-            const targetPlayer = players.get(enemy.target);
-            if (targetPlayer) {
-                // Calculate direction to player
-                const dx = targetPlayer.position.x - enemy.position.x;
-                const dz = targetPlayer.position.z - enemy.position.z;
-                const distance = Math.sqrt(dx * dx + dz * dz);
-
-                // Move towards player
-                if (distance > 0.5) {  // Don't get too close
-                    const speed = enemyStats.speed;
-                    const newPosition = {
-                        x: enemy.position.x + (dx / distance) * speed,
-                        y: enemy.position.y,
-                        z: enemy.position.z + (dz / distance) * speed
-                    };
-
-                    // Only update position if it's within bounds
-                    if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
-                        enemy.position = newPosition;
-                    }
-
-                    // Calculate rotation to face player
-                    const targetRotation = getEnemyRotation(enemy, Math.atan2(dx, dz));
-                    io.emit('enemyMoved', {
-                        id: enemyId,
-                        position: enemy.position,
-                        rotation: targetRotation
-                    });
-                }
             }
         }
 
@@ -725,26 +774,18 @@ function startNewWave() {
 }
 
 function spawnRandomEnemy() {
-    // Spawn at random edge of map
-    const edge = Math.floor(Math.random() * 4);
-    let x, z;
-    switch (edge) {
-        case 0: x = -MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;
-        case 1: x = MAP_SIZE; z = (Math.random() * 2 - 1) * MAP_SIZE; break;
-        case 2: x = (Math.random() * 2 - 1) * MAP_SIZE; z = -MAP_SIZE; break;
-        case 3: x = (Math.random() * 2 - 1) * MAP_SIZE; z = MAP_SIZE; break;
-        default: x = -MAP_SIZE; z = -MAP_SIZE;
-    }
-
+    // Use grid configuration for spawn position
+    const position = serverConfig.getSpawnPosition();
+    
     // Get random mob type based on configuration
-    const type = ServerConfig.getInstance().getRandomMobType(currentWave);
+    const type = serverConfig.getRandomMobType(currentWave);
     
     console.log('Spawning enemy:', type);
     
     spawnEnemy(type, { 
-        x, 
+        x: position.x, 
         y: BASE_ENEMY_STATS[type].size, 
-        z 
+        z: position.z 
     });
 }
 
@@ -871,17 +912,27 @@ io.on('connection', (socket) => {
     socket.on('enemyDamaged', ({ enemyId, damage, knockback }) => {
         const enemy = enemies.get(enemyId);
         if (enemy) {
+            const currentTime = Date.now();
+            
+            // Check knockback cooldown
+            if (currentTime - enemy.lastKnockbackTime < enemy.knockbackCooldown) {
+                return; // Skip knockback if on cooldown
+            }
+            
             enemy.health -= damage;
             
             // Only ladybugs become aggressive when hit
             if (enemy.type === 'ladybug' && !enemy.isAggressive) {
                 enemy.isAggressive = true;
                 enemy.target = socket.id;
+                enemy.lastTargetChangeTime = currentTime;
             }
             
+            // Apply knockback with cooldown
             const knockbackForce = 0.8;
             enemy.velocity.x = knockback.x * knockbackForce;
             enemy.velocity.z = knockback.z * knockbackForce;
+            enemy.lastKnockbackTime = currentTime;
             
             // Apply knockback while respecting bounds
             const newPosition = {
@@ -1053,7 +1104,7 @@ io.on('connection', (socket) => {
     });
 
     // Send initial configuration to new client
-    socket.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+    socket.emit('configUpdate', serverConfig.getCurrentConfig());
 });
 
 // Start the first wave when server starts
@@ -1072,7 +1123,7 @@ process.stdin.on('data', (data: string) => {
         case 'spawn':
             if (args.length === 0) {
                 console.log('Usage: spawn <type> [count] [rarity]');
-                console.log('Available types:', ServerConfig.getInstance().getSpawnableMobs(currentWave).join(', '));
+                console.log('Available types:', serverConfig.getSpawnableMobs(currentWave).join(', '));
                 console.log('Available rarities: common, uncommon, rare, epic, legendary');
                 console.log('Example: spawn spider 3 rare');
                 return;
@@ -1094,7 +1145,7 @@ process.stdin.on('data', (data: string) => {
             }
 
             // Validate mob type against current configuration
-            const spawnableMobs = ServerConfig.getInstance().getSpawnableMobs(currentWave);
+            const spawnableMobs = serverConfig.getSpawnableMobs(currentWave);
             if (!spawnableMobs.includes(type)) {
                 console.log(`Invalid or disabled enemy type. Available types: ${spawnableMobs.join(', ')}`);
                 return;
@@ -1160,8 +1211,8 @@ process.stdin.on('data', (data: string) => {
             }
             try {
                 const color = parseInt(args[0]);
-                ServerConfig.getInstance().setSkyColor(color);
-                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                serverConfig.setSkyColor(color);
+                io.emit('configUpdate', serverConfig.getCurrentConfig());
                 console.log('Sky color updated');
             } catch (e) {
                 console.log('Invalid color format. Use hexadecimal (e.g., 0x87ceeb)');
@@ -1176,8 +1227,8 @@ process.stdin.on('data', (data: string) => {
             }
             try {
                 const color = parseInt(args[0]);
-                ServerConfig.getInstance().setGroundColor(color);
-                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                serverConfig.setGroundColor(color);
+                io.emit('configUpdate', serverConfig.getCurrentConfig());
                 console.log('Ground color updated');
             } catch (e) {
                 console.log('Invalid color format. Use hexadecimal (e.g., 0x90EE90)');
@@ -1203,15 +1254,15 @@ process.stdin.on('data', (data: string) => {
             try {
                 if (property === 'intensity') {
                     const intensity = parseFloat(value);
-                    ServerConfig.getInstance().setLightIntensity(lightType as any, intensity);
+                    serverConfig.setLightIntensity(lightType as any, intensity);
                 } else if (property === 'color' && lightType !== 'hemisphere') {
                     const color = parseInt(value);
-                    ServerConfig.getInstance().setLightColor(lightType as any, color);
+                    serverConfig.setLightColor(lightType as any, color);
                 } else {
                     console.log('Invalid property. Use: color or intensity');
                     return;
                 }
-                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                io.emit('configUpdate', serverConfig.getCurrentConfig());
                 console.log(`${lightType} light ${property} updated`);
             } catch (e) {
                 console.log('Invalid value format');
@@ -1226,11 +1277,27 @@ process.stdin.on('data', (data: string) => {
             }
             try {
                 const [x, y, z] = args.map(Number);
-                ServerConfig.getInstance().setDirectionalLightPosition(x, y, z);
-                io.emit('configUpdate', ServerConfig.getInstance().getCurrentConfig());
+                serverConfig.setDirectionalLightPosition(x, y, z);
+                io.emit('configUpdate', serverConfig.getCurrentConfig());
                 console.log('Directional light position updated');
             } catch (e) {
                 console.log('Invalid position format. Use numbers for x, y, z coordinates');
+            }
+            break;
+
+        case 'setgrid':
+            if (args.length !== 1) {
+                console.log('Usage: setgrid <color>');
+                console.log('Example: setgrid 0x808080');
+                return;
+            }
+            try {
+                const color = parseInt(args[0]);
+                serverConfig.setGridColor(color);
+                io.emit('configUpdate', { ...serverConfig.getCurrentConfig(), gridConfig: serverConfig.getGridConfig() });
+                console.log('Grid color updated');
+            } catch (e) {
+                console.log('Invalid color format. Use hexadecimal (e.g., 0x808080)');
             }
             break;
 
@@ -1256,7 +1323,7 @@ process.stdin.on('data', (data: string) => {
 
             switch (mobProperty) {
                 case 'enabled':
-                    ServerConfig.getInstance().setMobEnabled(mobTypeToSet, mobValue === 'true');
+                    serverConfig.setMobEnabled(mobTypeToSet, mobValue === 'true');
                     console.log(`${mobTypeToSet} enabled set to ${mobValue}`);
                     break;
                 case 'weight':
@@ -1265,7 +1332,7 @@ process.stdin.on('data', (data: string) => {
                         console.log('Weight must be a non-negative number');
                         return;
                     }
-                    ServerConfig.getInstance().setMobWeight(mobTypeToSet, weight);
+                    serverConfig.setMobWeight(mobTypeToSet, weight);
                     console.log(`${mobTypeToSet} weight set to ${weight}`);
                     break;
                 case 'minwave':
@@ -1274,7 +1341,7 @@ process.stdin.on('data', (data: string) => {
                         console.log('Minimum wave must be a positive number');
                         return;
                     }
-                    ServerConfig.getInstance().setMobMinWave(mobTypeToSet, wave);
+                    serverConfig.setMobMinWave(mobTypeToSet, wave);
                     console.log(`${mobTypeToSet} minimum wave set to ${wave}`);
                     break;
                 default:
@@ -1283,7 +1350,7 @@ process.stdin.on('data', (data: string) => {
             break;
 
         case 'listmobs':
-            const mobConfig = ServerConfig.getInstance().getMobConfig();
+            const mobConfig = serverConfig.getMobConfig();
             console.log('\nCurrent mob configuration:');
             Object.entries(mobConfig).forEach(([type, settings]) => {
                 if (type !== 'centipede_segment') {
@@ -1308,6 +1375,7 @@ process.stdin.on('data', (data: string) => {
             console.log('  setground <color>              - Set ground color (hex)');
             console.log('  setlight <type> <prop> <val>   - Set light properties');
             console.log('  setlightpos <x> <y> <z>       - Set directional light position');
+            console.log('  setgrid <color>                - Set grid color (hex)');
             console.log('  setmob <type> <property> <value> - Set mob properties');
             console.log('  listmobs                      - List current mob configuration');
             console.log('  help                          - Show this help message');

@@ -32,6 +32,7 @@ export class Game {
     public players: Map<string, THREE.Mesh>;
     private cameraRotation: number = 0;
     private ground: THREE.Mesh;
+    private gridHelper: THREE.GridHelper;
     private textureLoader: THREE.TextureLoader;
     private playerInventories: Map<string, Inventory> = new Map();
     private enemies: Map<string, Enemy> = new Map();
@@ -87,6 +88,9 @@ export class Game {
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
         this.hemisphereLight = new THREE.HemisphereLight(0x9BE2FF, 0x00ff2d, 0.8);
+
+        // Initialize grid helper with default values (will be updated from server)
+        this.gridHelper = new THREE.GridHelper(30, 30, 0x038f21, 0x038f21);
 
         // Create title canvas overlay
         this.titleCanvas = document.createElement('canvas');
@@ -480,10 +484,10 @@ export class Game {
         // Add ground to scene
         this.scene.add(this.ground);
 
-        // Add grid helper
-        const gridHelper = new THREE.GridHelper(30, 30, 0x038f21, 0x038f21);
-        gridHelper.position.y = 0.01;
-        this.scene.add(gridHelper);
+        // Add grid helper with default color
+        this.gridHelper = new THREE.GridHelper(30, 30, 0x038f21, 0x038f21);
+        this.gridHelper.position.y = 0.01;
+        this.scene.add(this.gridHelper);
 
         // Handle window resize
         window.addEventListener('resize', () => this.onWindowResize());
@@ -806,7 +810,7 @@ export class Game {
             }
         });
 
-        this.socket?.on('configUpdate', (config: LightingConfig) => {
+        this.socket?.on('configUpdate', (config: any) => {
             this.updateLighting(config);
             // Update sky color
             this.scene.background = new THREE.Color(config.skyColor);
@@ -814,6 +818,15 @@ export class Game {
             if (this.ground && this.ground.material instanceof THREE.MeshPhongMaterial) {
                 this.ground.material.color.setHex(config.hemisphereLight.groundColor);
                 this.ground.material.needsUpdate = true;  // Ensure material updates
+            }
+            // Update grid color if gridConfig is present
+            if (config.gridConfig && this.gridHelper) {
+                // Remove old grid helper
+                this.scene.remove(this.gridHelper);
+                // Create new grid helper with updated color
+                this.gridHelper = new THREE.GridHelper(30, 30, config.gridConfig.gridColor, config.gridConfig.gridColor);
+                this.gridHelper.position.y = 0.01;
+                this.scene.add(this.gridHelper);
             }
         });
     }
@@ -1408,24 +1421,24 @@ export class Game {
                     });
                 });
             } else {
-                let geometry: THREE.BufferGeometry;
-                let material: THREE.Material;
+            let geometry: THREE.BufferGeometry;
+            let material: THREE.Material;
 
-                switch (type) {
-                    case PetalType.TETRAHEDRON:
+            switch (type) {
+                case PetalType.TETRAHEDRON:
                     case PetalType.TETRAHEDRON_EPIC:
-                        geometry = new THREE.TetrahedronGeometry(0.8);
-                        material = new THREE.MeshBasicMaterial({ 
-                            color: 0xff0000,
-                        });
-                        break;
-                    case PetalType.CUBE:
+                    geometry = new THREE.TetrahedronGeometry(0.8);
+                    material = new THREE.MeshBasicMaterial({ 
+                        color: 0xff0000,
+                    });
+                    break;
+                case PetalType.CUBE:
                     case PetalType.CUBE_LEGENDARY:
-                        geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-                        material = new THREE.MeshBasicMaterial({ 
-                            color: 0x0000ff,
-                        });
-                        break;
+                    geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+                    material = new THREE.MeshBasicMaterial({ 
+                        color: 0x0000ff,
+                    });
+                    break;
                     case PetalType.PEA:
                         // Load the pea model for inventory preview
                         const modelLoader = new GLTFLoader();
@@ -1456,27 +1469,27 @@ export class Game {
                         return; // Return early as model loading is async
                     case PetalType.STINGER:
                         geometry = new THREE.ConeGeometry(0.4, 1.0, 16);
-                        material = new THREE.MeshBasicMaterial({
+                    material = new THREE.MeshBasicMaterial({ 
                             color: 0x000000,
                         });
                         break;
                     default:
                         geometry = new THREE.SphereGeometry(0.4, 32, 32);
                         material = new THREE.MeshPhongMaterial({ 
-                            color: 0xffffff,
-                        });
-                }
+                        color: 0xffffff,
+                    });
+            }
 
-                const mesh = new THREE.Mesh(geometry, material);
-                scene.add(mesh);
+            const mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
 
-                // Store renderer, scene, camera, and mesh for updates
-                this.inventoryPreviews.set(type, {
-                    renderer,
-                    scene,
-                    camera,
-                    mesh
-                });
+            // Store renderer, scene, camera, and mesh for updates
+            this.inventoryPreviews.set(type, {
+                renderer,
+                scene,
+                camera,
+                mesh
+            });
             }
         });
 

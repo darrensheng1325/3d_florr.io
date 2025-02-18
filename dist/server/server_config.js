@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServerConfig = void 0;
 class ServerConfig {
-    constructor() {
+    constructor(configType) {
         this.currentConfig = {
             ambientLight: {
                 color: 0xffffff,
@@ -66,12 +66,99 @@ class ServerConfig {
                 minWave: 1
             }
         };
-    }
-    static getInstance() {
-        if (!ServerConfig.instance) {
-            ServerConfig.instance = new ServerConfig();
+        this.gridConfig = {
+            size: 15,
+            spawnInterval: 1000,
+            enemiesPerWave: 20,
+            xpPerWave: 1000,
+            spawnLocations: 'edges',
+            gridCellSize: 1,
+            gridColor: 0x038f21 // Default gray color for grid
+        };
+        if (configType === 'ant_hell') {
+            // Ant Hell configuration
+            this.gridConfig = {
+                size: 30, // Larger map
+                spawnInterval: 500, // Faster spawns
+                enemiesPerWave: 40, // More enemies
+                xpPerWave: 2000, // More XP
+                spawnLocations: 'grid', // Grid-based spawning
+                gridCellSize: 5, // 5x5 grid cells
+                gridColor: 0x4a2810 // Dark brown grid for ant hell
+            };
+            // Modify mob configuration for Ant Hell
+            this.mobConfig = {
+                ...this.mobConfig,
+                soldier_ant: {
+                    enabled: true,
+                    weight: 30, // Higher weight for soldier ants
+                    minWave: 1 // Available from start
+                },
+                worker_ant: {
+                    enabled: true,
+                    weight: 30, // Higher weight for worker ants
+                    minWave: 1
+                },
+                baby_ant: {
+                    enabled: true,
+                    weight: 20, // Higher weight for baby ants
+                    minWave: 1
+                },
+                spider: {
+                    enabled: false, // Disable non-ant enemies
+                    weight: 0,
+                    minWave: 999
+                },
+                ladybug: {
+                    enabled: false,
+                    weight: 0,
+                    minWave: 999
+                },
+                bee: {
+                    enabled: false,
+                    weight: 0,
+                    minWave: 999
+                },
+                centipede: {
+                    enabled: false,
+                    weight: 0,
+                    minWave: 999
+                },
+                centipede_segment: {
+                    enabled: false,
+                    weight: 0,
+                    minWave: 999
+                }
+            };
+            // Darker, more underground-like lighting
+            this.currentConfig = {
+                ambientLight: {
+                    color: 0xffffff,
+                    intensity: 0.5
+                },
+                directionalLight: {
+                    color: 0xffffff,
+                    intensity: 0.7,
+                    position: {
+                        x: 5,
+                        y: 10,
+                        z: 5
+                    }
+                },
+                hemisphereLight: {
+                    skyColor: 0xa15402, // Dark gray
+                    groundColor: 0xa15402, // Dark brown
+                    intensity: 0.8
+                },
+                skyColor: 0xa15402 // Dark gray
+            };
         }
-        return ServerConfig.instance;
+    }
+    static getInstance(configType = 'default') {
+        if (!ServerConfig.instances.has(configType)) {
+            ServerConfig.instances.set(configType, new ServerConfig(configType));
+        }
+        return ServerConfig.instances.get(configType);
     }
     getCurrentConfig() {
         return this.currentConfig;
@@ -195,6 +282,76 @@ class ServerConfig {
         }
         return spawnable[0]; // Fallback to first available mob
     }
+    // Grid configuration methods
+    getGridConfig() {
+        return this.gridConfig;
+    }
+    updateGridConfig(newConfig) {
+        this.gridConfig = {
+            ...this.gridConfig,
+            ...newConfig
+        };
+    }
+    setGridColor(color) {
+        this.gridConfig.gridColor = color;
+    }
+    getSpawnPosition() {
+        const size = this.gridConfig.size;
+        switch (this.gridConfig.spawnLocations) {
+            case 'grid': {
+                // Get random grid cell
+                const cellSize = this.gridConfig.gridCellSize;
+                const gridSize = Math.floor(size / cellSize);
+                const gridX = Math.floor(Math.random() * gridSize) - Math.floor(gridSize / 2);
+                const gridZ = Math.floor(Math.random() * gridSize) - Math.floor(gridSize / 2);
+                // Add some random offset within the cell
+                const offsetX = (Math.random() - 0.5) * cellSize;
+                const offsetZ = (Math.random() - 0.5) * cellSize;
+                return {
+                    x: (gridX * cellSize) + offsetX,
+                    y: 0,
+                    z: (gridZ * cellSize) + offsetZ
+                };
+            }
+            case 'edges': {
+                // Original edge spawning logic
+                const edge = Math.floor(Math.random() * 4);
+                let x, z;
+                switch (edge) {
+                    case 0:
+                        x = -size;
+                        z = (Math.random() * 2 - 1) * size;
+                        break;
+                    case 1:
+                        x = size;
+                        z = (Math.random() * 2 - 1) * size;
+                        break;
+                    case 2:
+                        x = (Math.random() * 2 - 1) * size;
+                        z = -size;
+                        break;
+                    case 3:
+                        x = (Math.random() * 2 - 1) * size;
+                        z = size;
+                        break;
+                    default:
+                        x = -size;
+                        z = -size;
+                }
+                return { x, y: 0, z };
+            }
+            case 'random':
+            default: {
+                // Completely random position within map bounds
+                return {
+                    x: (Math.random() * 2 - 1) * size,
+                    y: 0,
+                    z: (Math.random() * 2 - 1) * size
+                };
+            }
+        }
+    }
 }
 exports.ServerConfig = ServerConfig;
+ServerConfig.instances = new Map();
 //# sourceMappingURL=server_config.js.map
