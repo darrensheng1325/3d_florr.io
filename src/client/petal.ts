@@ -228,6 +228,24 @@ export class Petal {
         if (this.type === PetalType.BASIC) {
             return 0xffffff;  // White for basic petals
         }
+        else if (this.type === PetalType.PEA) {
+            return 0x00ff00;
+        }
+        else if (this.type === PetalType.LEAF) {
+            return 0x00ff00;
+        }
+        else if (this.type === PetalType.STINGER) {
+            return 0x000000;
+        }
+        else if (this.type === PetalType.CUBE) {
+            return 0xffff00;
+        }
+        else if (this.type === PetalType.TETRAHEDRON) {
+            return 0xff0000;
+        }
+        else if (this.type === PetalType.TETRAHEDRON_EPIC) {
+            return 0xff0000;
+        }
         // Use rarity color for other petals
         const stats = PETAL_STATS[this.type];
         return RARITY_COLORS[stats.rarity];
