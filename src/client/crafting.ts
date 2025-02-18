@@ -28,7 +28,7 @@ export class CraftingSystem {
         this.container = document.createElement('div');
         this.container.style.position = 'fixed';
         this.container.style.bottom = '20px';  // Match inventory position
-        this.container.style.left = '100px';
+        this.container.style.left = '200px';
         this.container.style.transform = 'translateX(-50%)';
         this.container.style.display = 'flex';
         this.container.style.flexDirection = 'column';
