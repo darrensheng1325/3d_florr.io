@@ -1,1 +1,94 @@
-{}
+{
+  "f93298c6-47a9-4820-9ae6-5d636874ffeb": {
+    "id": "f93298c6-47a9-4820-9ae6-5d636874ffeb",
+    "lastSeen": 1740187487328,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": [
+        {
+          "type": "tetrahedron",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187321260
+        },
+        {
+          "type": "pea",
+          "rarity": "UNCOMMON",
+          "obtainedAt": 1740187347376
+        },
+        {
+          "type": "pea",
+          "rarity": "UNCOMMON",
+          "obtainedAt": 1740187348359
+        },
+        {
+          "type": "pea",
+          "rarity": "UNCOMMON",
+          "obtainedAt": 1740187350993
+        },
+        {
+          "type": "tetrahedron",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187437208
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187476427
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187477042
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187481743
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187483658
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187484810
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187486075
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187486277
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187486278
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187487327
+        },
+        {
+          "type": "pea",
+          "rarity": "COMMON",
+          "obtainedAt": 1740187487328
+        }
+      ]
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  }
+}

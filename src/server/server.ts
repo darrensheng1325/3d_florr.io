@@ -856,6 +856,8 @@ io.on('connection', (socket) => {
         account = dbManager.createAccount(accountId);
     }
 
+    console.log(`Account ${accountId} loaded with ${account.inventory.collectedItems.length} items`);
+
     // Store new player with XP, join time, and account ID
     players.set(socket.id, {
         id: socket.id,
@@ -866,15 +868,111 @@ io.on('connection', (socket) => {
         joinTime: Date.now()
     });
 
-    // Send initial health state and account data to the new player
+    // First, send initial game state
     socket.emit('healthSync', {
         health: 100
     });
-    socket.emit('accountSync', {
+
+    // Send a single, complete account sync with all data
+    const fullAccountData = {
         totalXP: account.totalXP,
         highestWave: account.highestWave,
         stats: account.stats,
-        inventory: account.inventory
+        inventory: {
+            petals: [...(account.inventory.petals || [])],
+            collectedItems: [...(account.inventory.collectedItems || [])]
+        }
+    };
+
+    // Log the data being sent
+    console.log('Sending initial account data:', {
+        accountId,
+        itemCount: fullAccountData.inventory.collectedItems.length,
+        items: fullAccountData.inventory.collectedItems.map(item => item.type),
+        petalCount: fullAccountData.inventory.petals.length
+    });
+
+    // Send a single, complete sync event
+    socket.emit('accountSync', fullAccountData);
+
+    // Handle inventory request (for manual refresh)
+    socket.on('requestInventory', () => {
+        const player = players.get(socket.id);
+        if (player) {
+            const currentAccount = dbManager.getAccount(player.accountId);
+            if (currentAccount) {
+                const inventory = {
+                    petals: [...(currentAccount.inventory.petals || [])],
+                    collectedItems: [...(currentAccount.inventory.collectedItems || [])]
+                };
+                
+                console.log('Sending inventory refresh:', {
+                    accountId: player.accountId,
+                    itemCount: inventory.collectedItems.length,
+                    items: inventory.collectedItems.map(item => item.type)
+                });
+
+                socket.emit('inventorySync', inventory);
+            }
+        }
+    });
+
+    // Handle item collection
+    socket.on('itemCollected', ({ itemType, rarity }) => {
+        const player = players.get(socket.id);
+        if (player) {
+            console.log(`Player ${player.accountId} collecting item: ${itemType} (${rarity})`);
+            
+            // Save to database
+            dbManager.addCollectedItem(player.accountId, {
+                type: itemType,
+                rarity: rarity
+            });
+
+            // Get updated inventory
+            const updatedAccount = dbManager.getAccount(player.accountId);
+            if (updatedAccount) {
+                const inventory = {
+                    petals: [...(updatedAccount.inventory.petals || [])],
+                    collectedItems: [...(updatedAccount.inventory.collectedItems || [])]
+                };
+
+                console.log('Confirming item collection:', {
+                    accountId: player.accountId,
+                    newItem: itemType,
+                    totalItems: inventory.collectedItems.length
+                });
+
+                // Send complete inventory state
+                socket.emit('itemCollectionConfirmed', {
+                    type: itemType,
+                    rarity: rarity,
+                    inventory: inventory
+                });
+            }
+        }
+    });
+
+    // Handle inventory updates
+    socket.on('inventoryUpdate', (inventory) => {
+        const player = players.get(socket.id);
+        if (player) {
+            console.log(`Updating inventory for ${player.accountId}:`, {
+                petalCount: inventory.petals.length
+            });
+            
+            // Save petals but preserve collected items
+            const currentAccount = dbManager.getAccount(player.accountId);
+            if (currentAccount) {
+                dbManager.saveInventory(player.accountId, inventory.petals);
+                
+                // Send confirmation with complete inventory state
+                socket.emit('inventoryUpdateConfirmed', {
+                    petals: inventory.petals,
+                    collectedItems: currentAccount.inventory.collectedItems || []
+                });
+            }
+        }
     });
 
     // Send existing players and enemies to the new player
@@ -1010,6 +1108,17 @@ io.on('connection', (socket) => {
                 // Distribute XP and update wave progress
                 distributeXP(totalXP);
                 enemiesKilledInWave++;
+
+                // If item drops, save it to the database
+                if (itemType) {
+                    const player = players.get(socket.id);
+                    if (player) {
+                        dbManager.addCollectedItem(player.accountId, {
+                            type: itemType,
+                            rarity: enemy.rarity
+                        });
+                    }
+                }
             } else {
                 // Update format to match what client expects
                 io.emit('enemyDamaged', {
@@ -1120,14 +1229,6 @@ io.on('connection', (socket) => {
                     }, 5000); // 5 second delay to show death screen
                 }, 1000); // 1 second for death animation
             }
-        }
-    });
-
-    // Handle inventory updates
-    socket.on('inventoryUpdate', (inventory) => {
-        const player = players.get(socket.id);
-        if (player) {
-            dbManager.saveInventory(player.accountId, inventory.petals);
         }
     });
 

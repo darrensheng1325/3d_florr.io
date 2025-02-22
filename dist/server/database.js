@@ -22,10 +22,37 @@ class DatabaseManager {
             fs_1.default.writeFileSync(this.dbPath, JSON.stringify({}, null, 2));
         }
     }
+    migrateAccountData(account) {
+        var _a, _b, _c, _d, _e, _f;
+        // Ensure all required properties exist with default values
+        return {
+            id: account.id || '',
+            lastSeen: account.lastSeen || Date.now(),
+            totalXP: account.totalXP || 0,
+            highestWave: account.highestWave || 0,
+            inventory: {
+                petals: ((_a = account.inventory) === null || _a === void 0 ? void 0 : _a.petals) || [],
+                collectedItems: ((_b = account.inventory) === null || _b === void 0 ? void 0 : _b.collectedItems) || []
+            },
+            stats: {
+                totalKills: ((_c = account.stats) === null || _c === void 0 ? void 0 : _c.totalKills) || 0,
+                totalDeaths: ((_d = account.stats) === null || _d === void 0 ? void 0 : _d.totalDeaths) || 0,
+                totalPlayTime: ((_e = account.stats) === null || _e === void 0 ? void 0 : _e.totalPlayTime) || 0,
+                bestXP: ((_f = account.stats) === null || _f === void 0 ? void 0 : _f.bestXP) || 0
+            }
+        };
+    }
     loadData() {
         try {
             const fileContent = fs_1.default.readFileSync(this.dbPath, 'utf-8');
-            this.data = JSON.parse(fileContent);
+            const rawData = JSON.parse(fileContent);
+            // Migrate each account's data to ensure all required fields exist
+            this.data = Object.entries(rawData).reduce((acc, [accountId, accountData]) => {
+                acc[accountId] = this.migrateAccountData(accountData);
+                return acc;
+            }, {});
+            // Save migrated data back to file
+            this.saveData();
         }
         catch (error) {
             console.error('Error loading database:', error);
@@ -50,7 +77,8 @@ class DatabaseManager {
             totalXP: 0,
             highestWave: 0,
             inventory: {
-                petals: []
+                petals: [],
+                collectedItems: []
             },
             stats: {
                 totalKills: 0,
@@ -94,6 +122,35 @@ class DatabaseManager {
             throw new Error(`Account ${accountId} not found`);
         }
         account.inventory.petals = petals;
+        account.lastSeen = Date.now();
+        this.saveData();
+    }
+    addCollectedItem(accountId, item) {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+        account.inventory.collectedItems.push({
+            ...item,
+            obtainedAt: Date.now()
+        });
+        account.lastSeen = Date.now();
+        this.saveData();
+    }
+    getCollectedItems(accountId) {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+        return account.inventory.collectedItems;
+    }
+    clearCollectedItems(accountId) {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+        account.inventory.collectedItems = [];
+        account.lastSeen = Date.now();
         this.saveData();
     }
     getLeaderboard(sortBy = 'totalXP', limit = 10) {

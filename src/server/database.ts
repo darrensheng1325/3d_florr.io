@@ -13,6 +13,11 @@ interface AccountData {
             rarity: string;
             health: number;
         }>;
+        collectedItems: Array<{
+            type: string;
+            rarity: string;
+            obtainedAt: number;
+        }>;
     };
     stats: {
         totalKills: number;
@@ -42,10 +47,39 @@ class DatabaseManager {
         }
     }
 
+    private migrateAccountData(account: any): AccountData {
+        // Ensure all required properties exist with default values
+        return {
+            id: account.id || '',
+            lastSeen: account.lastSeen || Date.now(),
+            totalXP: account.totalXP || 0,
+            highestWave: account.highestWave || 0,
+            inventory: {
+                petals: account.inventory?.petals || [],
+                collectedItems: account.inventory?.collectedItems || []
+            },
+            stats: {
+                totalKills: account.stats?.totalKills || 0,
+                totalDeaths: account.stats?.totalDeaths || 0,
+                totalPlayTime: account.stats?.totalPlayTime || 0,
+                bestXP: account.stats?.bestXP || 0
+            }
+        };
+    }
+
     private loadData(): void {
         try {
             const fileContent = fs.readFileSync(this.dbPath, 'utf-8');
-            this.data = JSON.parse(fileContent);
+            const rawData = JSON.parse(fileContent);
+            
+            // Migrate each account's data to ensure all required fields exist
+            this.data = Object.entries(rawData).reduce((acc, [accountId, accountData]) => {
+                acc[accountId] = this.migrateAccountData(accountData);
+                return acc;
+            }, {} as { [accountId: string]: AccountData });
+
+            // Save migrated data back to file
+            this.saveData();
         } catch (error) {
             console.error('Error loading database:', error);
             this.data = {};
@@ -71,7 +105,8 @@ class DatabaseManager {
             totalXP: 0,
             highestWave: 0,
             inventory: {
-                petals: []
+                petals: [],
+                collectedItems: []
             },
             stats: {
                 totalKills: 0,
@@ -134,6 +169,48 @@ class DatabaseManager {
         }
 
         account.inventory.petals = petals;
+        account.lastSeen = Date.now();
+        this.saveData();
+    }
+
+    public addCollectedItem(accountId: string, item: {
+        type: string;
+        rarity: string;
+    }): void {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+
+        account.inventory.collectedItems.push({
+            ...item,
+            obtainedAt: Date.now()
+        });
+        account.lastSeen = Date.now();
+        this.saveData();
+    }
+
+    public getCollectedItems(accountId: string): Array<{
+        type: string;
+        rarity: string;
+        obtainedAt: number;
+    }> {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+
+        return account.inventory.collectedItems;
+    }
+
+    public clearCollectedItems(accountId: string): void {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+
+        account.inventory.collectedItems = [];
+        account.lastSeen = Date.now();
         this.saveData();
     }
 

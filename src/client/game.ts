@@ -42,7 +42,26 @@ export class Game {
     private isGameStarted: boolean = false;
     private titleCanvas: HTMLCanvasElement;
     private titleCtx: CanvasRenderingContext2D;
+    private accountManager: AccountManager;
+    private isInventoryOpen: boolean = false;
+    private collectedPetals: PetalType[] = [];
+    private craftingSystem: CraftingSystem | null = null;
+    private items: Map<string, Item> = new Map();
     private pressedKeys: Set<string> = new Set();
+    private inventoryMenu: HTMLDivElement | null = null;
+    private inventoryPreviews: Map<PetalType, { 
+        scene: THREE.Scene, 
+        camera: THREE.PerspectiveCamera, 
+        renderer: THREE.WebGLRenderer,
+        mesh: THREE.Mesh | THREE.Group 
+    }> = new Map();
+    private isSettingsOpen: boolean = false;
+    private settings = {
+        rarityTinting: true
+    };
+    private craftingMenu: HTMLDivElement | null = null;
+    private isCraftingOpen: boolean = false;
+    private settingsMenu: HTMLDivElement | null = null;
     private moveSpeed: number = 0.05;
     private mapSize: number = 15;
     private lastFrameTime: number = 0;
@@ -52,31 +71,12 @@ export class Game {
     private lastHealTime: number = 0;
     private readonly HEAL_INTERVAL: number = 1000; // Heal every second
     private readonly HEAL_AMOUNT: number = 5;      // Heal 5 health per tick
-    private items: Map<string, Item> = new Map();
-    private inventoryMenu: HTMLDivElement | null = null;
-    private collectedPetals: PetalType[] = [];
-    private isInventoryOpen: boolean = false;
-    private inventoryPreviews: Map<PetalType, {
-        renderer: THREE.WebGLRenderer;
-        scene: THREE.Scene;
-        camera: THREE.PerspectiveCamera;
-        mesh: THREE.Mesh | THREE.Group;
-    }> = new Map();
     private reconnectAttempts: number = 0;
     private readonly MAX_RECONNECT_ATTEMPTS = 3;
     private readonly RECONNECT_DELAY = 2000; // 2 seconds
     private ambientLight: THREE.AmbientLight;
     private directionalLight: THREE.DirectionalLight;
     private hemisphereLight: THREE.HemisphereLight;
-    private craftingSystem: CraftingSystem | null = null;
-    private settingsMenu: HTMLDivElement | null = null;
-    private isSettingsOpen: boolean = false;
-    private settings = {
-        rarityTinting: true
-    };
-    private craftingMenu: HTMLDivElement | null = null;
-    private isCraftingOpen: boolean = false;
-    private accountManager: AccountManager;
 
     constructor() {
         this.accountManager = new AccountManager();
@@ -837,6 +837,158 @@ export class Game {
                 this.gridHelper = new THREE.GridHelper(30, 30, config.gridConfig.gridColor, config.gridConfig.gridColor);
                 this.gridHelper.position.y = 0.01;
                 this.scene.add(this.gridHelper);
+            }
+        });
+
+        // Handle account sync
+        this.socket.on('accountSync', (data: {
+            totalXP: number;
+            highestWave: number;
+            stats: any;
+            inventory: {
+                petals: Array<{
+                    type: string;
+                    slotIndex: number;
+                    rarity: string;
+                    health: number;
+                }>;
+                collectedItems: Array<{
+                    type: string;
+                    rarity: string;
+                    obtainedAt: number;
+                }>;
+            };
+        }) => {
+            console.log('Received account sync:', data);
+            
+            // Update account data
+            this.totalXP = data.totalXP;
+            
+            // Load inventory data
+            if (this.socket?.id) {
+                let inventory = this.playerInventories.get(this.socket.id);
+                if (!inventory) {
+                    inventory = new Inventory(this.scene, this.players.get(this.socket.id)!);
+                    this.playerInventories.set(this.socket.id, inventory);
+                }
+
+                // Load petals
+                data.inventory.petals.forEach(petal => {
+                    inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
+                });
+
+                // Store collected items
+                this.collectedPetals = data.inventory.collectedItems.map(item => item.type as PetalType);
+                
+                // Update UI if inventory is open
+                if (this.isInventoryOpen) {
+                    this.updateInventoryDisplay();
+                }
+            }
+        });
+
+        // Handle inventory sync
+        this.socket.on('inventorySync', (data: {
+            petals: Array<{
+                type: string;
+                slotIndex: number;
+                rarity: string;
+                health: number;
+            }>;
+            collectedItems: Array<{
+                type: string;
+                rarity: string;
+                obtainedAt: number;
+            }>;
+        }) => {
+            console.log('Received inventory sync:', data);
+            
+            if (this.socket?.id) {
+                let inventory = this.playerInventories.get(this.socket.id);
+                if (!inventory) {
+                    inventory = new Inventory(this.scene, this.players.get(this.socket.id)!);
+                    this.playerInventories.set(this.socket.id, inventory);
+                }
+
+                // Load petals
+                data.petals.forEach(petal => {
+                    inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
+                });
+
+                // Store collected items
+                this.collectedPetals = data.collectedItems.map(item => item.type as PetalType);
+                
+                // Update UI if inventory is open
+                if (this.isInventoryOpen) {
+                    this.updateInventoryDisplay();
+                }
+            }
+        });
+
+        // Handle item collection confirmation
+        this.socket.on('itemCollectionConfirmed', (data: {
+            type: string;
+            rarity: string;
+            inventory: {
+                petals: Array<{
+                    type: string;
+                    slotIndex: number;
+                    rarity: string;
+                    health: number;
+                }>;
+                collectedItems: Array<{
+                    type: string;
+                    rarity: string;
+                    obtainedAt: number;
+                }>;
+            };
+        }) => {
+            console.log('Item collection confirmed:', data);
+            
+            if (this.socket?.id) {
+                // Update collected items
+                this.collectedPetals = data.inventory.collectedItems.map(item => item.type as PetalType);
+                
+                // Update UI if inventory is open
+                if (this.isInventoryOpen) {
+                    this.updateInventoryDisplay();
+                }
+            }
+        });
+
+        // Handle inventory update confirmation
+        this.socket.on('inventoryUpdateConfirmed', (data: {
+            petals: Array<{
+                type: string;
+                slotIndex: number;
+                rarity: string;
+                health: number;
+            }>;
+            collectedItems: Array<{
+                type: string;
+                rarity: string;
+                obtainedAt: number;
+            }>;
+        }) => {
+            console.log('Inventory update confirmed:', data);
+            
+            if (this.socket?.id) {
+                let inventory = this.playerInventories.get(this.socket.id);
+                if (inventory) {
+                    // Update petals
+                    inventory.clear();
+                    data.petals.forEach(petal => {
+                        inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
+                    });
+
+                    // Update collected items
+                    this.collectedPetals = data.collectedItems.map(item => item.type as PetalType);
+                    
+                    // Update UI if inventory is open
+                    if (this.isInventoryOpen) {
+                        this.updateInventoryDisplay();
+                    }
+                }
             }
         });
     }
