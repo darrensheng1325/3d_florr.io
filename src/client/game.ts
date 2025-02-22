@@ -7,10 +7,11 @@ import { Enemy } from './enemy';
 import { Inventory, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { Rarity, EnemyType, LightingConfig, PetalType, RARITY_COLORS } from '../shared/types';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { PetalType, Rarity, RARITY_COLORS, EnemyType, LightingConfig } from '../shared/types';
 import { CraftingSystem } from './crafting';
 import { ServerConfig } from '../server/server_config';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { AccountManager } from './account';
 
 const MAP_SIZE = 15;  // Match server's map size
 
@@ -75,8 +76,10 @@ export class Game {
     };
     private craftingMenu: HTMLDivElement | null = null;
     private isCraftingOpen: boolean = false;
+    private accountManager: AccountManager;
 
     constructor() {
+        this.accountManager = new AccountManager();
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer();
@@ -179,7 +182,11 @@ export class Game {
         this.init();
         
         // Connect to server immediately for spectating
-        this.socket = io('/');
+        this.socket = io('/', {
+            query: {
+                accountId: this.accountManager.getAccountId()
+            }
+        });
         this.setupSpectatorEvents();
 
         // Setup wave events
@@ -420,9 +427,8 @@ export class Game {
         this.enemies.clear();
 
         this.playerInventories.forEach((inventory) => {
-            inventory.clear();
+            inventory.loadPetals();
         });
-        this.playerInventories.clear();
 
         this.playerHealthBars.forEach((healthBar) => {
             healthBar.remove();
@@ -442,7 +448,11 @@ export class Game {
         if (this.socket) {
             this.socket.disconnect();
         }
-        this.socket = io('/');
+        this.socket = io('/', {
+            query: {
+                accountId: this.accountManager.getAccountId()
+            }
+        });
 
         // Setup game scene
         this.setupGame();
@@ -1292,7 +1302,11 @@ export class Game {
         if (this.socket) {
             this.socket.disconnect();
         }
-        this.socket = io('/');
+        this.socket = io('/', {
+            query: {
+                accountId: this.accountManager.getAccountId()
+            }
+        });
         this.setupSpectatorEvents();
 
         // Reset camera for spectating

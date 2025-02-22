@@ -17,7 +17,7 @@
     "socket.io-client": "^4.7.4",
     "sqlite3": "^5.1.7",
     "three": "^0.161.0",
-    "uuid": "^11.0.5"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

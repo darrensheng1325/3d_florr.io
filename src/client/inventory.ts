@@ -70,6 +70,7 @@ export class Inventory {
                 });
             }
         });
+        this.savePetals();
 
         return true;
     }
@@ -186,5 +187,27 @@ export class Inventory {
             }
         });
         this.slots = [];
+    }
+
+    public loadPetals(): void {
+        // Load petals from local storage
+        const storedPetals = localStorage.getItem('loadout');
+        if (storedPetals) {
+            const petalData: Array<{ type: PetalType; slotIndex: number }> = JSON.parse(storedPetals);
+            petalData.forEach(({ type, slotIndex }) => {
+                this.addPetal(type, slotIndex);
+            });
+        }
+    }
+
+    public savePetals(): void {
+        const petalData = this.slots
+            .map((slot, index) => ({
+                type: slot.petal?.getType(),
+                slotIndex: index
+            }))
+            .filter(data => data.type !== undefined);
+        
+        localStorage.setItem('loadout', JSON.stringify(petalData));
     }
 } 

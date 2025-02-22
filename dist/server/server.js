@@ -739,13 +739,15 @@ function resetServerState() {
 }
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
-    // Store new player with XP and join time
+    const accountId = socket.handshake.query.accountId;
+    // Store new player with XP, join time, and account ID
     players.set(socket.id, {
         id: socket.id,
+        accountId: accountId,
         position: { x: 0, y: 0.5, z: 0 },
         health: 100,
         xp: 0,
-        joinTime: Date.now() // Add join time
+        joinTime: Date.now()
     });
     // Send initial health state to the new player
     socket.emit('healthSync', {
