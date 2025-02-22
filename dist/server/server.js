@@ -9,6 +9,7 @@ const express_1 = __importDefault(require("express"));
 const path_1 = __importDefault(require("path"));
 const types_1 = require("../shared/types");
 const server_config_1 = require("./server_config");
+const database_1 = require("./database");
 const app = (0, express_1.default)();
 const httpServer = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(httpServer, {
@@ -740,18 +741,29 @@ function resetServerState() {
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
     const accountId = socket.handshake.query.accountId;
+    // Get or create account in database
+    let account = database_1.dbManager.getAccount(accountId);
+    if (!account) {
+        account = database_1.dbManager.createAccount(accountId);
+    }
     // Store new player with XP, join time, and account ID
     players.set(socket.id, {
         id: socket.id,
         accountId: accountId,
         position: { x: 0, y: 0.5, z: 0 },
         health: 100,
-        xp: 0,
+        xp: account.totalXP, // Use XP from database
         joinTime: Date.now()
     });
-    // Send initial health state to the new player
+    // Send initial health state and account data to the new player
     socket.emit('healthSync', {
         health: 100
+    });
+    socket.emit('accountSync', {
+        totalXP: account.totalXP,
+        highestWave: account.highestWave,
+        stats: account.stats,
+        inventory: account.inventory
     });
     // Send existing players and enemies to the new player
     players.forEach((player) => {
@@ -927,11 +939,6 @@ io.on('connection', (socket) => {
             // Handle player death
             if (player.health <= 0) {
                 console.log('Player died:', socket.id);
-                // First, notify all clients to freeze the game state
-                io.emit('playerDeathSequence', {
-                    id: socket.id,
-                    position: player.position
-                });
                 // Calculate detailed stats for death screen
                 const deathStats = {
                     finalScore: player.xp,
@@ -940,14 +947,22 @@ io.on('connection', (socket) => {
                     totalWaveProgress: Math.floor((enemiesKilledInWave / ENEMIES_PER_WAVE) * 100),
                     position: player.position,
                     gameStats: {
-                        timeAlive: Date.now() - player.joinTime, // Add joinTime to player object when creating
+                        timeAlive: Date.now() - player.joinTime,
                         highestWave: currentWave,
                         finalPosition: player.position,
-                        totalXP: player.xp
+                        totalXP: player.xp,
+                        kills: enemiesKilledInWave
                     }
                 };
-                // Send initial death event to start death sequence
+                // Update database with game stats
+                database_1.dbManager.updateStats(player.accountId, deathStats.gameStats);
+                // Send death events to client
                 socket.emit('playerDied', deathStats);
+                // First, notify all clients to freeze the game state
+                io.emit('playerDeathSequence', {
+                    id: socket.id,
+                    position: player.position
+                });
                 // Keep the player in the game state briefly for death animation
                 setTimeout(() => {
                     // Send final death confirmation to trigger death screen
@@ -968,6 +983,18 @@ io.on('connection', (socket) => {
                 }, 1000); // 1 second for death animation
             }
         }
+    });
+    // Handle inventory updates
+    socket.on('inventoryUpdate', (inventory) => {
+        const player = players.get(socket.id);
+        if (player) {
+            database_1.dbManager.saveInventory(player.accountId, inventory.petals);
+        }
+    });
+    // Handle leaderboard requests
+    socket.on('requestLeaderboard', (sortBy) => {
+        const leaderboard = database_1.dbManager.getLeaderboard(sortBy);
+        socket.emit('leaderboardUpdate', leaderboard);
     });
     // Send initial configuration to new client
     socket.emit('configUpdate', serverConfig.getCurrentConfig());

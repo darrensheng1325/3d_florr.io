@@ -4,78 +4,108 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.dbManager = void 0;
-const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
+const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 class DatabaseManager {
     constructor() {
-        this.db = new better_sqlite3_1.default(path_1.default.join(__dirname, '../../data/game.db'));
-        this.init();
+        this.data = {};
+        this.dbPath = path_1.default.join(__dirname, '../../data/accounts.json');
+        this.ensureDbExists();
+        this.loadData();
     }
-    init() {
-        // Create tables if they don't exist
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS players (
-                id TEXT PRIMARY KEY,
-                lastSeen DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS inventory_items (
-                id TEXT PRIMARY KEY,
-                playerId TEXT,
-                petalType TEXT,
-                slotIndex INTEGER,
-                rarity TEXT,
-                health INTEGER,
-                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (playerId) REFERENCES players(id)
-            );
-        `);
+    ensureDbExists() {
+        const dir = path_1.default.dirname(this.dbPath);
+        if (!fs_1.default.existsSync(dir)) {
+            fs_1.default.mkdirSync(dir, { recursive: true });
+        }
+        if (!fs_1.default.existsSync(this.dbPath)) {
+            fs_1.default.writeFileSync(this.dbPath, JSON.stringify({}, null, 2));
+        }
     }
-    addPlayer(playerId) {
-        const stmt = this.db.prepare('INSERT OR REPLACE INTO players (id) VALUES (?)');
-        stmt.run(playerId);
+    loadData() {
+        try {
+            const fileContent = fs_1.default.readFileSync(this.dbPath, 'utf-8');
+            this.data = JSON.parse(fileContent);
+        }
+        catch (error) {
+            console.error('Error loading database:', error);
+            this.data = {};
+        }
     }
-    updatePlayerLastSeen(playerId) {
-        const stmt = this.db.prepare('UPDATE players SET lastSeen = CURRENT_TIMESTAMP WHERE id = ?');
-        stmt.run(playerId);
+    saveData() {
+        try {
+            fs_1.default.writeFileSync(this.dbPath, JSON.stringify(this.data, null, 2));
+        }
+        catch (error) {
+            console.error('Error saving database:', error);
+        }
     }
-    addInventoryItem(item) {
-        const stmt = this.db.prepare(`
-            INSERT INTO inventory_items (id, playerId, petalType, slotIndex, rarity, health)
-            VALUES (@id, @playerId, @petalType, @slotIndex, @rarity, @health)
-        `);
-        stmt.run(item);
+    getAccount(accountId) {
+        return this.data[accountId] || null;
     }
-    getPlayerInventory(playerId) {
-        const stmt = this.db.prepare(`
-            SELECT * FROM inventory_items 
-            WHERE playerId = ? 
-            ORDER BY slotIndex ASC
-        `);
-        const rows = stmt.all(playerId);
-        return rows.map(row => ({
-            ...row,
-            createdAt: new Date(row.createdAt)
-        }));
+    createAccount(accountId) {
+        const newAccount = {
+            id: accountId,
+            lastSeen: Date.now(),
+            totalXP: 0,
+            highestWave: 0,
+            inventory: {
+                petals: []
+            },
+            stats: {
+                totalKills: 0,
+                totalDeaths: 0,
+                totalPlayTime: 0,
+                bestXP: 0
+            }
+        };
+        this.data[accountId] = newAccount;
+        this.saveData();
+        return newAccount;
     }
-    updateInventoryItemSlot(itemId, newSlotIndex) {
-        const stmt = this.db.prepare('UPDATE inventory_items SET slotIndex = ? WHERE id = ?');
-        stmt.run(newSlotIndex, itemId);
+    updateAccount(accountId, updates) {
+        if (!this.data[accountId]) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+        this.data[accountId] = {
+            ...this.data[accountId],
+            ...updates,
+            lastSeen: Date.now()
+        };
+        this.saveData();
     }
-    updateInventoryItemHealth(itemId, health) {
-        const stmt = this.db.prepare('UPDATE inventory_items SET health = ? WHERE id = ?');
-        stmt.run(health, itemId);
+    updateStats(accountId, gameStats) {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+        account.stats.totalPlayTime += gameStats.timeAlive;
+        account.stats.totalDeaths += 1;
+        account.stats.totalKills += gameStats.kills || 0;
+        account.stats.bestXP = Math.max(account.stats.bestXP, gameStats.totalXP);
+        account.highestWave = Math.max(account.highestWave, gameStats.highestWave);
+        account.totalXP += gameStats.totalXP;
+        account.lastSeen = Date.now();
+        this.saveData();
     }
-    removeInventoryItem(itemId) {
-        const stmt = this.db.prepare('DELETE FROM inventory_items WHERE id = ?');
-        stmt.run(itemId);
+    saveInventory(accountId, petals) {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+        account.inventory.petals = petals;
+        this.saveData();
     }
-    clearPlayerInventory(playerId) {
-        const stmt = this.db.prepare('DELETE FROM inventory_items WHERE playerId = ?');
-        stmt.run(playerId);
-    }
-    close() {
-        this.db.close();
+    getLeaderboard(sortBy = 'totalXP', limit = 10) {
+        return Object.entries(this.data)
+            .map(([accountId, data]) => ({
+            accountId,
+            value: sortBy === 'totalXP' ? data.totalXP :
+                sortBy === 'bestXP' ? data.stats.bestXP :
+                    data.highestWave
+        }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, limit);
     }
 }
 // Create and export a single instance

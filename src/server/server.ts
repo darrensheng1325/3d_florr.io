@@ -4,6 +4,7 @@ import express from 'express';
 import path from 'path';
 import { Rarity, RARITY_MULTIPLIERS, EnemyType, EnemyStats, BASE_SIZES } from '../shared/types';
 import { ServerConfig } from './server_config';
+import { dbManager } from './database';
 
 interface Player {
     id: string;
@@ -849,19 +850,31 @@ io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
     const accountId = socket.handshake.query.accountId as string;
 
+    // Get or create account in database
+    let account = dbManager.getAccount(accountId);
+    if (!account) {
+        account = dbManager.createAccount(accountId);
+    }
+
     // Store new player with XP, join time, and account ID
     players.set(socket.id, {
         id: socket.id,
         accountId: accountId,
         position: { x: 0, y: 0.5, z: 0 },
         health: 100,
-        xp: 0,
+        xp: account.totalXP, // Use XP from database
         joinTime: Date.now()
     });
 
-    // Send initial health state to the new player
+    // Send initial health state and account data to the new player
     socket.emit('healthSync', {
         health: 100
+    });
+    socket.emit('accountSync', {
+        totalXP: account.totalXP,
+        highestWave: account.highestWave,
+        stats: account.stats,
+        inventory: account.inventory
     });
 
     // Send existing players and enemies to the new player
@@ -1058,12 +1071,6 @@ io.on('connection', (socket) => {
             if (player.health <= 0) {
                 console.log('Player died:', socket.id);
                 
-                // First, notify all clients to freeze the game state
-                io.emit('playerDeathSequence', {
-                    id: socket.id,
-                    position: player.position
-                });
-                
                 // Calculate detailed stats for death screen
                 const deathStats = {
                     finalScore: player.xp,
@@ -1072,15 +1079,25 @@ io.on('connection', (socket) => {
                     totalWaveProgress: Math.floor((enemiesKilledInWave / ENEMIES_PER_WAVE) * 100),
                     position: player.position,
                     gameStats: {
-                        timeAlive: Date.now() - player.joinTime, // Add joinTime to player object when creating
+                        timeAlive: Date.now() - player.joinTime,
                         highestWave: currentWave,
                         finalPosition: player.position,
-                        totalXP: player.xp
+                        totalXP: player.xp,
+                        kills: enemiesKilledInWave
                     }
                 };
+
+                // Update database with game stats
+                dbManager.updateStats(player.accountId, deathStats.gameStats);
                 
-                // Send initial death event to start death sequence
+                // Send death events to client
                 socket.emit('playerDied', deathStats);
+                
+                // First, notify all clients to freeze the game state
+                io.emit('playerDeathSequence', {
+                    id: socket.id,
+                    position: player.position
+                });
                 
                 // Keep the player in the game state briefly for death animation
                 setTimeout(() => {
@@ -1104,6 +1121,20 @@ io.on('connection', (socket) => {
                 }, 1000); // 1 second for death animation
             }
         }
+    });
+
+    // Handle inventory updates
+    socket.on('inventoryUpdate', (inventory) => {
+        const player = players.get(socket.id);
+        if (player) {
+            dbManager.saveInventory(player.accountId, inventory.petals);
+        }
+    });
+
+    // Handle leaderboard requests
+    socket.on('requestLeaderboard', (sortBy: 'totalXP' | 'bestXP' | 'highestWave') => {
+        const leaderboard = dbManager.getLeaderboard(sortBy);
+        socket.emit('leaderboardUpdate', leaderboard);
     });
 
     // Send initial configuration to new client
