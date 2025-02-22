@@ -86,6 +86,9 @@ export class Game {
         this.players = new Map();
         this.textureLoader = new THREE.TextureLoader();
         this.waveUI = new WaveUI();
+        const title = document.createElement('title');
+        title.textContent = '3dflower.io | title screen';
+        document.head.appendChild(title);
 
         // Initialize lights with default values (will be updated from server)
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -411,6 +414,17 @@ export class Game {
         if (this.titleCanvas && this.titleCanvas.parentNode === document.body) {
             document.body.removeChild(this.titleCanvas);
         }
+
+        // Remove title from document head
+        const title = document.querySelector('title');
+        if (title) {
+            document.head.removeChild(title);
+        }
+
+        // Update title
+        const newTitle = document.createElement('title');
+        newTitle.textContent = '3dflower.io | game';
+        document.head.appendChild(newTitle);
 
         // Show wave UI
         this.waveUI.show();

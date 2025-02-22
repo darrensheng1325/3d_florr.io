@@ -3,7 +3,7 @@
     "start": "npm run server",
     "build": "webpack --mode production",
     "build:server": "tsc -p tsconfig.server.json",
-    "build:all": "npm run build && npm run build:server",
+    "build:all": "npm run build && npm run build:server && cp src/client/favicon.ico dist/",
     "server": "npm run build:all && node dist/server/server.js",
     "dev:server": "mkdir -p dist && npm run server",
     "watch:server": "tsc -p tsconfig.server.json --watch",
