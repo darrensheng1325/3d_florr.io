@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PetalType, Rarity } from '../shared/types';
+import { hash } from 'crypto';
 
 interface InventoryData {
     petals: Array<{
@@ -29,11 +30,23 @@ export class AccountManager {
         
         if (!storedId) {
             // Generate new ID if none exists
-            storedId = uuidv4();
-            localStorage.setItem(AccountManager.ACCOUNT_ID_KEY, storedId);
+            // storedId = uuidv4();
+            const username = prompt("Enter a username");
+            if (username) {
+                let username_lower = username.toLowerCase().replace(/ /g, '_');
+                let total_characters = 1;
+                for (let i = 0; i < username_lower.length; i++) {
+                    let character = username_lower.charCodeAt(i); 
+                    total_characters *= character;
+                }
+                storedId = total_characters.toString();
+                localStorage.setItem(AccountManager.ACCOUNT_ID_KEY, storedId);
+            } else {
+                console.error("No username provided");
+            }
         }
         
-        this.accountId = storedId;
+        this.accountId = storedId || '';
     }
 
     public getAccountId(): string {
