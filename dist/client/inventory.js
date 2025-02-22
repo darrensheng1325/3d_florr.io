@@ -1,25 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Inventory = exports.PetalType = void 0;
-const petal_1 = require("./petal");
-var PetalType;
-(function (PetalType) {
-    PetalType["BASIC"] = "basic";
-    PetalType["BASIC_UNCOMMON"] = "basic_uncommon";
-    PetalType["BASIC_RARE"] = "basic_rare";
-    PetalType["TETRAHEDRON"] = "tetrahedron";
-    PetalType["TETRAHEDRON_EPIC"] = "tetrahedron_epic";
-    PetalType["CUBE"] = "cube";
-    PetalType["CUBE_LEGENDARY"] = "cube_legendary";
-})(PetalType || (exports.PetalType = PetalType = {}));
-class Inventory {
-    constructor(scene, parent) {
+exports.Inventory = void 0;
+var petal_1 = require("./petal");
+var Inventory = /** @class */ (function () {
+    function Inventory(scene, parent) {
         this.slots = [];
         this.maxSlots = 5; // Default max slots
         this.scene = scene;
         this.parent = parent;
         // Initialize default slots
-        for (let i = 0; i < this.maxSlots; i++) {
+        for (var i = 0; i < this.maxSlots; i++) {
             this.slots.push({
                 petal: null,
                 isActive: false,
@@ -27,7 +17,8 @@ class Inventory {
             });
         }
     }
-    addPetal(type, slotIndex, itemId, initialHealth) {
+    Inventory.prototype.addPetal = function (type, slotIndex) {
+        var _this = this;
         if (slotIndex < 0 || slotIndex >= this.slots.length) {
             return false;
         }
@@ -35,37 +26,37 @@ class Inventory {
         if (this.slots[slotIndex].petal) {
             this.slots[slotIndex].petal.remove(this.scene);
         }
-        // Create new petal with optional ID and health
-        const petal = new petal_1.Petal(this.scene, this.parent, slotIndex, this.slots.length, type, itemId, initialHealth);
+        // Create new petal
+        var petal = new petal_1.Petal(this.scene, this.parent, slotIndex, this.slots.length, type);
         // Set up respawn callback to reequip petal
-        petal.setRespawnCallback(() => {
+        petal.setRespawnCallback(function () {
             // Remove the broken petal
-            this.removePetal(slotIndex);
+            _this.removePetal(slotIndex);
             // Create and add a fresh petal of the same type
-            this.addPetal(type, slotIndex);
+            _this.addPetal(type, slotIndex);
         });
         this.slots[slotIndex].petal = petal;
         // Recalculate positions for all petals
-        this.slots.forEach((slot, index) => {
+        this.slots.forEach(function (slot, index) {
             if (slot.petal) {
                 // Remove and recreate each petal to update its position
-                const petalType = slot.petal.getType();
-                const petalId = slot.petal.getId();
-                const petalHealth = slot.petal.getHealth();
-                slot.petal.remove(this.scene);
-                slot.petal = new petal_1.Petal(this.scene, this.parent, index, this.slots.length, petalType, petalId, petalHealth);
+                var petalType_1 = slot.petal.getType();
+                slot.petal.remove(_this.scene);
+                slot.petal = new petal_1.Petal(_this.scene, _this.parent, index, _this.slots.length, petalType_1);
                 // Set up respawn callback for the new petal
-                slot.petal.setRespawnCallback(() => {
+                slot.petal.setRespawnCallback(function () {
                     // Remove the broken petal
-                    this.removePetal(index);
+                    _this.removePetal(index);
                     // Create and add a fresh petal of the same type
-                    this.addPetal(petalType, index);
+                    _this.addPetal(petalType_1, index);
                 });
             }
         });
+        this.savePetals();
         return true;
-    }
-    addSlot() {
+    };
+    Inventory.prototype.addSlot = function () {
+        var _this = this;
         if (this.slots.length >= 8) { // Maximum of 8 slots
             return false;
         }
@@ -76,30 +67,30 @@ class Inventory {
             index: this.slots.length
         });
         // Recreate all petals with new total count
-        const tempPetals = this.slots.map(slot => slot.petal !== null);
+        var tempPetals = this.slots.map(function (slot) { return slot.petal !== null; });
         // Remove all existing petals
-        this.slots.forEach(slot => {
+        this.slots.forEach(function (slot) {
             if (slot.petal) {
-                slot.petal.remove(this.scene);
+                slot.petal.remove(_this.scene);
                 slot.petal = null;
             }
         });
         // Create new petals with updated positions
-        tempPetals.forEach((hasPetal, index) => {
+        tempPetals.forEach(function (hasPetal, index) {
             if (hasPetal) {
-                this.slots[index].petal = new petal_1.Petal(this.scene, this.parent, index, this.slots.length);
+                _this.slots[index].petal = new petal_1.Petal(_this.scene, _this.parent, index, _this.slots.length);
             }
         });
         return true;
-    }
-    swapPetals(fromIndex, toIndex) {
+    };
+    Inventory.prototype.swapPetals = function (fromIndex, toIndex) {
         if (fromIndex < 0 || fromIndex >= this.slots.length ||
             toIndex < 0 || toIndex >= this.slots.length) {
             return false;
         }
         // Remove existing petals
-        const fromPetal = this.slots[fromIndex].petal;
-        const toPetal = this.slots[toIndex].petal;
+        var fromPetal = this.slots[fromIndex].petal;
+        var toPetal = this.slots[toIndex].petal;
         if (fromPetal)
             fromPetal.remove(this.scene);
         if (toPetal)
@@ -112,34 +103,34 @@ class Inventory {
             this.slots[fromIndex].petal = new petal_1.Petal(this.scene, this.parent, fromIndex, this.slots.length);
         }
         return true;
-    }
-    expandPetals() {
-        this.slots.forEach(slot => {
+    };
+    Inventory.prototype.expandPetals = function () {
+        this.slots.forEach(function (slot) {
             if (slot.petal) {
                 slot.petal.expand();
                 slot.isActive = true;
             }
         });
-    }
-    contractPetals() {
-        this.slots.forEach(slot => {
+    };
+    Inventory.prototype.contractPetals = function () {
+        this.slots.forEach(function (slot) {
             if (slot.petal) {
                 slot.petal.contract();
                 slot.isActive = false;
             }
         });
-    }
-    getPetals() {
+    };
+    Inventory.prototype.getPetals = function () {
         return this.slots
-            .filter(slot => slot.petal !== null)
-            .map(slot => slot.petal);
-    }
-    getActivePetals() {
+            .filter(function (slot) { return slot.petal !== null; })
+            .map(function (slot) { return slot.petal; });
+    };
+    Inventory.prototype.getActivePetals = function () {
         return this.slots
-            .filter(slot => slot.petal !== null && slot.isActive)
-            .map(slot => slot.petal);
-    }
-    removePetal(index) {
+            .filter(function (slot) { return slot.petal !== null && slot.isActive; })
+            .map(function (slot) { return slot.petal; });
+    };
+    Inventory.prototype.removePetal = function (index) {
         if (index < 0 || index >= this.slots.length) {
             return false;
         }
@@ -150,18 +141,49 @@ class Inventory {
             return true;
         }
         return false;
-    }
-    getSlots() {
+    };
+    Inventory.prototype.getSlots = function () {
         return this.slots;
-    }
-    clear() {
-        this.slots.forEach(slot => {
+    };
+    Inventory.prototype.clear = function () {
+        var _this = this;
+        this.slots.forEach(function (slot) {
             if (slot.petal) {
-                slot.petal.remove(this.scene);
+                slot.petal.remove(_this.scene);
             }
         });
         this.slots = [];
-    }
-}
+    };
+    Inventory.prototype.loadPetals = function () {
+        var _this = this;
+        // Load petals from local storage
+        var storedPetals = localStorage.getItem('loadout');
+        if (storedPetals) {
+            var petalData = JSON.parse(storedPetals);
+            petalData.forEach(function (_a) {
+                var type = _a.type, slotIndex = _a.slotIndex;
+                _this.addPetal(type, slotIndex);
+            });
+        }
+    };
+    Inventory.prototype.savePetals = function () {
+        var petalData = this.slots
+            .map(function (slot, index) {
+            var _a;
+            return ({
+                type: (_a = slot.petal) === null || _a === void 0 ? void 0 : _a.getType(),
+                slotIndex: index
+            });
+        })
+            .filter(function (data) { return data.type !== undefined; });
+        localStorage.setItem('loadout', JSON.stringify(petalData));
+        // Also emit inventory update to server
+        var socket = window.socket;
+        if (socket) {
+            socket.emit('requestInventory');
+        }
+    };
+    return Inventory;
+}());
 exports.Inventory = Inventory;
 //# sourceMappingURL=inventory.js.map

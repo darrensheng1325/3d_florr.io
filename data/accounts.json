@@ -1,9 +1,9 @@
 {
   "21531027375": {
     "id": "21531027375",
-    "lastSeen": 1740193373045,
-    "totalXP": 0,
-    "highestWave": 0,
+    "lastSeen": 1740195754626,
+    "totalXP": 450,
+    "highestWave": 1,
     "inventory": {
       "petals": [],
       "collectedItems": [
@@ -13,23 +13,27 @@
         },
         {
           "type": "tetrahedron",
-          "amount": 5
-        },
-        {
-          "type": "stinger",
           "amount": 1
         },
         {
+          "type": "stinger",
+          "amount": 2
+        },
+        {
           "type": "pea",
-          "amount": 14
+          "amount": 1
+        },
+        {
+          "type": "leaf",
+          "amount": 1
         }
       ]
     },
     "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
+      "totalKills": 6,
+      "totalDeaths": 3,
+      "totalPlayTime": 88574,
+      "bestXP": 150
     }
   }
 }

@@ -45,58 +45,10 @@ class DatabaseManager {
         }
     }
 
-    private migrateAccountData(account: any): AccountData {
-        // Convert old collectedItems format to new format if needed
-        let collectedItems: Array<{ type: string; amount: number; }> = [];
-        if (Array.isArray(account.inventory?.collectedItems)) {
-            // Group items by type and count them
-            const itemCounts = account.inventory.collectedItems.reduce((acc: { [key: string]: number }, item: any) => {
-                acc[item.type] = (acc[item.type] || 0) + 1;
-                return acc;
-            }, {});
-            
-            collectedItems = Object.entries(itemCounts).map(([type, amount]) => ({
-                type,
-                amount: amount as number
-            }));
-        }
-
-        // Ensure all required properties exist with default values
-        return {
-            id: account.id || '',
-            lastSeen: account.lastSeen || Date.now(),
-            totalXP: account.totalXP || 0,
-            highestWave: account.highestWave || 0,
-            inventory: {
-                petals: Array.isArray(account.inventory?.petals) ? 
-                    account.inventory.petals.map((p: any) => ({
-                        type: p.type,
-                        amount: p.amount || 1
-                    })) : [],
-                collectedItems
-            },
-            stats: {
-                totalKills: account.stats?.totalKills || 0,
-                totalDeaths: account.stats?.totalDeaths || 0,
-                totalPlayTime: account.stats?.totalPlayTime || 0,
-                bestXP: account.stats?.bestXP || 0
-            }
-        };
-    }
-
     private loadData(): void {
         try {
             const fileContent = fs.readFileSync(this.dbPath, 'utf-8');
-            const rawData = JSON.parse(fileContent);
-            
-            // Migrate each account's data to ensure all required fields exist
-            this.data = Object.entries(rawData).reduce((acc, [accountId, accountData]) => {
-                acc[accountId] = this.migrateAccountData(accountData);
-                return acc;
-            }, {} as { [accountId: string]: AccountData });
-
-            // Save migrated data back to file
-            this.saveData();
+            this.data = JSON.parse(fileContent);
         } catch (error) {
             console.error('Error loading database:', error);
             this.data = {};
