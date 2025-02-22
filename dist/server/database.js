@@ -24,6 +24,19 @@ class DatabaseManager {
     }
     migrateAccountData(account) {
         var _a, _b, _c, _d, _e, _f;
+        // Convert old collectedItems format to new format if needed
+        let collectedItems = [];
+        if (Array.isArray((_a = account.inventory) === null || _a === void 0 ? void 0 : _a.collectedItems)) {
+            // Group items by type and count them
+            const itemCounts = account.inventory.collectedItems.reduce((acc, item) => {
+                acc[item.type] = (acc[item.type] || 0) + 1;
+                return acc;
+            }, {});
+            collectedItems = Object.entries(itemCounts).map(([type, amount]) => ({
+                type,
+                amount: amount
+            }));
+        }
         // Ensure all required properties exist with default values
         return {
             id: account.id || '',
@@ -31,8 +44,12 @@ class DatabaseManager {
             totalXP: account.totalXP || 0,
             highestWave: account.highestWave || 0,
             inventory: {
-                petals: ((_a = account.inventory) === null || _a === void 0 ? void 0 : _a.petals) || [],
-                collectedItems: ((_b = account.inventory) === null || _b === void 0 ? void 0 : _b.collectedItems) || []
+                petals: Array.isArray((_b = account.inventory) === null || _b === void 0 ? void 0 : _b.petals) ?
+                    account.inventory.petals.map((p) => ({
+                        type: p.type,
+                        amount: p.amount || 1
+                    })) : [],
+                collectedItems
             },
             stats: {
                 totalKills: ((_c = account.stats) === null || _c === void 0 ? void 0 : _c.totalKills) || 0,
@@ -116,24 +133,55 @@ class DatabaseManager {
         account.lastSeen = Date.now();
         this.saveData();
     }
-    saveInventory(accountId, petals) {
+    addPetal(accountId, type) {
         const account = this.data[accountId];
         if (!account) {
             throw new Error(`Account ${accountId} not found`);
         }
-        account.inventory.petals = petals;
+        const existingPetal = account.inventory.petals.find(p => p.type === type);
+        if (existingPetal) {
+            existingPetal.amount++;
+        }
+        else {
+            account.inventory.petals.push({
+                type,
+                amount: 1
+            });
+        }
         account.lastSeen = Date.now();
         this.saveData();
     }
-    addCollectedItem(accountId, item) {
+    removePetal(accountId, type) {
         const account = this.data[accountId];
         if (!account) {
             throw new Error(`Account ${accountId} not found`);
         }
-        account.inventory.collectedItems.push({
-            ...item,
-            obtainedAt: Date.now()
-        });
+        const petalIndex = account.inventory.petals.findIndex(p => p.type === type);
+        if (petalIndex !== -1) {
+            const petal = account.inventory.petals[petalIndex];
+            petal.amount--;
+            if (petal.amount <= 0) {
+                account.inventory.petals.splice(petalIndex, 1);
+            }
+        }
+        account.lastSeen = Date.now();
+        this.saveData();
+    }
+    addCollectedItem(accountId, itemType) {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+        const existingItem = account.inventory.collectedItems.find(item => item.type === itemType);
+        if (existingItem) {
+            existingItem.amount++;
+        }
+        else {
+            account.inventory.collectedItems.push({
+                type: itemType,
+                amount: 1
+            });
+        }
         account.lastSeen = Date.now();
         this.saveData();
     }

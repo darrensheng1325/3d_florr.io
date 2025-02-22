@@ -209,5 +209,11 @@ export class Inventory {
             .filter(data => data.type !== undefined);
         
         localStorage.setItem('loadout', JSON.stringify(petalData));
+
+        // Also emit inventory update to server
+        const socket = (window as any).socket;
+        if (socket) {
+            socket.emit('requestInventory');
+        }
     }
 } 

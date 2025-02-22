@@ -4,10 +4,8 @@ import { hash } from 'crypto';
 
 interface InventoryData {
     petals: Array<{
-        type: string;
-        slotIndex: number;
-        rarity: string;
-        health: number;
+        type: PetalType;
+        amount: number;
     }>;
     collectedItems: Array<{
         type: string;
@@ -30,7 +28,6 @@ export class AccountManager {
         
         if (!storedId) {
             // Generate new ID if none exists
-            // storedId = uuidv4();
             const username = prompt("Enter a username");
             if (username) {
                 let username_lower = username.toLowerCase().replace(/ /g, '_');
@@ -59,6 +56,34 @@ export class AccountManager {
 
     public setInventory(inventory: InventoryData): void {
         this.inventory = inventory;
+    }
+
+    public addPetal(type: PetalType): void {
+        const existingPetal = this.inventory.petals.find(p => p.type === type);
+        if (existingPetal) {
+            existingPetal.amount++;
+        } else {
+            this.inventory.petals.push({
+                type,
+                amount: 1
+            });
+        }
+    }
+
+    public removePetal(type: PetalType): void {
+        const petalIndex = this.inventory.petals.findIndex(p => p.type === type);
+        if (petalIndex !== -1) {
+            const petal = this.inventory.petals[petalIndex];
+            petal.amount--;
+            if (petal.amount <= 0) {
+                this.inventory.petals.splice(petalIndex, 1);
+            }
+        }
+    }
+
+    public getPetalAmount(type: PetalType): number {
+        const petal = this.inventory.petals.find(p => p.type === type);
+        return petal?.amount || 0;
     }
 
     public addCollectedItem(type: string, rarity: string): void {

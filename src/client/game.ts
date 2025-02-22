@@ -854,8 +854,7 @@ export class Game {
                 }>;
                 collectedItems: Array<{
                     type: string;
-                    rarity: string;
-                    obtainedAt: number;
+                    amount: number;
                 }>;
             };
         }) => {
@@ -877,8 +876,10 @@ export class Game {
                     inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
                 });
 
-                // Store collected items
-                this.collectedPetals = data.inventory.collectedItems.map(item => item.type as PetalType);
+                // Store collected items - repeat each type by its amount
+                this.collectedPetals = data.inventory.collectedItems.flatMap(item => 
+                    Array(item.amount).fill(item.type as PetalType)
+                );
                 
                 // Update UI if inventory is open
                 if (this.isInventoryOpen) {
@@ -897,8 +898,7 @@ export class Game {
             }>;
             collectedItems: Array<{
                 type: string;
-                rarity: string;
-                obtainedAt: number;
+                amount: number;
             }>;
         }) => {
             console.log('Received inventory sync:', data);
@@ -915,8 +915,10 @@ export class Game {
                     inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
                 });
 
-                // Store collected items
-                this.collectedPetals = data.collectedItems.map(item => item.type as PetalType);
+                // Store collected items - repeat each type by its amount
+                this.collectedPetals = data.collectedItems.flatMap(item => 
+                    Array(item.amount).fill(item.type as PetalType)
+                );
                 
                 // Update UI if inventory is open
                 if (this.isInventoryOpen) {
@@ -938,16 +940,17 @@ export class Game {
                 }>;
                 collectedItems: Array<{
                     type: string;
-                    rarity: string;
-                    obtainedAt: number;
+                    amount: number;
                 }>;
             };
         }) => {
             console.log('Item collection confirmed:', data);
             
             if (this.socket?.id) {
-                // Update collected items
-                this.collectedPetals = data.inventory.collectedItems.map(item => item.type as PetalType);
+                // Update collected items - repeat each type by its amount
+                this.collectedPetals = data.inventory.collectedItems.flatMap(item => 
+                    Array(item.amount).fill(item.type as PetalType)
+                );
                 
                 // Update UI if inventory is open
                 if (this.isInventoryOpen) {
@@ -966,8 +969,7 @@ export class Game {
             }>;
             collectedItems: Array<{
                 type: string;
-                rarity: string;
-                obtainedAt: number;
+                amount: number;
             }>;
         }) => {
             console.log('Inventory update confirmed:', data);
@@ -981,8 +983,10 @@ export class Game {
                         inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
                     });
 
-                    // Update collected items
-                    this.collectedPetals = data.collectedItems.map(item => item.type as PetalType);
+                    // Update collected items - repeat each type by its amount
+                    this.collectedPetals = data.collectedItems.flatMap(item => 
+                        Array(item.amount).fill(item.type as PetalType)
+                    );
                     
                     // Update UI if inventory is open
                     if (this.isInventoryOpen) {
@@ -2138,26 +2142,26 @@ export class Game {
     }
 
     private attemptCraft(): void {
-        if (!this.craftingMenu) return;
+        if (!this.craftingSystem || !this.socket) return;
 
-        const grid = this.craftingMenu.querySelector('div:nth-child(2)');
+        // Get crafting slots from the UI
+        const grid = this.craftingMenu?.querySelector('div:nth-child(2)');
         if (!grid) return;
 
         // Get all petal types in crafting slots
         const petalTypes = Array.from(grid.children)
             .map(slot => slot.getAttribute('data-petal-type'))
-            .filter(type => type !== null) as PetalType[];
+            .filter((type): type is PetalType => type !== null && Object.values(PetalType).includes(type as PetalType));
 
         // Check if we have 5 of the same type
         if (petalTypes.length !== 5 || !petalTypes.every(type => type === petalTypes[0])) {
-            // Show error message
-            alert('You need 5 of the same petal type to craft!');
+            console.log('You need 5 of the same petal type to craft!');
             return;
         }
 
         // Determine the upgrade path
         const basePetalType = petalTypes[0];
-        let upgradedType: PetalType;
+        let upgradedType: PetalType | null = null;
 
         switch (basePetalType) {
             case PetalType.BASIC:
@@ -2173,27 +2177,41 @@ export class Game {
                 upgradedType = PetalType.CUBE_LEGENDARY;
                 break;
             default:
-                alert('This petal type cannot be upgraded!');
+                console.log('This petal type cannot be upgraded!');
                 return;
         }
 
-        // Clear crafting slots
-        Array.from(grid.children).forEach(slot => {
-            slot.innerHTML = '';
-            slot.removeAttribute('data-petal-type');
-        });
+        if (upgradedType) {
+            // Remove the used petals
+            petalTypes.forEach(petal => {
+                this.socket?.emit('inventoryUpdate', {
+                    type: petal,
+                    action: 'remove'
+                });
+            });
 
-        // Add the upgraded petal to collected petals
-        this.collectedPetals.push(upgradedType);
+            // Add the crafted item
+            this.socket?.emit('inventoryUpdate', {
+                type: upgradedType,
+                action: 'add'
+            });
 
-        // Update displays
-        this.updateCraftingDisplay();
-        if (this.isInventoryOpen) {
+            // Save the inventory state
+            const playerInventory = this.playerInventories.get(this.socket?.id || '');
+            if (playerInventory) {
+                playerInventory.savePetals();
+            }
+
+            // Clear crafting slots
+            Array.from(grid.children).forEach(slot => {
+                slot.innerHTML = '';
+                slot.removeAttribute('data-petal-type');
+            });
+
+            // Update displays
+            this.updateCraftingDisplay();
             this.updateInventoryDisplay();
         }
-
-        // Show success message
-        alert('Crafting successful!');
     }
 
     private updateCraftingDisplay(): void {

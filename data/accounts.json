@@ -1,270 +1,27 @@
 {
-  "f93298c6-47a9-4820-9ae6-5d636874ffeb": {
-    "id": "f93298c6-47a9-4820-9ae6-5d636874ffeb",
-    "lastSeen": 1740188203056,
+  "21531027375": {
+    "id": "21531027375",
+    "lastSeen": 1740193373045,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
       "petals": [],
       "collectedItems": [
-        {
-          "type": "tetrahedron",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187321260
-        },
-        {
-          "type": "pea",
-          "rarity": "UNCOMMON",
-          "obtainedAt": 1740187347376
-        },
-        {
-          "type": "pea",
-          "rarity": "UNCOMMON",
-          "obtainedAt": 1740187348359
-        },
-        {
-          "type": "pea",
-          "rarity": "UNCOMMON",
-          "obtainedAt": 1740187350993
-        },
-        {
-          "type": "tetrahedron",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187437208
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187476427
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187477042
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187481743
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187483658
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187484810
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187486075
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187486277
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187486278
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187487327
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740187487328
-        },
-        {
-          "type": "tetrahedron",
-          "rarity": "COMMON",
-          "obtainedAt": 1740188203055
-        }
-      ]
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "sussy": {
-    "id": "sussy",
-    "lastSeen": 1740189318865,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": [
-        {
-          "type": "pea",
-          "rarity": "UNCOMMON",
-          "obtainedAt": 1740188442089
-        },
         {
           "type": "cube",
-          "rarity": "UNCOMMON",
-          "obtainedAt": 1740188547422
+          "amount": 1
         },
         {
           "type": "tetrahedron",
-          "rarity": "UNCOMMON",
-          "obtainedAt": 1740188577472
+          "amount": 5
         },
         {
           "type": "stinger",
-          "rarity": "COMMON",
-          "obtainedAt": 1740188630755
-        },
-        {
-          "type": "cube",
-          "rarity": "UNCOMMON",
-          "obtainedAt": 1740188663388
-        },
-        {
-          "type": "tetrahedron",
-          "rarity": "COMMON",
-          "obtainedAt": 1740188876076
+          "amount": 1
         },
         {
           "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740189195316
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740189318864
-        }
-      ]
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "21531027375": {
-    "id": "21531027375",
-    "lastSeen": 1740190944610,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": [
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190895060
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190896095
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190896635
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190897345
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190898094
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190899018
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190904510
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190922268
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190922543
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190924360
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190926461
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190926719
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190927143
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190927210
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190927594
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190929560
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190931193
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190931343
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190931436
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190944609
-        },
-        {
-          "type": "pea",
-          "rarity": "COMMON",
-          "obtainedAt": 1740190944610
+          "amount": 14
         }
       ]
     },

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { PetalType } from '../shared/types';
 
 interface AccountData {
     id: string;
@@ -8,15 +9,12 @@ interface AccountData {
     highestWave: number;
     inventory: {
         petals: Array<{
-            type: string;
-            slotIndex: number;
-            rarity: string;
-            health: number;
+            type: PetalType;
+            amount: number;
         }>;
         collectedItems: Array<{
             type: string;
-            rarity: string;
-            obtainedAt: number;
+            amount: number;
         }>;
     };
     stats: {
@@ -48,6 +46,21 @@ class DatabaseManager {
     }
 
     private migrateAccountData(account: any): AccountData {
+        // Convert old collectedItems format to new format if needed
+        let collectedItems: Array<{ type: string; amount: number; }> = [];
+        if (Array.isArray(account.inventory?.collectedItems)) {
+            // Group items by type and count them
+            const itemCounts = account.inventory.collectedItems.reduce((acc: { [key: string]: number }, item: any) => {
+                acc[item.type] = (acc[item.type] || 0) + 1;
+                return acc;
+            }, {});
+            
+            collectedItems = Object.entries(itemCounts).map(([type, amount]) => ({
+                type,
+                amount: amount as number
+            }));
+        }
+
         // Ensure all required properties exist with default values
         return {
             id: account.id || '',
@@ -55,8 +68,12 @@ class DatabaseManager {
             totalXP: account.totalXP || 0,
             highestWave: account.highestWave || 0,
             inventory: {
-                petals: account.inventory?.petals || [],
-                collectedItems: account.inventory?.collectedItems || []
+                petals: Array.isArray(account.inventory?.petals) ? 
+                    account.inventory.petals.map((p: any) => ({
+                        type: p.type,
+                        amount: p.amount || 1
+                    })) : [],
+                collectedItems
             },
             stats: {
                 totalKills: account.stats?.totalKills || 0,
@@ -157,43 +174,68 @@ class DatabaseManager {
         this.saveData();
     }
 
-    public saveInventory(accountId: string, petals: Array<{
-        type: string;
-        slotIndex: number;
-        rarity: string;
-        health: number;
-    }>): void {
+    public addPetal(accountId: string, type: PetalType): void {
         const account = this.data[accountId];
         if (!account) {
             throw new Error(`Account ${accountId} not found`);
         }
 
-        account.inventory.petals = petals;
+        const existingPetal = account.inventory.petals.find(p => p.type === type);
+        if (existingPetal) {
+            existingPetal.amount++;
+        } else {
+            account.inventory.petals.push({
+                type,
+                amount: 1
+            });
+        }
+
         account.lastSeen = Date.now();
         this.saveData();
     }
 
-    public addCollectedItem(accountId: string, item: {
-        type: string;
-        rarity: string;
-    }): void {
+    public removePetal(accountId: string, type: PetalType): void {
         const account = this.data[accountId];
         if (!account) {
             throw new Error(`Account ${accountId} not found`);
         }
 
-        account.inventory.collectedItems.push({
-            ...item,
-            obtainedAt: Date.now()
-        });
+        const petalIndex = account.inventory.petals.findIndex(p => p.type === type);
+        if (petalIndex !== -1) {
+            const petal = account.inventory.petals[petalIndex];
+            petal.amount--;
+            if (petal.amount <= 0) {
+                account.inventory.petals.splice(petalIndex, 1);
+            }
+        }
+
+        account.lastSeen = Date.now();
+        this.saveData();
+    }
+
+    public addCollectedItem(accountId: string, itemType: string): void {
+        const account = this.data[accountId];
+        if (!account) {
+            throw new Error(`Account ${accountId} not found`);
+        }
+
+        const existingItem = account.inventory.collectedItems.find(item => item.type === itemType);
+        if (existingItem) {
+            existingItem.amount++;
+        } else {
+            account.inventory.collectedItems.push({
+                type: itemType,
+                amount: 1
+            });
+        }
+
         account.lastSeen = Date.now();
         this.saveData();
     }
 
     public getCollectedItems(accountId: string): Array<{
         type: string;
-        rarity: string;
-        obtainedAt: number;
+        amount: number;
     }> {
         const account = this.data[accountId];
         if (!account) {

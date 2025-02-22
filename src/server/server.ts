@@ -5,6 +5,7 @@ import path from 'path';
 import { Rarity, RARITY_MULTIPLIERS, EnemyType, EnemyStats, BASE_SIZES } from '../shared/types';
 import { ServerConfig } from './server_config';
 import { dbManager } from './database';
+import { PetalType } from '../shared/types';
 
 interface Player {
     id: string;
@@ -879,8 +880,8 @@ io.on('connection', (socket) => {
         highestWave: account.highestWave,
         stats: account.stats,
         inventory: {
-            petals: [...(account.inventory.petals || [])],
-            collectedItems: [...(account.inventory.collectedItems || [])]
+            petals: account.inventory.petals,
+            collectedItems: account.inventory.collectedItems
         }
     };
 
@@ -888,8 +889,7 @@ io.on('connection', (socket) => {
     console.log('Sending initial account data:', {
         accountId,
         itemCount: fullAccountData.inventory.collectedItems.length,
-        items: fullAccountData.inventory.collectedItems.map(item => item.type),
-        petalCount: fullAccountData.inventory.petals.length
+        petalTypes: fullAccountData.inventory.petals.map(p => `${p.type}(${p.amount})`)
     });
 
     // Send a single, complete sync event
@@ -902,14 +902,14 @@ io.on('connection', (socket) => {
             const currentAccount = dbManager.getAccount(player.accountId);
             if (currentAccount) {
                 const inventory = {
-                    petals: [...(currentAccount.inventory.petals || [])],
-                    collectedItems: [...(currentAccount.inventory.collectedItems || [])]
+                    petals: currentAccount.inventory.petals,
+                    collectedItems: currentAccount.inventory.collectedItems
                 };
                 
                 console.log('Sending inventory refresh:', {
                     accountId: player.accountId,
                     itemCount: inventory.collectedItems.length,
-                    items: inventory.collectedItems.map(item => item.type)
+                    petalTypes: inventory.petals.map(p => `${p.type}(${p.amount})`)
                 });
 
                 socket.emit('inventorySync', inventory);
@@ -918,35 +918,37 @@ io.on('connection', (socket) => {
     });
 
     // Handle item collection
-    socket.on('itemCollected', ({ itemType, rarity }) => {
+    socket.on('itemCollected', ({ itemType }) => {
         const player = players.get(socket.id);
         if (player) {
-            console.log(`Player ${player.accountId} collecting item: ${itemType} (${rarity})`);
+            console.log(`Player ${player.accountId} collecting item: ${itemType}`);
             
-            // Save to database
-            dbManager.addCollectedItem(player.accountId, {
-                type: itemType,
-                rarity: rarity
-            });
+            // Add to database as a petal if it's a petal type
+            if (Object.values(PetalType).includes(itemType as PetalType)) {
+                dbManager.addPetal(player.accountId, itemType as PetalType);
+            } else {
+                // Otherwise add as a collected item
+                dbManager.addCollectedItem(player.accountId, itemType);
+            }
 
             // Get updated inventory
             const updatedAccount = dbManager.getAccount(player.accountId);
             if (updatedAccount) {
                 const inventory = {
-                    petals: [...(updatedAccount.inventory.petals || [])],
-                    collectedItems: [...(updatedAccount.inventory.collectedItems || [])]
+                    petals: updatedAccount.inventory.petals,
+                    collectedItems: updatedAccount.inventory.collectedItems
                 };
 
                 console.log('Confirming item collection:', {
                     accountId: player.accountId,
                     newItem: itemType,
-                    totalItems: inventory.collectedItems.length
+                    totalItems: inventory.collectedItems.length,
+                    petalTypes: inventory.petals.map(p => `${p.type}(${p.amount})`)
                 });
 
                 // Send complete inventory state
                 socket.emit('itemCollectionConfirmed', {
                     type: itemType,
-                    rarity: rarity,
                     inventory: inventory
                 });
             }
@@ -954,22 +956,25 @@ io.on('connection', (socket) => {
     });
 
     // Handle inventory updates
-    socket.on('inventoryUpdate', (inventory) => {
+    socket.on('inventoryUpdate', ({ type, action }: { type: PetalType, action: 'add' | 'remove' }) => {
         const player = players.get(socket.id);
         if (player) {
-            console.log(`Updating inventory for ${player.accountId}:`, {
-                petalCount: inventory.petals.length
-            });
+            console.log(`Updating inventory for ${player.accountId}: ${action} ${type}`);
             
-            // Save petals but preserve collected items
+            // Update petal in database
+            if (action === 'add') {
+                dbManager.addPetal(player.accountId, type);
+            } else {
+                dbManager.removePetal(player.accountId, type);
+            }
+            
+            // Get current account state
             const currentAccount = dbManager.getAccount(player.accountId);
             if (currentAccount) {
-                dbManager.saveInventory(player.accountId, inventory.petals);
-                
                 // Send confirmation with complete inventory state
                 socket.emit('inventoryUpdateConfirmed', {
-                    petals: inventory.petals,
-                    collectedItems: currentAccount.inventory.collectedItems || []
+                    petals: currentAccount.inventory.petals,
+                    collectedItems: currentAccount.inventory.collectedItems
                 });
             }
         }
@@ -1113,10 +1118,7 @@ io.on('connection', (socket) => {
                 if (itemType) {
                     const player = players.get(socket.id);
                     if (player) {
-                        dbManager.addCollectedItem(player.accountId, {
-                            type: itemType,
-                            rarity: enemy.rarity
-                        });
+                        dbManager.addCollectedItem(player.accountId, itemType);
                     }
                 }
             } else {
