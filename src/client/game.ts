@@ -77,6 +77,7 @@ export class Game {
     private ambientLight: THREE.AmbientLight;
     private directionalLight: THREE.DirectionalLight;
     private hemisphereLight: THREE.HemisphereLight;
+    private collisionPlanes: THREE.Mesh[] = []; // Add this line for collision planes
 
     constructor() {
         this.accountManager = new AccountManager();
@@ -513,11 +514,60 @@ export class Game {
         this.gridHelper.position.y = 0.01;
         this.scene.add(this.gridHelper);
 
+        // Add some example collision planes
+        this.addCollisionPlane(5, 0, 5, 10, 2); // x, z, width, height
+        this.addCollisionPlane(-5, -5, 2, 10, 2);
+        this.addCollisionPlane(0, -8, 10, 2, 2);
+
         // Handle window resize
         window.addEventListener('resize', () => this.onWindowResize());
 
         // Create and show title screen
         this.createTitleScreen();
+    }
+
+    private addCollisionPlane(x: number, z: number, width: number, height: number, rotation: number = 0): void {
+        const geometry = new THREE.PlaneGeometry(width, height);
+        const material = new THREE.MeshPhongMaterial({
+            color: 0x808080,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.5
+        });
+        const plane = new THREE.Mesh(geometry, material);
+        plane.rotation.x = -Math.PI / 2; // Make it vertical
+        plane.rotation.y = rotation * Math.PI / 180; // Apply rotation
+        plane.position.set(x, height / 2, z); // Position at center of plane
+        this.scene.add(plane);
+        this.collisionPlanes.push(plane);
+    }
+
+    private checkCollisionPlanes(position: THREE.Vector3, radius: number = 0.5): boolean {
+        for (const plane of this.collisionPlanes) {
+            // Get plane's world position and normal
+            const planePosition = new THREE.Vector3();
+            plane.getWorldPosition(planePosition);
+            const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(plane.quaternion);
+
+            // Calculate distance from point to plane
+            const distance = Math.abs(planeNormal.dot(position.sub(planePosition)));
+
+            // Check if point is within plane bounds
+            const planeWidth = (plane.geometry as THREE.PlaneGeometry).parameters.width;
+            const planeHeight = (plane.geometry as THREE.PlaneGeometry).parameters.height;
+            
+            // Transform point to plane's local space
+            const localPoint = position.clone().sub(planePosition);
+            localPoint.applyQuaternion(plane.quaternion.invert());
+
+            // Check if point is within plane bounds
+            if (Math.abs(localPoint.x) <= planeWidth / 2 + radius &&
+                Math.abs(localPoint.z) <= planeHeight / 2 + radius &&
+                distance <= radius) {
+                return true; // Collision detected
+            }
+        }
+        return false; // No collision
     }
 
     private animate(): void {
@@ -1096,9 +1146,13 @@ export class Game {
         const newX = player.position.x + movement.x * this.moveSpeed;
         const newZ = player.position.z + movement.z * this.moveSpeed;
 
-        // Check boundaries before applying movement
+        // Create a test position vector
+        const testPosition = new THREE.Vector3(newX, player.position.y, newZ);
+
+        // Check boundaries and collision planes before applying movement
         if (newX >= -this.mapSize && newX <= this.mapSize && 
-            newZ >= -this.mapSize && newZ <= this.mapSize) {
+            newZ >= -this.mapSize && newZ <= this.mapSize &&
+            !this.checkCollisionPlanes(testPosition)) {
             player.position.x = newX;
             player.position.z = newZ;
             player.position.y = 0.5;

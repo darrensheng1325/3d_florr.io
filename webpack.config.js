@@ -51,4 +51,7 @@ module.exports = {
       ws: true
     }]
   },
+  optimization: {
+    minimize: false
+  },
 }; 
