@@ -1,7 +1,7 @@
 {
   "21531027375": {
     "id": "21531027375",
-    "lastSeen": 1748473982000,
+    "lastSeen": 1748474836066,
     "totalXP": 450,
     "highestWave": 1,
     "inventory": {
@@ -13,7 +13,7 @@
         },
         {
           "type": "tetrahedron",
-          "amount": 13
+          "amount": 14
         },
         {
           "type": "stinger",

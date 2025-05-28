@@ -1990,7 +1990,7 @@ var Game = /** @class */ (function () {
         // Create and show title screen
         this.createTitleScreen();
     };
-    Game.prototype.addCollisionPlane = function (x, z, width, height, rotation) {
+    Game.prototype.addCollisionPlane = function (x, y, z, width, height, rotation) {
         if (rotation === void 0) { rotation = 0; }
         var geometry = new THREE.PlaneGeometry(width, height);
         var material = new THREE.MeshPhongMaterial({
@@ -2000,9 +2000,9 @@ var Game = /** @class */ (function () {
             opacity: 0.5
         });
         var plane = new THREE.Mesh(geometry, material);
-        plane.rotation.x = -Math.PI / 2; // Make it vertical
-        plane.rotation.y = rotation * Math.PI / 180; // Apply rotation
-        plane.position.set(x, height / 2, z); // Position at center of plane
+        plane.rotation.x = -Math.PI / 2; // Make it horizontal
+        plane.rotation.z = rotation * Math.PI / 180; // Apply rotation around Z axis
+        plane.position.set(x, y, z); // Use y position from config
         this.scene.add(plane);
         this.collisionPlanes.push(plane);
     };
@@ -2210,6 +2210,7 @@ var Game = /** @class */ (function () {
         });
         // Add lighting configuration handler
         this.socket.on('lightingConfig', function (config) {
+            console.log('Received lighting config from server:', config);
             _this.updateLighting(config);
             // Clear existing collision planes
             _this.collisionPlanes.forEach(function (plane) {
@@ -2217,8 +2218,10 @@ var Game = /** @class */ (function () {
             });
             _this.collisionPlanes = [];
             // Add collision planes from config
+            console.log('Adding collision planes:', config.collisionPlanes);
             config.collisionPlanes.forEach(function (plane) {
-                _this.addCollisionPlane(plane.x, plane.z, plane.width, plane.height, plane.rotation);
+                console.log('Creating collision plane:', plane);
+                _this.addCollisionPlane(plane.x, plane.y, plane.z, plane.width, plane.height, plane.rotation);
             });
         });
         // Add player damage event handler
@@ -4657,9 +4660,14 @@ var ServerConfig = /** @class */ (function () {
             },
             skyColor: 0x87ceeb, // Sky blue
             collisionPlanes: [
-                { x: 5, z: 0, width: 5, height: 10, rotation: 2 },
-                { x: -5, z: -5, width: 2, height: 10, rotation: 0 },
-                { x: 0, z: -8, width: 10, height: 2, rotation: 0 }
+                {
+                    "x": 0,
+                    "y": 0.2,
+                    "z": 0,
+                    "width": 5,
+                    "height": 5,
+                    "rotation": 0
+                }
             ]
         };
         this.mobConfig = {
@@ -4781,12 +4789,12 @@ var ServerConfig = /** @class */ (function () {
                 skyColor: 0xa15402, // Dark gray
                 collisionPlanes: [
                     // Create a maze-like structure
-                    { x: 0, z: 0, width: 20, height: 2, rotation: 0 }, // Center wall
-                    { x: 0, z: 0, width: 2, height: 20, rotation: 0 }, // Cross wall
-                    { x: 10, z: 10, width: 2, height: 10, rotation: 0 }, // Top right wall
-                    { x: -10, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
-                    { x: 10, z: -10, width: 10, height: 2, rotation: 0 }, // Bottom right wall
-                    { x: -10, z: 10, width: 10, height: 2, rotation: 0 } // Top left wall
+                    { x: 0, y: 0, z: 0, width: 20, height: 2, rotation: 0 }, // Center wall
+                    { x: 0, y: 0, z: 0, width: 2, height: 20, rotation: 0 }, // Cross wall
+                    { x: 10, y: 0, z: 10, width: 2, height: 10, rotation: 0 }, // Top right wall
+                    { x: -10, y: 0, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
+                    { x: 10, y: 0, z: -10, width: 10, height: 2, rotation: 0 }, // Bottom right wall
+                    { x: -10, y: 0, z: 10, width: 10, height: 2, rotation: 0 } // Top left wall
                 ]
             };
         }
@@ -4970,9 +4978,11 @@ var ServerConfig = /** @class */ (function () {
         }
     };
     ServerConfig.prototype.updateCollisionPlanes = function (planes) {
+        console.log('Server updating collision planes:', planes);
         this.currentConfig.collisionPlanes = planes;
     };
     ServerConfig.prototype.getCollisionPlanes = function () {
+        console.log('Server getting collision planes:', this.currentConfig.collisionPlanes);
         return this.currentConfig.collisionPlanes;
     };
     ServerConfig.instances = new Map();

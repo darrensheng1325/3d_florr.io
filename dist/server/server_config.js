@@ -24,9 +24,14 @@ class ServerConfig {
             },
             skyColor: 0x87ceeb, // Sky blue
             collisionPlanes: [
-                { x: 5, z: 0, width: 5, height: 10, rotation: 2 },
-                { x: -5, z: -5, width: 2, height: 10, rotation: 0 },
-                { x: 0, z: -8, width: 10, height: 2, rotation: 0 }
+                {
+                    "x": 0,
+                    "y": 0.2,
+                    "z": 0,
+                    "width": 5,
+                    "height": 5,
+                    "rotation": 0
+                }
             ]
         };
         this.mobConfig = {
@@ -158,12 +163,12 @@ class ServerConfig {
                 skyColor: 0xa15402, // Dark gray
                 collisionPlanes: [
                     // Create a maze-like structure
-                    { x: 0, z: 0, width: 20, height: 2, rotation: 0 }, // Center wall
-                    { x: 0, z: 0, width: 2, height: 20, rotation: 0 }, // Cross wall
-                    { x: 10, z: 10, width: 2, height: 10, rotation: 0 }, // Top right wall
-                    { x: -10, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
-                    { x: 10, z: -10, width: 10, height: 2, rotation: 0 }, // Bottom right wall
-                    { x: -10, z: 10, width: 10, height: 2, rotation: 0 } // Top left wall
+                    { x: 0, y: 0, z: 0, width: 20, height: 2, rotation: 0 }, // Center wall
+                    { x: 0, y: 0, z: 0, width: 2, height: 20, rotation: 0 }, // Cross wall
+                    { x: 10, y: 0, z: 10, width: 2, height: 10, rotation: 0 }, // Top right wall
+                    { x: -10, y: 0, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
+                    { x: 10, y: 0, z: -10, width: 10, height: 2, rotation: 0 }, // Bottom right wall
+                    { x: -10, y: 0, z: 10, width: 10, height: 2, rotation: 0 } // Top left wall
                 ]
             };
         }
@@ -366,9 +371,11 @@ class ServerConfig {
         }
     }
     updateCollisionPlanes(planes) {
+        console.log('Server updating collision planes:', planes);
         this.currentConfig.collisionPlanes = planes;
     }
     getCollisionPlanes() {
+        console.log('Server getting collision planes:', this.currentConfig.collisionPlanes);
         return this.currentConfig.collisionPlanes;
     }
 }

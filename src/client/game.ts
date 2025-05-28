@@ -521,7 +521,7 @@ export class Game {
         this.createTitleScreen();
     }
 
-    private addCollisionPlane(x: number, z: number, width: number, height: number, rotation: number = 0): void {
+    private addCollisionPlane(x: number, y: number, z: number, width: number, height: number, rotation: number = 0): void {
         const geometry = new THREE.PlaneGeometry(width, height);
         const material = new THREE.MeshPhongMaterial({
             color: 0x808080,
@@ -530,9 +530,9 @@ export class Game {
             opacity: 0.5
         });
         const plane = new THREE.Mesh(geometry, material);
-        plane.rotation.x = -Math.PI / 2; // Make it vertical
-        plane.rotation.y = rotation * Math.PI / 180; // Apply rotation
-        plane.position.set(x, height / 2, z); // Position at center of plane
+        plane.rotation.x = -Math.PI / 2; // Make it horizontal
+        plane.rotation.z = rotation * Math.PI / 180; // Apply rotation around Z axis
+        plane.position.set(x, y, z); // Use y position from config
         this.scene.add(plane);
         this.collisionPlanes.push(plane);
     }
@@ -793,6 +793,7 @@ export class Game {
 
         // Add lighting configuration handler
         this.socket.on('lightingConfig', (config: LightingConfig) => {
+            console.log('Received lighting config from server:', config);
             this.updateLighting(config);
             
             // Clear existing collision planes
@@ -802,8 +803,10 @@ export class Game {
             this.collisionPlanes = [];
 
             // Add collision planes from config
+            console.log('Adding collision planes:', config.collisionPlanes);
             config.collisionPlanes.forEach(plane => {
-                this.addCollisionPlane(plane.x, plane.z, plane.width, plane.height, plane.rotation);
+                console.log('Creating collision plane:', plane);
+                this.addCollisionPlane(plane.x, plane.y, plane.z, plane.width, plane.height, plane.rotation);
             });
         });
 

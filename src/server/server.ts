@@ -6,6 +6,7 @@ import { Rarity, RARITY_MULTIPLIERS, EnemyType, EnemyStats, BASE_SIZES } from '.
 import { ServerConfig } from './server_config';
 import { dbManager } from './database';
 import { PetalType } from '../shared/types';
+import { CollisionPlaneConfig } from '../shared/types';
 
 interface Player {
     id: string;
@@ -1242,6 +1243,18 @@ io.on('connection', (socket) => {
 
     // Send initial configuration to new client
     socket.emit('configUpdate', serverConfig.getCurrentConfig());
+
+    // Handle collision plane updates
+    socket.on('updateCollisionPlanes', (planes: CollisionPlaneConfig[]) => {
+        console.log('Received collision plane update from client:', planes);
+        serverConfig.updateCollisionPlanes(planes);
+        // Broadcast the updated planes to all clients
+        io.emit('lightingConfig', serverConfig.getCurrentConfig());
+    });
+
+    // Send initial lighting config
+    socket.emit('lightingConfig', serverConfig.getCurrentConfig());
+    console.log('Sent initial lighting config to client:', serverConfig.getCurrentConfig());
 });
 
 // Start the first wave when server starts

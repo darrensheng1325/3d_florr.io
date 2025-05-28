@@ -1088,6 +1088,16 @@ io.on('connection', (socket) => {
     });
     // Send initial configuration to new client
     socket.emit('configUpdate', serverConfig.getCurrentConfig());
+    // Handle collision plane updates
+    socket.on('updateCollisionPlanes', (planes) => {
+        console.log('Received collision plane update from client:', planes);
+        serverConfig.updateCollisionPlanes(planes);
+        // Broadcast the updated planes to all clients
+        io.emit('lightingConfig', serverConfig.getCurrentConfig());
+    });
+    // Send initial lighting config
+    socket.emit('lightingConfig', serverConfig.getCurrentConfig());
+    console.log('Sent initial lighting config to client:', serverConfig.getCurrentConfig());
 });
 // Start the first wave when server starts
 startNewWave();
