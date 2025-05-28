@@ -521,7 +521,7 @@ export class Game {
         this.createTitleScreen();
     }
 
-    private addCollisionPlane(x: number, y: number, z: number, width: number, height: number, rotation: number = 0): void {
+    private addCollisionPlane(x: number, y: number, z: number, width: number, height: number, rotationX: number = 0, rotationY: number = 0, rotationZ: number = 0): void {
         const geometry = new THREE.PlaneGeometry(width, height);
         const material = new THREE.MeshPhongMaterial({
             color: 0x808080,
@@ -530,9 +530,13 @@ export class Game {
             opacity: 0.5
         });
         const plane = new THREE.Mesh(geometry, material);
-        plane.rotation.x = -Math.PI / 2; // Make it horizontal
-        plane.rotation.z = rotation * Math.PI / 180; // Apply rotation around Z axis
-        plane.position.set(x, y, z); // Use y position from config
+        
+        // Apply rotations in order: X, Y, Z
+        plane.rotation.x = rotationX * Math.PI / 180;
+        plane.rotation.y = rotationY * Math.PI / 180;
+        plane.rotation.z = rotationZ * Math.PI / 180;
+        
+        plane.position.set(x, y, z);
         this.scene.add(plane);
         this.collisionPlanes.push(plane);
     }
@@ -542,23 +546,43 @@ export class Game {
             // Get plane's world position and normal
             const planePosition = new THREE.Vector3();
             plane.getWorldPosition(planePosition);
-            const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(plane.quaternion);
+            const planeNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(plane.quaternion);
 
-            // Calculate distance from point to plane
-            const distance = Math.abs(planeNormal.dot(position.sub(planePosition)));
+            // Calculate distance from sphere center to plane
+            const distance = planeNormal.dot(position.clone().sub(planePosition));
 
-            // Check if point is within plane bounds
-            const planeWidth = (plane.geometry as THREE.PlaneGeometry).parameters.width;
-            const planeHeight = (plane.geometry as THREE.PlaneGeometry).parameters.height;
-            
-            // Transform point to plane's local space
-            const localPoint = position.clone().sub(planePosition);
+            // If distance is greater than radius, no collision
+            if (Math.abs(distance) > radius) {
+                continue;
+            }
+
+            // Project sphere center onto plane
+            const projectedPoint = position.clone().sub(planeNormal.multiplyScalar(distance));
+
+            // Transform projected point to plane's local space
+            const localPoint = projectedPoint.clone().sub(planePosition);
             localPoint.applyQuaternion(plane.quaternion.invert());
 
-            // Check if point is within plane bounds
-            if (Math.abs(localPoint.x) <= planeWidth / 2 + radius &&
-                Math.abs(localPoint.z) <= planeHeight / 2 + radius &&
-                distance <= radius) {
+            // Get plane dimensions
+            const planeWidth = (plane.geometry as THREE.PlaneGeometry).parameters.width;
+            const planeHeight = (plane.geometry as THREE.PlaneGeometry).parameters.height;
+
+            // Check if projected point is within plane bounds, accounting for sphere radius
+            const halfWidth = planeWidth / 2;
+            const halfHeight = planeHeight / 2;
+
+            // Calculate closest point on plane to sphere center
+            const closestX = Math.max(-halfWidth, Math.min(halfWidth, localPoint.x));
+            const closestZ = Math.max(-halfHeight, Math.min(halfHeight, localPoint.z));
+            const closestPoint = new THREE.Vector3(closestX, 0, closestZ);
+
+            // Transform closest point back to world space
+            closestPoint.applyQuaternion(plane.quaternion);
+            closestPoint.add(planePosition);
+
+            // Check if sphere intersects with closest point
+            const distanceToClosest = position.distanceTo(closestPoint);
+            if (distanceToClosest <= radius) {
                 return true; // Collision detected
             }
         }
@@ -806,7 +830,16 @@ export class Game {
             console.log('Adding collision planes:', config.collisionPlanes);
             config.collisionPlanes.forEach(plane => {
                 console.log('Creating collision plane:', plane);
-                this.addCollisionPlane(plane.x, plane.y, plane.z, plane.width, plane.height, plane.rotation);
+                this.addCollisionPlane(
+                    plane.x,
+                    plane.y,
+                    plane.z,
+                    plane.width,
+                    plane.height,
+                    plane.rotationX,
+                    plane.rotationY,
+                    plane.rotationZ
+                );
             });
         });
 

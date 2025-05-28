@@ -73,7 +73,9 @@ export interface CollisionPlaneConfig {
     z: number;
     width: number;
     height: number;
-    rotation: number;
+    rotationX: number;  // Rotation around X axis in degrees
+    rotationY: number;  // Rotation around Y axis in degrees
+    rotationZ: number;  // Rotation around Z axis in degrees
 }
 
 export interface LightingConfig {

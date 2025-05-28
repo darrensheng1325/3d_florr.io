@@ -25,12 +25,14 @@ class ServerConfig {
             skyColor: 0x87ceeb, // Sky blue
             collisionPlanes: [
                 {
-                    "x": 0,
+                    "x": 5,
                     "y": 0.2,
                     "z": 0,
                     "width": 5,
                     "height": 5,
-                    "rotation": 0
+                    "rotationX": 0,
+                    "rotationY": 0,
+                    "rotationZ": 0
                 }
             ]
         };
@@ -163,12 +165,12 @@ class ServerConfig {
                 skyColor: 0xa15402, // Dark gray
                 collisionPlanes: [
                     // Create a maze-like structure
-                    { x: 0, y: 0, z: 0, width: 20, height: 2, rotation: 0 }, // Center wall
-                    { x: 0, y: 0, z: 0, width: 2, height: 20, rotation: 0 }, // Cross wall
-                    { x: 10, y: 0, z: 10, width: 2, height: 10, rotation: 0 }, // Top right wall
-                    { x: -10, y: 0, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
-                    { x: 10, y: 0, z: -10, width: 10, height: 2, rotation: 0 }, // Bottom right wall
-                    { x: -10, y: 0, z: 10, width: 10, height: 2, rotation: 0 } // Top left wall
+                    { x: 0, y: 0, z: 0, width: 20, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 }, // Center wall
+                    { x: 0, y: 0, z: 0, width: 2, height: 20, rotationX: 0, rotationY: 90, rotationZ: 0 }, // Cross wall
+                    { x: 10, y: 0, z: 10, width: 2, height: 10, rotationX: 0, rotationY: 45, rotationZ: 0 }, // Top right wall
+                    { x: -10, y: 0, z: -10, width: 2, height: 10, rotationX: 0, rotationY: -45, rotationZ: 0 }, // Bottom left wall
+                    { x: 10, y: 0, z: -10, width: 10, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 }, // Bottom right wall
+                    { x: -10, y: 0, z: 10, width: 10, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 } // Top left wall
                 ]
             };
         }

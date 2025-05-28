@@ -1990,8 +1990,10 @@ var Game = /** @class */ (function () {
         // Create and show title screen
         this.createTitleScreen();
     };
-    Game.prototype.addCollisionPlane = function (x, y, z, width, height, rotation) {
-        if (rotation === void 0) { rotation = 0; }
+    Game.prototype.addCollisionPlane = function (x, y, z, width, height, rotationX, rotationY, rotationZ) {
+        if (rotationX === void 0) { rotationX = 0; }
+        if (rotationY === void 0) { rotationY = 0; }
+        if (rotationZ === void 0) { rotationZ = 0; }
         var geometry = new THREE.PlaneGeometry(width, height);
         var material = new THREE.MeshPhongMaterial({
             color: 0x808080,
@@ -2000,9 +2002,11 @@ var Game = /** @class */ (function () {
             opacity: 0.5
         });
         var plane = new THREE.Mesh(geometry, material);
-        plane.rotation.x = -Math.PI / 2; // Make it horizontal
-        plane.rotation.z = rotation * Math.PI / 180; // Apply rotation around Z axis
-        plane.position.set(x, y, z); // Use y position from config
+        // Apply rotations in order: X, Y, Z
+        plane.rotation.x = rotationX * Math.PI / 180;
+        plane.rotation.y = rotationY * Math.PI / 180;
+        plane.rotation.z = rotationZ * Math.PI / 180;
+        plane.position.set(x, y, z);
         this.scene.add(plane);
         this.collisionPlanes.push(plane);
     };
@@ -2013,19 +2017,34 @@ var Game = /** @class */ (function () {
             // Get plane's world position and normal
             var planePosition = new THREE.Vector3();
             plane.getWorldPosition(planePosition);
-            var planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(plane.quaternion);
-            // Calculate distance from point to plane
-            var distance = Math.abs(planeNormal.dot(position.sub(planePosition)));
-            // Check if point is within plane bounds
+            var planeNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(plane.quaternion);
+            // Calculate distance from sphere center to plane
+            var distance = planeNormal.dot(position.clone().sub(planePosition));
+            // If distance is greater than radius, no collision
+            if (Math.abs(distance) > radius) {
+                continue;
+            }
+            // Project sphere center onto plane
+            var projectedPoint = position.clone().sub(planeNormal.multiplyScalar(distance));
+            // Transform projected point to plane's local space
+            var localPoint = projectedPoint.clone().sub(planePosition);
+            localPoint.applyQuaternion(plane.quaternion.invert());
+            // Get plane dimensions
             var planeWidth = plane.geometry.parameters.width;
             var planeHeight = plane.geometry.parameters.height;
-            // Transform point to plane's local space
-            var localPoint = position.clone().sub(planePosition);
-            localPoint.applyQuaternion(plane.quaternion.invert());
-            // Check if point is within plane bounds
-            if (Math.abs(localPoint.x) <= planeWidth / 2 + radius &&
-                Math.abs(localPoint.z) <= planeHeight / 2 + radius &&
-                distance <= radius) {
+            // Check if projected point is within plane bounds, accounting for sphere radius
+            var halfWidth = planeWidth / 2;
+            var halfHeight = planeHeight / 2;
+            // Calculate closest point on plane to sphere center
+            var closestX = Math.max(-halfWidth, Math.min(halfWidth, localPoint.x));
+            var closestZ = Math.max(-halfHeight, Math.min(halfHeight, localPoint.z));
+            var closestPoint = new THREE.Vector3(closestX, 0, closestZ);
+            // Transform closest point back to world space
+            closestPoint.applyQuaternion(plane.quaternion);
+            closestPoint.add(planePosition);
+            // Check if sphere intersects with closest point
+            var distanceToClosest = position.distanceTo(closestPoint);
+            if (distanceToClosest <= radius) {
                 return true; // Collision detected
             }
         }
@@ -2221,7 +2240,7 @@ var Game = /** @class */ (function () {
             console.log('Adding collision planes:', config.collisionPlanes);
             config.collisionPlanes.forEach(function (plane) {
                 console.log('Creating collision plane:', plane);
-                _this.addCollisionPlane(plane.x, plane.y, plane.z, plane.width, plane.height, plane.rotation);
+                _this.addCollisionPlane(plane.x, plane.y, plane.z, plane.width, plane.height, plane.rotationX, plane.rotationY, plane.rotationZ);
             });
         });
         // Add player damage event handler
@@ -4661,12 +4680,14 @@ var ServerConfig = /** @class */ (function () {
             skyColor: 0x87ceeb, // Sky blue
             collisionPlanes: [
                 {
-                    "x": 0,
+                    "x": 5,
                     "y": 0.2,
                     "z": 0,
                     "width": 5,
                     "height": 5,
-                    "rotation": 0
+                    "rotationX": 0,
+                    "rotationY": 0,
+                    "rotationZ": 0
                 }
             ]
         };
@@ -4789,12 +4810,12 @@ var ServerConfig = /** @class */ (function () {
                 skyColor: 0xa15402, // Dark gray
                 collisionPlanes: [
                     // Create a maze-like structure
-                    { x: 0, y: 0, z: 0, width: 20, height: 2, rotation: 0 }, // Center wall
-                    { x: 0, y: 0, z: 0, width: 2, height: 20, rotation: 0 }, // Cross wall
-                    { x: 10, y: 0, z: 10, width: 2, height: 10, rotation: 0 }, // Top right wall
-                    { x: -10, y: 0, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
-                    { x: 10, y: 0, z: -10, width: 10, height: 2, rotation: 0 }, // Bottom right wall
-                    { x: -10, y: 0, z: 10, width: 10, height: 2, rotation: 0 } // Top left wall
+                    { x: 0, y: 0, z: 0, width: 20, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 }, // Center wall
+                    { x: 0, y: 0, z: 0, width: 2, height: 20, rotationX: 0, rotationY: 90, rotationZ: 0 }, // Cross wall
+                    { x: 10, y: 0, z: 10, width: 2, height: 10, rotationX: 0, rotationY: 45, rotationZ: 0 }, // Top right wall
+                    { x: -10, y: 0, z: -10, width: 2, height: 10, rotationX: 0, rotationY: -45, rotationZ: 0 }, // Bottom left wall
+                    { x: 10, y: 0, z: -10, width: 10, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 }, // Bottom right wall
+                    { x: -10, y: 0, z: 10, width: 10, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 } // Top left wall
                 ]
             };
         }
