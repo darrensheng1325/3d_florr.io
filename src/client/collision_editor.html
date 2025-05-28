@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Collision Plane Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        #canvas-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            margin: 20px auto;
+            border: 2px solid #333;
+            background-color: #fff;
+        }
+        .controls {
+            width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 100px;
+            margin-right: 10px;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+        }
+        button {
+            padding: 8px 15px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #planes-list {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        .plane-item {
+            padding: 5px;
+            margin: 5px 0;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            cursor: pointer;
+        }
+        .plane-item:hover {
+            background-color: #e9e9e9;
+        }
+        .plane-item.selected {
+            background-color: #e3f2fd;
+        }
+        .view-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h2>Collision Plane Editor</h2>
+        <div class="control-group">
+            <label>X Position:</label>
+            <input type="number" id="x-pos" value="0" step="0.5">
+            <label>Z Position:</label>
+            <input type="number" id="z-pos" value="0" step="0.5">
+        </div>
+        <div class="control-group">
+            <label>Width:</label>
+            <input type="number" id="width" value="5" step="0.5">
+            <label>Height:</label>
+            <input type="number" id="height" value="5" step="0.5">
+        </div>
+        <div class="control-group">
+            <label>Rotation:</label>
+            <input type="number" id="rotation" value="0" step="1">
+        </div>
+        <div class="control-group">
+            <button id="add-plane">Add Plane</button>
+            <button id="update-plane">Update Selected</button>
+            <button id="delete-plane">Delete Selected</button>
+            <button id="export-config">Export Config</button>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <div class="view-controls">
+            <button id="top-view">Top View</button>
+            <button id="side-view">Side View</button>
+            <button id="perspective-view">Perspective</button>
+        </div>
+    </div>
+
+    <div class="controls">
+        <h3>Planes List</h3>
+        <div id="planes-list"></div>
+    </div>
+
+    <script>
+        class CollisionPlaneEditor {
+            constructor() {
+                this.planes = [];
+                this.selectedPlane = null;
+                this.setupThreeJS();
+                this.setupEventListeners();
+                this.animate();
+            }
+
+            setupThreeJS() {
+                // Create scene
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0xf0f0f0);
+
+                // Create camera
+                this.camera = new THREE.PerspectiveCamera(75, 800 / 600, 0.1, 1000);
+                this.camera.position.set(20, 20, 20);
+                this.camera.lookAt(0, 0, 0);
+
+                // Create renderer
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(800, 600);
+                document.getElementById('canvas-container').appendChild(this.renderer.domElement);
+
+                // Add orbit controls
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+
+                // Add lights
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                this.scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(10, 20, 10);
+                this.scene.add(directionalLight);
+
+                // Add grid helper
+                const gridHelper = new THREE.GridHelper(40, 40, 0x000000, 0x000000);
+                gridHelper.position.y = 0;
+                this.scene.add(gridHelper);
+
+                // Add axes helper
+                const axesHelper = new THREE.AxesHelper(5);
+                this.scene.add(axesHelper);
+            }
+
+            setupEventListeners() {
+                document.getElementById('add-plane').addEventListener('click', () => this.addPlane());
+                document.getElementById('update-plane').addEventListener('click', () => this.updateSelectedPlane());
+                document.getElementById('delete-plane').addEventListener('click', () => this.deleteSelectedPlane());
+                document.getElementById('export-config').addEventListener('click', () => this.exportConfig());
+                
+                // View controls
+                document.getElementById('top-view').addEventListener('click', () => {
+                    this.camera.position.set(0, 30, 0);
+                    this.camera.lookAt(0, 0, 0);
+                });
+                
+                document.getElementById('side-view').addEventListener('click', () => {
+                    this.camera.position.set(30, 0, 0);
+                    this.camera.lookAt(0, 0, 0);
+                });
+                
+                document.getElementById('perspective-view').addEventListener('click', () => {
+                    this.camera.position.set(20, 20, 20);
+                    this.camera.lookAt(0, 0, 0);
+                });
+
+                // Raycaster for plane selection
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+
+                this.renderer.domElement.addEventListener('click', (event) => {
+                    const rect = this.renderer.domElement.getBoundingClientRect();
+                    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                    this.handleCanvasClick();
+                });
+            }
+
+            createPlaneMesh(plane) {
+                const geometry = new THREE.PlaneGeometry(plane.width, plane.height);
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0x0000ff,
+                    transparent: true,
+                    opacity: 0.5,
+                    side: THREE.DoubleSide
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(plane.x, plane.height / 2, plane.z);
+                mesh.rotation.x = -Math.PI / 2;
+                mesh.rotation.z = plane.rotation * Math.PI / 180;
+                return mesh;
+            }
+
+            addPlane() {
+                const plane = {
+                    x: parseFloat(document.getElementById('x-pos').value),
+                    z: parseFloat(document.getElementById('z-pos').value),
+                    width: parseFloat(document.getElementById('width').value),
+                    height: parseFloat(document.getElementById('height').value),
+                    rotation: parseFloat(document.getElementById('rotation').value)
+                };
+                
+                const mesh = this.createPlaneMesh(plane);
+                this.scene.add(mesh);
+                
+                this.planes.push({
+                    ...plane,
+                    mesh
+                });
+                
+                this.updatePlanesList();
+            }
+
+            updateSelectedPlane() {
+                if (this.selectedPlane === null) return;
+                
+                const plane = this.planes[this.selectedPlane];
+                plane.x = parseFloat(document.getElementById('x-pos').value);
+                plane.z = parseFloat(document.getElementById('z-pos').value);
+                plane.width = parseFloat(document.getElementById('width').value);
+                plane.height = parseFloat(document.getElementById('height').value);
+                plane.rotation = parseFloat(document.getElementById('rotation').value);
+                
+                // Update mesh
+                this.scene.remove(plane.mesh);
+                plane.mesh = this.createPlaneMesh(plane);
+                this.scene.add(plane.mesh);
+                
+                this.updatePlanesList();
+            }
+
+            deleteSelectedPlane() {
+                if (this.selectedPlane === null) return;
+                
+                const plane = this.planes[this.selectedPlane];
+                this.scene.remove(plane.mesh);
+                this.planes.splice(this.selectedPlane, 1);
+                this.selectedPlane = null;
+                this.updatePlanesList();
+            }
+
+            handleCanvasClick() {
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const intersects = this.raycaster.intersectObjects(
+                    this.planes.map(p => p.mesh)
+                );
+
+                if (intersects.length > 0) {
+                    const clickedMesh = intersects[0].object;
+                    this.selectedPlane = this.planes.findIndex(p => p.mesh === clickedMesh);
+                    this.updatePlanesList();
+                    this.updateInputs();
+                    this.updatePlaneColors();
+                }
+            }
+
+            updateInputs() {
+                if (this.selectedPlane === null) return;
+                const plane = this.planes[this.selectedPlane];
+                document.getElementById('x-pos').value = plane.x;
+                document.getElementById('z-pos').value = plane.z;
+                document.getElementById('width').value = plane.width;
+                document.getElementById('height').value = plane.height;
+                document.getElementById('rotation').value = plane.rotation;
+            }
+
+            updatePlaneColors() {
+                this.planes.forEach((plane, index) => {
+                    plane.mesh.material.color.setHex(
+                        index === this.selectedPlane ? 0xff0000 : 0x0000ff
+                    );
+                });
+            }
+
+            updatePlanesList() {
+                const list = document.getElementById('planes-list');
+                list.innerHTML = '';
+                
+                this.planes.forEach((plane, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'plane-item' + (index === this.selectedPlane ? ' selected' : '');
+                    div.textContent = `Plane ${index + 1}: x=${plane.x}, z=${plane.z}, w=${plane.width}, h=${plane.height}, rot=${plane.rotation}°`;
+                    div.addEventListener('click', () => {
+                        this.selectedPlane = index;
+                        this.updatePlanesList();
+                        this.updateInputs();
+                        this.updatePlaneColors();
+                    });
+                    list.appendChild(div);
+                });
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            exportConfig() {
+                const config = {
+                    collisionPlanes: this.planes.map(({ mesh, ...plane }) => plane)
+                };
+                const json = JSON.stringify(config, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'collision_planes.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // Initialize the editor when the page loads
+        window.addEventListener('load', () => {
+            new CollisionPlaneEditor();
+        });
+    </script>
+</body>
+</html> 

@@ -514,11 +514,6 @@ export class Game {
         this.gridHelper.position.y = 0.01;
         this.scene.add(this.gridHelper);
 
-        // Add some example collision planes
-        this.addCollisionPlane(5, 0, 5, 10, 2); // x, z, width, height
-        this.addCollisionPlane(-5, -5, 2, 10, 2);
-        this.addCollisionPlane(0, -8, 10, 2, 2);
-
         // Handle window resize
         window.addEventListener('resize', () => this.onWindowResize());
 
@@ -799,6 +794,17 @@ export class Game {
         // Add lighting configuration handler
         this.socket.on('lightingConfig', (config: LightingConfig) => {
             this.updateLighting(config);
+            
+            // Clear existing collision planes
+            this.collisionPlanes.forEach(plane => {
+                this.scene.remove(plane);
+            });
+            this.collisionPlanes = [];
+
+            // Add collision planes from config
+            config.collisionPlanes.forEach(plane => {
+                this.addCollisionPlane(plane.x, plane.z, plane.width, plane.height, plane.rotation);
+            });
         });
 
         // Add player damage event handler

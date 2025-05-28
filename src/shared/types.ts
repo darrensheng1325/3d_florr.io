@@ -67,6 +67,14 @@ export interface PetalStats {
     speed: number;
 }
 
+export interface CollisionPlaneConfig {
+    x: number;
+    z: number;
+    width: number;
+    height: number;
+    rotation: number;
+}
+
 export interface LightingConfig {
     ambientLight: {
         color: number;
@@ -87,6 +95,7 @@ export interface LightingConfig {
         intensity: number;
     };
     skyColor: number;
+    collisionPlanes: CollisionPlaneConfig[];  // Add collision planes to config
 }
 
 export enum PetalType {

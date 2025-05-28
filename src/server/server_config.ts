@@ -1,4 +1,4 @@
-import { LightingConfig, EnemyType } from '../shared/types';
+import { LightingConfig, EnemyType, CollisionPlaneConfig } from '../shared/types';
 
 interface MobSpawnConfig {
     enabled: boolean;
@@ -37,7 +37,12 @@ export class ServerConfig {
             groundColor: 0x00ff00,  // Light green
             intensity: 1.0
         },
-        skyColor: 0x87ceeb  // Sky blue
+        skyColor: 0x87ceeb,  // Sky blue
+        collisionPlanes: [
+            { x: 5, z: 0, width: 5, height: 10, rotation: 2 },
+            { x: -5, z: -5, width: 2, height: 10, rotation: 0 },
+            { x: 0, z: -8, width: 10, height: 2, rotation: 0 }
+        ]
     };
 
     private mobConfig: Record<EnemyType, MobSpawnConfig> = {
@@ -151,7 +156,7 @@ export class ServerConfig {
                 }
             };
 
-            // Darker, more underground-like lighting
+            // Darker, more underground-like lighting and more complex collision planes
             this.currentConfig = {
                 ambientLight: {
                     color: 0xffffff,
@@ -171,7 +176,16 @@ export class ServerConfig {
                     groundColor: 0xa15402, // Dark brown
                     intensity: 0.8
                 },
-                skyColor: 0xa15402  // Dark gray
+                skyColor: 0xa15402,  // Dark gray
+                collisionPlanes: [
+                    // Create a maze-like structure
+                    { x: 0, z: 0, width: 20, height: 2, rotation: 0 },    // Center wall
+                    { x: 0, z: 0, width: 2, height: 20, rotation: 0 },    // Cross wall
+                    { x: 10, z: 10, width: 2, height: 10, rotation: 0 },  // Top right wall
+                    { x: -10, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
+                    { x: 10, z: -10, width: 10, height: 2, rotation: 0 },  // Bottom right wall
+                    { x: -10, z: 10, width: 10, height: 2, rotation: 0 }   // Top left wall
+                ]
             };
         }
     }
@@ -384,5 +398,13 @@ export class ServerConfig {
                 };
             }
         }
+    }
+
+    public updateCollisionPlanes(planes: CollisionPlaneConfig[]): void {
+        this.currentConfig.collisionPlanes = planes;
+    }
+
+    public getCollisionPlanes(): CollisionPlaneConfig[] {
+        return this.currentConfig.collisionPlanes;
     }
 } 

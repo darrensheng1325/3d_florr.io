@@ -1985,10 +1985,6 @@ var Game = /** @class */ (function () {
         this.gridHelper = new THREE.GridHelper(30, 30, 0x038f21, 0x038f21);
         this.gridHelper.position.y = 0.01;
         this.scene.add(this.gridHelper);
-        // Add some example collision planes
-        this.addCollisionPlane(5, 0, 5, 10, 2); // x, z, width, height
-        this.addCollisionPlane(-5, -5, 2, 10, 2);
-        this.addCollisionPlane(0, -8, 10, 2, 2);
         // Handle window resize
         window.addEventListener('resize', function () { return _this.onWindowResize(); });
         // Create and show title screen
@@ -2215,6 +2211,15 @@ var Game = /** @class */ (function () {
         // Add lighting configuration handler
         this.socket.on('lightingConfig', function (config) {
             _this.updateLighting(config);
+            // Clear existing collision planes
+            _this.collisionPlanes.forEach(function (plane) {
+                _this.scene.remove(plane);
+            });
+            _this.collisionPlanes = [];
+            // Add collision planes from config
+            config.collisionPlanes.forEach(function (plane) {
+                _this.addCollisionPlane(plane.x, plane.z, plane.width, plane.height, plane.rotation);
+            });
         });
         // Add player damage event handler
         this.socket.on('playerDamaged', function (data) {
@@ -4650,7 +4655,12 @@ var ServerConfig = /** @class */ (function () {
                 groundColor: 0x00ff00, // Light green
                 intensity: 1.0
             },
-            skyColor: 0x87ceeb // Sky blue
+            skyColor: 0x87ceeb, // Sky blue
+            collisionPlanes: [
+                { x: 5, z: 0, width: 5, height: 10, rotation: 2 },
+                { x: -5, z: -5, width: 2, height: 10, rotation: 0 },
+                { x: 0, z: -8, width: 10, height: 2, rotation: 0 }
+            ]
         };
         this.mobConfig = {
             ladybug: {
@@ -4748,7 +4758,7 @@ var ServerConfig = /** @class */ (function () {
                     weight: 0,
                     minWave: 999
                 } });
-            // Darker, more underground-like lighting
+            // Darker, more underground-like lighting and more complex collision planes
             this.currentConfig = {
                 ambientLight: {
                     color: 0xffffff,
@@ -4768,7 +4778,16 @@ var ServerConfig = /** @class */ (function () {
                     groundColor: 0xa15402, // Dark brown
                     intensity: 0.8
                 },
-                skyColor: 0xa15402 // Dark gray
+                skyColor: 0xa15402, // Dark gray
+                collisionPlanes: [
+                    // Create a maze-like structure
+                    { x: 0, z: 0, width: 20, height: 2, rotation: 0 }, // Center wall
+                    { x: 0, z: 0, width: 2, height: 20, rotation: 0 }, // Cross wall
+                    { x: 10, z: 10, width: 2, height: 10, rotation: 0 }, // Top right wall
+                    { x: -10, z: -10, width: 2, height: 10, rotation: 0 }, // Bottom left wall
+                    { x: 10, z: -10, width: 10, height: 2, rotation: 0 }, // Bottom right wall
+                    { x: -10, z: 10, width: 10, height: 2, rotation: 0 } // Top left wall
+                ]
             };
         }
     }
@@ -4949,6 +4968,12 @@ var ServerConfig = /** @class */ (function () {
                 };
             }
         }
+    };
+    ServerConfig.prototype.updateCollisionPlanes = function (planes) {
+        this.currentConfig.collisionPlanes = planes;
+    };
+    ServerConfig.prototype.getCollisionPlanes = function () {
+        return this.currentConfig.collisionPlanes;
     };
     ServerConfig.instances = new Map();
     return ServerConfig;
