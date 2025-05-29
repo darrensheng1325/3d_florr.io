@@ -1191,10 +1191,8 @@ export class Game {
         // Create a test position vector
         const testPosition = new THREE.Vector3(newX, player.position.y, newZ);
 
-        // Check boundaries and collision planes before applying movement
-        if (newX >= -this.mapSize && newX <= this.mapSize && 
-            newZ >= -this.mapSize && newZ <= this.mapSize &&
-            !this.checkCollisionPlanes(testPosition)) {
+        // Check collision planes before applying movement
+        if (!this.checkCollisionPlanes(testPosition)) {
             player.position.x = newX;
             player.position.z = newZ;
             player.position.y = 0.5;

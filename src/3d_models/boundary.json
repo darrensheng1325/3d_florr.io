@@ -1,0 +1,44 @@
+{
+  "collisionPlanes": [
+    {
+      "x": 40,
+      "y": 0,
+      "z": 0,
+      "width": 80,
+      "height": 5,
+      "rotationX": 0,
+      "rotationY": 90,
+      "rotationZ": 0
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "z": 40,
+      "width": 80,
+      "height": 5,
+      "rotationX": 0,
+      "rotationY": 180,
+      "rotationZ": 0
+    },
+    {
+      "x": -40,
+      "y": 0,
+      "z": 0,
+      "width": 80,
+      "height": 5,
+      "rotationX": 0,
+      "rotationY": 270,
+      "rotationZ": 0
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "z": -40,
+      "width": 80,
+      "height": 5,
+      "rotationX": 0,
+      "rotationY": 0,
+      "rotationZ": 0
+    }
+  ]
+}

@@ -99,8 +99,16 @@
             <input type="number" id="height" value="5" step="0.5">
         </div>
         <div class="control-group">
-            <label>Rotation:</label>
-            <input type="number" id="rotation" value="0" step="1">
+            <label>Rotation X (degrees):</label>
+            <input type="number" id="rotation-x" value="0" step="1">
+        </div>
+        <div class="control-group">
+            <label>Rotation Y (degrees):</label>
+            <input type="number" id="rotation-y" value="0" step="1">
+        </div>
+        <div class="control-group">
+            <label>Rotation Z (degrees):</label>
+            <input type="number" id="rotation-z" value="0" step="1">
         </div>
         <div class="control-group">
             <button id="add-plane">Add Plane</button>
@@ -215,8 +223,12 @@
                 });
                 const mesh = new THREE.Mesh(geometry, material);
                 mesh.position.set(plane.x, plane.y, plane.z);
-                mesh.rotation.x = -Math.PI / 2;
-                mesh.rotation.z = plane.rotation * Math.PI / 180;
+                
+                // Apply rotations in order: X, Y, Z
+                mesh.rotation.x = plane.rotationX * Math.PI / 180;
+                mesh.rotation.y = plane.rotationY * Math.PI / 180;
+                mesh.rotation.z = plane.rotationZ * Math.PI / 180;
+                
                 return mesh;
             }
 
@@ -227,7 +239,9 @@
                     z: parseFloat(document.getElementById('z-pos').value),
                     width: parseFloat(document.getElementById('width').value),
                     height: parseFloat(document.getElementById('height').value),
-                    rotation: parseFloat(document.getElementById('rotation').value)
+                    rotationX: parseFloat(document.getElementById('rotation-x').value),
+                    rotationY: parseFloat(document.getElementById('rotation-y').value),
+                    rotationZ: parseFloat(document.getElementById('rotation-z').value)
                 };
                 
                 const mesh = this.createPlaneMesh(plane);
@@ -250,7 +264,9 @@
                 plane.z = parseFloat(document.getElementById('z-pos').value);
                 plane.width = parseFloat(document.getElementById('width').value);
                 plane.height = parseFloat(document.getElementById('height').value);
-                plane.rotation = parseFloat(document.getElementById('rotation').value);
+                plane.rotationX = parseFloat(document.getElementById('rotation-x').value);
+                plane.rotationY = parseFloat(document.getElementById('rotation-y').value);
+                plane.rotationZ = parseFloat(document.getElementById('rotation-z').value);
                 
                 // Update mesh
                 this.scene.remove(plane.mesh);
@@ -293,7 +309,9 @@
                 document.getElementById('z-pos').value = plane.z;
                 document.getElementById('width').value = plane.width;
                 document.getElementById('height').value = plane.height;
-                document.getElementById('rotation').value = plane.rotation;
+                document.getElementById('rotation-x').value = plane.rotationX;
+                document.getElementById('rotation-y').value = plane.rotationY;
+                document.getElementById('rotation-z').value = plane.rotationZ;
             }
 
             updatePlaneColors() {
@@ -311,7 +329,7 @@
                 this.planes.forEach((plane, index) => {
                     const div = document.createElement('div');
                     div.className = 'plane-item' + (index === this.selectedPlane ? ' selected' : '');
-                    div.textContent = `Plane ${index + 1}: x=${plane.x}, y=${plane.y}, z=${plane.z}, w=${plane.width}, h=${plane.height}, rot=${plane.rotation}°`;
+                    div.textContent = `Plane ${index + 1}: x=${plane.x}, y=${plane.y}, z=${plane.z}, w=${plane.width}, h=${plane.height}, rotX=${plane.rotationX}°, rotY=${plane.rotationY}°, rotZ=${plane.rotationZ}°`;
                     div.addEventListener('click', () => {
                         this.selectedPlane = index;
                         this.updatePlanesList();

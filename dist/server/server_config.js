@@ -25,10 +25,40 @@ class ServerConfig {
             skyColor: 0x87ceeb, // Sky blue
             collisionPlanes: [
                 {
-                    "x": 5,
-                    "y": 0.2,
+                    "x": 40,
+                    "y": 0,
                     "z": 0,
-                    "width": 5,
+                    "width": 80,
+                    "height": 5,
+                    "rotationX": 0,
+                    "rotationY": 90,
+                    "rotationZ": 0
+                },
+                {
+                    "x": 0,
+                    "y": 0,
+                    "z": 40,
+                    "width": 80,
+                    "height": 5,
+                    "rotationX": 0,
+                    "rotationY": 180,
+                    "rotationZ": 0
+                },
+                {
+                    "x": -40,
+                    "y": 0,
+                    "z": 0,
+                    "width": 80,
+                    "height": 5,
+                    "rotationX": 0,
+                    "rotationY": 270,
+                    "rotationZ": 0
+                },
+                {
+                    "x": 0,
+                    "y": 0,
+                    "z": -40,
+                    "width": 80,
                     "height": 5,
                     "rotationX": 0,
                     "rotationY": 0,
@@ -163,15 +193,7 @@ class ServerConfig {
                     intensity: 0.8
                 },
                 skyColor: 0xa15402, // Dark gray
-                collisionPlanes: [
-                    // Create a maze-like structure
-                    { x: 0, y: 0, z: 0, width: 20, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 }, // Center wall
-                    { x: 0, y: 0, z: 0, width: 2, height: 20, rotationX: 0, rotationY: 90, rotationZ: 0 }, // Cross wall
-                    { x: 10, y: 0, z: 10, width: 2, height: 10, rotationX: 0, rotationY: 45, rotationZ: 0 }, // Top right wall
-                    { x: -10, y: 0, z: -10, width: 2, height: 10, rotationX: 0, rotationY: -45, rotationZ: 0 }, // Bottom left wall
-                    { x: 10, y: 0, z: -10, width: 10, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 }, // Bottom right wall
-                    { x: -10, y: 0, z: 10, width: 10, height: 2, rotationX: 0, rotationY: 0, rotationZ: 0 } // Top left wall
-                ]
+                collisionPlanes: []
             };
         }
     }
