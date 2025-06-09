@@ -39,6 +39,10 @@
             width: 80px;
             padding: 5px;
         }
+        select {
+            width: 100px;
+            padding: 5px;
+        }
         button {
             padding: 8px 15px;
             margin: 5px;
@@ -50,6 +54,12 @@
         }
         button:hover {
             background-color: #45a049;
+        }
+        button.terrain-preset {
+            background-color: #8B4513;
+        }
+        button.terrain-preset:hover {
+            background-color: #7A3D12;
         }
         #planes-list {
             margin-top: 20px;
@@ -71,6 +81,13 @@
         .plane-item.selected {
             background-color: #e3f2fd;
         }
+        .plane-item.terrain {
+            background-color: #f4e4d4;
+            border-color: #8B4513;
+        }
+        .plane-item.terrain.selected {
+            background-color: #e8d4c4;
+        }
         .view-controls {
             position: absolute;
             top: 10px;
@@ -84,6 +101,13 @@
 <body>
     <div class="controls">
         <h2>Collision Plane Editor</h2>
+        <div class="control-group">
+            <label>Type:</label>
+            <select id="plane-type">
+                <option value="wall">Wall</option>
+                <option value="terrain">Terrain</option>
+            </select>
+        </div>
         <div class="control-group">
             <label>X Position:</label>
             <input type="number" id="x-pos" value="0" step="0.5">
@@ -115,6 +139,13 @@
             <button id="update-plane">Update Selected</button>
             <button id="delete-plane">Delete Selected</button>
             <button id="export-config">Export Config</button>
+        </div>
+        <div class="control-group">
+            <h4>Terrain Presets:</h4>
+            <button class="terrain-preset" id="flat-terrain">Flat Terrain</button>
+            <button class="terrain-preset" id="ramp-terrain">Ramp (15°)</button>
+            <button class="terrain-preset" id="steep-ramp">Steep Ramp (30°)</button>
+            <button class="terrain-preset" id="platform">Platform</button>
         </div>
     </div>
 
@@ -185,6 +216,12 @@
                 document.getElementById('delete-plane').addEventListener('click', () => this.deleteSelectedPlane());
                 document.getElementById('export-config').addEventListener('click', () => this.exportConfig());
                 
+                // Terrain preset buttons
+                document.getElementById('flat-terrain').addEventListener('click', () => this.applyTerrainPreset('flat'));
+                document.getElementById('ramp-terrain').addEventListener('click', () => this.applyTerrainPreset('ramp'));
+                document.getElementById('steep-ramp').addEventListener('click', () => this.applyTerrainPreset('steepRamp'));
+                document.getElementById('platform').addEventListener('click', () => this.applyTerrainPreset('platform'));
+                
                 // View controls
                 document.getElementById('top-view').addEventListener('click', () => {
                     this.camera.position.set(0, 30, 0);
@@ -213,14 +250,59 @@
                 });
             }
 
+            applyTerrainPreset(preset) {
+                document.getElementById('plane-type').value = 'terrain';
+                
+                switch (preset) {
+                    case 'flat':
+                        document.getElementById('rotation-x').value = 90;
+                        document.getElementById('rotation-y').value = 0;
+                        document.getElementById('rotation-z').value = 0;
+                        document.getElementById('y-pos').value = 0;
+                        break;
+                    case 'ramp':
+                        document.getElementById('rotation-x').value = 75; // 15° slope
+                        document.getElementById('rotation-y').value = 0;
+                        document.getElementById('rotation-z').value = 0;
+                        document.getElementById('y-pos').value = 1;
+                        break;
+                    case 'steepRamp':
+                        document.getElementById('rotation-x').value = 60; // 30° slope
+                        document.getElementById('rotation-y').value = 0;
+                        document.getElementById('rotation-z').value = 0;
+                        document.getElementById('y-pos').value = 2;
+                        break;
+                    case 'platform':
+                        document.getElementById('rotation-x').value = 90;
+                        document.getElementById('rotation-y').value = 0;
+                        document.getElementById('rotation-z').value = 0;
+                        document.getElementById('y-pos').value = 3;
+                        document.getElementById('width').value = 8;
+                        document.getElementById('height').value = 8;
+                        break;
+                }
+            }
+
             createPlaneMesh(plane) {
                 const geometry = new THREE.PlaneGeometry(plane.width, plane.height);
-                const material = new THREE.MeshPhongMaterial({
-                    color: 0x0000ff,
-                    transparent: true,
-                    opacity: 0.5,
-                    side: THREE.DoubleSide
-                });
+                let material;
+                
+                if (plane.type === 'terrain') {
+                    material = new THREE.MeshPhongMaterial({
+                        color: 0x8B4513, // Brown color for terrain
+                        transparent: true,
+                        opacity: 0.7,
+                        side: THREE.DoubleSide
+                    });
+                } else {
+                    material = new THREE.MeshPhongMaterial({
+                        color: 0x0000ff,
+                        transparent: true,
+                        opacity: 0.5,
+                        side: THREE.DoubleSide
+                    });
+                }
+                
                 const mesh = new THREE.Mesh(geometry, material);
                 mesh.position.set(plane.x, plane.y, plane.z);
                 
@@ -241,7 +323,8 @@
                     height: parseFloat(document.getElementById('height').value),
                     rotationX: parseFloat(document.getElementById('rotation-x').value),
                     rotationY: parseFloat(document.getElementById('rotation-y').value),
-                    rotationZ: parseFloat(document.getElementById('rotation-z').value)
+                    rotationZ: parseFloat(document.getElementById('rotation-z').value),
+                    type: document.getElementById('plane-type').value
                 };
                 
                 const mesh = this.createPlaneMesh(plane);
@@ -267,6 +350,7 @@
                 plane.rotationX = parseFloat(document.getElementById('rotation-x').value);
                 plane.rotationY = parseFloat(document.getElementById('rotation-y').value);
                 plane.rotationZ = parseFloat(document.getElementById('rotation-z').value);
+                plane.type = document.getElementById('plane-type').value;
                 
                 // Update mesh
                 this.scene.remove(plane.mesh);
@@ -312,13 +396,20 @@
                 document.getElementById('rotation-x').value = plane.rotationX;
                 document.getElementById('rotation-y').value = plane.rotationY;
                 document.getElementById('rotation-z').value = plane.rotationZ;
+                document.getElementById('plane-type').value = plane.type || 'wall';
             }
 
             updatePlaneColors() {
                 this.planes.forEach((plane, index) => {
-                    plane.mesh.material.color.setHex(
-                        index === this.selectedPlane ? 0xff0000 : 0x0000ff
-                    );
+                    if (plane.type === 'terrain') {
+                        plane.mesh.material.color.setHex(
+                            index === this.selectedPlane ? 0xD2691E : 0x8B4513
+                        );
+                    } else {
+                        plane.mesh.material.color.setHex(
+                            index === this.selectedPlane ? 0xff0000 : 0x0000ff
+                        );
+                    }
                 });
             }
 
@@ -328,8 +419,13 @@
                 
                 this.planes.forEach((plane, index) => {
                     const div = document.createElement('div');
-                    div.className = 'plane-item' + (index === this.selectedPlane ? ' selected' : '');
-                    div.textContent = `Plane ${index + 1}: x=${plane.x}, y=${plane.y}, z=${plane.z}, w=${plane.width}, h=${plane.height}, rotX=${plane.rotationX}°, rotY=${plane.rotationY}°, rotZ=${plane.rotationZ}°`;
+                    div.className = 'plane-item' + 
+                        (index === this.selectedPlane ? ' selected' : '') +
+                        (plane.type === 'terrain' ? ' terrain' : '');
+                    
+                    const typeLabel = plane.type === 'terrain' ? '[TERRAIN]' : '[WALL]';
+                    div.textContent = `${typeLabel} Plane ${index + 1}: x=${plane.x}, y=${plane.y}, z=${plane.z}, w=${plane.width}, h=${plane.height}, rotX=${plane.rotationX}°, rotY=${plane.rotationY}°, rotZ=${plane.rotationZ}°`;
+                    
                     div.addEventListener('click', () => {
                         this.selectedPlane = index;
                         this.updatePlanesList();

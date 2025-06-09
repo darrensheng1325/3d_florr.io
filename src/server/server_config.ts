@@ -78,6 +78,17 @@ export class ServerConfig {
                 "rotationX": 0,
                 "rotationY": 0,
                 "rotationZ": 0
+              },
+              {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "width": 5,
+                "height": 5,
+                "rotationX": 35,
+                "rotationY": 0,
+                "rotationZ": 0,
+                "type": "terrain"
               }
         ]
     };

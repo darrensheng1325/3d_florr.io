@@ -1533,6 +1533,17 @@ exports.Enemy = Enemy;
 
 "use strict";
 
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -1631,6 +1642,7 @@ var Game = /** @class */ (function () {
         this.MAX_RECONNECT_ATTEMPTS = 3;
         this.RECONNECT_DELAY = 2000; // 2 seconds
         this.collisionPlanes = []; // Add this line for collision planes
+        this.terrainPlanes = []; // Add this line for terrain planes
         this.accountManager = new account_1.AccountManager();
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -1990,65 +2002,129 @@ var Game = /** @class */ (function () {
         // Create and show title screen
         this.createTitleScreen();
     };
-    Game.prototype.addCollisionPlane = function (x, y, z, width, height, rotationX, rotationY, rotationZ) {
+    Game.prototype.addCollisionPlane = function (x, y, z, width, height, rotationX, rotationY, rotationZ, type) {
         if (rotationX === void 0) { rotationX = 0; }
         if (rotationY === void 0) { rotationY = 0; }
         if (rotationZ === void 0) { rotationZ = 0; }
+        if (type === void 0) { type = 'wall'; }
         var geometry = new THREE.PlaneGeometry(width, height);
-        var material = new THREE.MeshPhongMaterial({
-            color: 0x808080,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.5
-        });
+        var material;
+        if (type === 'terrain') {
+            material = new THREE.MeshPhongMaterial({
+                color: 0x8B4513, // Brown color for terrain
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.7
+            });
+        }
+        else {
+            material = new THREE.MeshPhongMaterial({
+                color: 0x808080,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.5
+            });
+        }
         var plane = new THREE.Mesh(geometry, material);
         // Apply rotations in order: X, Y, Z
         plane.rotation.x = rotationX * Math.PI / 180;
         plane.rotation.y = rotationY * Math.PI / 180;
         plane.rotation.z = rotationZ * Math.PI / 180;
         plane.position.set(x, y, z);
+        plane.userData = { type: type }; // Store the type in userData
         this.scene.add(plane);
-        this.collisionPlanes.push(plane);
+        if (type === 'terrain') {
+            this.terrainPlanes.push(plane);
+        }
+        else {
+            this.collisionPlanes.push(plane);
+        }
     };
     Game.prototype.checkCollisionPlanes = function (position, radius) {
         if (radius === void 0) { radius = 0.5; }
+        // Check wall collisions first
         for (var _i = 0, _a = this.collisionPlanes; _i < _a.length; _i++) {
             var plane = _a[_i];
-            // Get plane's world transform
-            var planePosition = new THREE.Vector3();
-            plane.getWorldPosition(planePosition);
-            var worldQuaternion = new THREE.Quaternion();
-            plane.getWorldQuaternion(worldQuaternion);
-            // The default normal for PlaneGeometry is (0, 0, 1). Transform it to world space.
-            var planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(worldQuaternion);
-            // Calculate distance from sphere center to the infinite plane
-            var distance = planeNormal.dot(position.clone().sub(planePosition));
-            // If the sphere is too far from the plane, no collision
-            if (Math.abs(distance) > radius) {
-                continue;
+            var collision = this.checkSinglePlaneCollision(plane, position, radius);
+            if (collision.collided) {
+                return __assign(__assign({}, collision), { type: 'wall' });
             }
-            // Project sphere center onto the plane to find the closest point on the infinite plane
-            var projectedPoint = position.clone().sub(planeNormal.clone().multiplyScalar(distance));
-            // Transform the projected point to the plane's local space to check against its finite bounds
-            var localPoint = plane.worldToLocal(projectedPoint.clone());
-            // Get plane dimensions. PlaneGeometry is in the XY plane in local space.
-            var planeWidth = plane.geometry.parameters.width;
-            var planeHeight = plane.geometry.parameters.height;
-            var halfWidth = planeWidth / 2;
-            var halfHeight = planeHeight / 2;
-            // Find the closest point on the plane's rectangle to the local projected point
-            var closestX = Math.max(-halfWidth, Math.min(halfWidth, localPoint.x));
-            var closestY = Math.max(-halfHeight, Math.min(halfHeight, localPoint.y));
-            var closestPointLocal = new THREE.Vector3(closestX, closestY, 0);
-            // Transform this closest point from local back to world space
-            var closestPointWorld = plane.localToWorld(closestPointLocal.clone());
-            // Calculate the distance from the sphere's center to this closest point on the rectangle
-            var distanceToClosest = position.distanceTo(closestPointWorld);
-            // If the distance is less than the sphere's radius, there is a collision.
-            if (distanceToClosest <= radius) {
-                // The collision normal is the vector from the closest point on the rectangle to the sphere's center.
-                var normal = position.clone().sub(closestPointWorld).normalize();
-                return { collided: true, normal: normal };
+        }
+        // Check terrain collisions
+        for (var _b = 0, _c = this.terrainPlanes; _b < _c.length; _b++) {
+            var plane = _c[_b];
+            var collision = this.checkTerrainCollision(plane, position, radius);
+            if (collision.collided) {
+                return __assign(__assign({}, collision), { type: 'terrain' });
+            }
+        }
+        return { collided: false };
+    };
+    Game.prototype.checkSinglePlaneCollision = function (plane, position, radius) {
+        // Get plane's world transform
+        var planePosition = new THREE.Vector3();
+        plane.getWorldPosition(planePosition);
+        var worldQuaternion = new THREE.Quaternion();
+        plane.getWorldQuaternion(worldQuaternion);
+        // The default normal for PlaneGeometry is (0, 0, 1). Transform it to world space.
+        var planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(worldQuaternion);
+        // Calculate distance from sphere center to the infinite plane
+        var distance = planeNormal.dot(position.clone().sub(planePosition));
+        // If the sphere is too far from the plane, no collision
+        if (Math.abs(distance) > radius) {
+            return { collided: false };
+        }
+        // Project sphere center onto the plane to find the closest point on the infinite plane
+        var projectedPoint = position.clone().sub(planeNormal.clone().multiplyScalar(distance));
+        // Transform the projected point to the plane's local space to check against its finite bounds
+        var localPoint = plane.worldToLocal(projectedPoint.clone());
+        // Get plane dimensions. PlaneGeometry is in the XY plane in local space.
+        var planeWidth = plane.geometry.parameters.width;
+        var planeHeight = plane.geometry.parameters.height;
+        var halfWidth = planeWidth / 2;
+        var halfHeight = planeHeight / 2;
+        // Find the closest point on the plane's rectangle to the local projected point
+        var closestX = Math.max(-halfWidth, Math.min(halfWidth, localPoint.x));
+        var closestY = Math.max(-halfHeight, Math.min(halfHeight, localPoint.y));
+        var closestPointLocal = new THREE.Vector3(closestX, closestY, 0);
+        // Transform this closest point from local back to world space
+        var closestPointWorld = plane.localToWorld(closestPointLocal.clone());
+        // Calculate the distance from the sphere's center to this closest point on the rectangle
+        var distanceToClosest = position.distanceTo(closestPointWorld);
+        // If the distance is less than the sphere's radius, there is a collision.
+        if (distanceToClosest <= radius) {
+            // The collision normal is the vector from the closest point on the rectangle to the sphere's center.
+            var normal = position.clone().sub(closestPointWorld).normalize();
+            return { collided: true, normal: normal };
+        }
+        return { collided: false };
+    };
+    Game.prototype.checkTerrainCollision = function (plane, position, radius) {
+        // Get plane's world transform
+        var planePosition = new THREE.Vector3();
+        plane.getWorldPosition(planePosition);
+        var worldQuaternion = new THREE.Quaternion();
+        plane.getWorldQuaternion(worldQuaternion);
+        // Transform player position to plane's local space
+        var localPlayerPos = plane.worldToLocal(position.clone());
+        // Get plane dimensions. PlaneGeometry is in the XY plane in local space.
+        var planeWidth = plane.geometry.parameters.width;
+        var planeHeight = plane.geometry.parameters.height;
+        var halfWidth = planeWidth / 2;
+        var halfHeight = planeHeight / 2;
+        // Check if player is within the plane's horizontal bounds
+        if (localPlayerPos.x >= -halfWidth && localPlayerPos.x <= halfWidth &&
+            localPlayerPos.y >= -halfHeight && localPlayerPos.y <= halfHeight) {
+            // Calculate the world height at this position on the terrain
+            var terrainPointLocal = new THREE.Vector3(localPlayerPos.x, localPlayerPos.y, 0);
+            var terrainPointWorld = plane.localToWorld(terrainPointLocal);
+            // Check if player should be lifted onto the terrain
+            if (position.y <= terrainPointWorld.y + radius + 0.1) { // Small tolerance
+                return {
+                    collided: true,
+                    terrainHeight: terrainPointWorld.y + radius,
+                    normal: new THREE.Vector3(0, 1, 0) // Always up for terrain
+                };
             }
         }
         return { collided: false };
@@ -2239,11 +2315,16 @@ var Game = /** @class */ (function () {
                 _this.scene.remove(plane);
             });
             _this.collisionPlanes = [];
+            // Clear existing terrain planes
+            _this.terrainPlanes.forEach(function (plane) {
+                _this.scene.remove(plane);
+            });
+            _this.terrainPlanes = [];
             // Add collision planes from config
             console.log('Adding collision planes:', config.collisionPlanes);
             config.collisionPlanes.forEach(function (plane) {
                 console.log('Creating collision plane:', plane);
-                _this.addCollisionPlane(plane.x, plane.y, plane.z, plane.width, plane.height, plane.rotationX, plane.rotationY, plane.rotationZ);
+                _this.addCollisionPlane(plane.x, plane.y, plane.z, plane.width, plane.height, plane.rotationX, plane.rotationY, plane.rotationZ, plane.type || 'wall');
             });
         });
         // Add player damage event handler
@@ -2507,10 +2588,16 @@ var Game = /** @class */ (function () {
         var newZ = player.position.z + movement.z * this.moveSpeed;
         // Create a test position vector
         var testPosition = new THREE.Vector3(newX, player.position.y, newZ);
-        // Check collision planes and handle sliding
+        // Check collision planes and handle different types
         var collision = this.checkCollisionPlanes(testPosition);
-        if (collision.collided && collision.normal) {
-            // Project movement vector onto collision plane
+        if (collision.collided && collision.type === 'terrain' && collision.terrainHeight !== undefined) {
+            // For terrain: move the player and adjust height
+            player.position.x = newX;
+            player.position.z = newZ;
+            player.position.y = collision.terrainHeight;
+        }
+        else if (collision.collided && collision.type === 'wall' && collision.normal) {
+            // For walls: handle sliding
             var movementVector = new THREE.Vector3(movement.x, 0, movement.z);
             var normal = collision.normal;
             // Calculate sliding direction by removing normal component
@@ -2524,17 +2611,32 @@ var Game = /** @class */ (function () {
                 // Test sliding movement for additional collisions
                 var slideTestPosition = new THREE.Vector3(slideX, player.position.y, slideZ);
                 var slideCollision = this.checkCollisionPlanes(slideTestPosition);
-                if (!slideCollision.collided) {
+                if (!slideCollision.collided || slideCollision.type === 'terrain') {
                     player.position.x = slideX;
                     player.position.z = slideZ;
+                    // If we hit terrain while sliding, adjust height
+                    if (slideCollision.collided && slideCollision.type === 'terrain' && slideCollision.terrainHeight !== undefined) {
+                        player.position.y = slideCollision.terrainHeight;
+                    }
+                    else {
+                        player.position.y = 0.5;
+                    }
                 }
             }
         }
         else {
+            // No collision: move normally
             player.position.x = newX;
             player.position.z = newZ;
+            // Check if we're standing on terrain at the new position
+            var terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(newX, player.position.y, newZ));
+            if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
+                player.position.y = terrainCheck.terrainHeight;
+            }
+            else {
+                player.position.y = 0.5;
+            }
         }
-        player.position.y = 0.5;
         // Update player rotation based on movement direction
         if (isMoving) {
             var angle = Math.atan2(movement.x, movement.z);
@@ -4741,6 +4843,17 @@ var ServerConfig = /** @class */ (function () {
                     "rotationX": 0,
                     "rotationY": 0,
                     "rotationZ": 0
+                },
+                {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0,
+                    "width": 5,
+                    "height": 5,
+                    "rotationX": 35,
+                    "rotationY": 0,
+                    "rotationZ": 0,
+                    "type": "terrain"
                 }
             ]
         };

@@ -76,6 +76,7 @@ export interface CollisionPlaneConfig {
     rotationX: number;  // Rotation around X axis in degrees
     rotationY: number;  // Rotation around Y axis in degrees
     rotationZ: number;  // Rotation around Z axis in degrees
+    type?: 'wall' | 'terrain';  // Type of collision plane, defaults to 'wall'
 }
 
 export interface LightingConfig {
