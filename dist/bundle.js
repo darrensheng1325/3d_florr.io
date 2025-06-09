@@ -2014,41 +2014,44 @@ var Game = /** @class */ (function () {
         if (radius === void 0) { radius = 0.5; }
         for (var _i = 0, _a = this.collisionPlanes; _i < _a.length; _i++) {
             var plane = _a[_i];
-            // Get plane's world position and normal
+            // Get plane's world transform
             var planePosition = new THREE.Vector3();
             plane.getWorldPosition(planePosition);
-            var planeNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(plane.quaternion);
-            // Calculate distance from sphere center to plane
+            var worldQuaternion = new THREE.Quaternion();
+            plane.getWorldQuaternion(worldQuaternion);
+            // The default normal for PlaneGeometry is (0, 0, 1). Transform it to world space.
+            var planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(worldQuaternion);
+            // Calculate distance from sphere center to the infinite plane
             var distance = planeNormal.dot(position.clone().sub(planePosition));
-            // If distance is greater than radius, no collision
+            // If the sphere is too far from the plane, no collision
             if (Math.abs(distance) > radius) {
                 continue;
             }
-            // Project sphere center onto plane
-            var projectedPoint = position.clone().sub(planeNormal.multiplyScalar(distance));
-            // Transform projected point to plane's local space
-            var localPoint = projectedPoint.clone().sub(planePosition);
-            localPoint.applyQuaternion(plane.quaternion.invert());
-            // Get plane dimensions
+            // Project sphere center onto the plane to find the closest point on the infinite plane
+            var projectedPoint = position.clone().sub(planeNormal.clone().multiplyScalar(distance));
+            // Transform the projected point to the plane's local space to check against its finite bounds
+            var localPoint = plane.worldToLocal(projectedPoint.clone());
+            // Get plane dimensions. PlaneGeometry is in the XY plane in local space.
             var planeWidth = plane.geometry.parameters.width;
             var planeHeight = plane.geometry.parameters.height;
-            // Check if projected point is within plane bounds, accounting for sphere radius
             var halfWidth = planeWidth / 2;
             var halfHeight = planeHeight / 2;
-            // Calculate closest point on plane to sphere center
+            // Find the closest point on the plane's rectangle to the local projected point
             var closestX = Math.max(-halfWidth, Math.min(halfWidth, localPoint.x));
-            var closestZ = Math.max(-halfHeight, Math.min(halfHeight, localPoint.z));
-            var closestPoint = new THREE.Vector3(closestX, 0, closestZ);
-            // Transform closest point back to world space
-            closestPoint.applyQuaternion(plane.quaternion);
-            closestPoint.add(planePosition);
-            // Check if sphere intersects with closest point
-            var distanceToClosest = position.distanceTo(closestPoint);
+            var closestY = Math.max(-halfHeight, Math.min(halfHeight, localPoint.y));
+            var closestPointLocal = new THREE.Vector3(closestX, closestY, 0);
+            // Transform this closest point from local back to world space
+            var closestPointWorld = plane.localToWorld(closestPointLocal.clone());
+            // Calculate the distance from the sphere's center to this closest point on the rectangle
+            var distanceToClosest = position.distanceTo(closestPointWorld);
+            // If the distance is less than the sphere's radius, there is a collision.
             if (distanceToClosest <= radius) {
-                return true; // Collision detected
+                // The collision normal is the vector from the closest point on the rectangle to the sphere's center.
+                var normal = position.clone().sub(closestPointWorld).normalize();
+                return { collided: true, normal: normal };
             }
         }
-        return false; // No collision
+        return { collided: false };
     };
     Game.prototype.animate = function () {
         var _this = this;
@@ -2504,23 +2507,45 @@ var Game = /** @class */ (function () {
         var newZ = player.position.z + movement.z * this.moveSpeed;
         // Create a test position vector
         var testPosition = new THREE.Vector3(newX, player.position.y, newZ);
-        // Check collision planes before applying movement
-        if (!this.checkCollisionPlanes(testPosition)) {
+        // Check collision planes and handle sliding
+        var collision = this.checkCollisionPlanes(testPosition);
+        if (collision.collided && collision.normal) {
+            // Project movement vector onto collision plane
+            var movementVector = new THREE.Vector3(movement.x, 0, movement.z);
+            var normal = collision.normal;
+            // Calculate sliding direction by removing normal component
+            var normalComponent = movementVector.dot(normal);
+            var slidingVector = movementVector.clone().sub(normal.clone().multiplyScalar(normalComponent));
+            // Normalize sliding vector and apply movement
+            if (slidingVector.length() > 0.001) {
+                slidingVector.normalize();
+                var slideX = player.position.x + slidingVector.x * this.moveSpeed;
+                var slideZ = player.position.z + slidingVector.z * this.moveSpeed;
+                // Test sliding movement for additional collisions
+                var slideTestPosition = new THREE.Vector3(slideX, player.position.y, slideZ);
+                var slideCollision = this.checkCollisionPlanes(slideTestPosition);
+                if (!slideCollision.collided) {
+                    player.position.x = slideX;
+                    player.position.z = slideZ;
+                }
+            }
+        }
+        else {
             player.position.x = newX;
             player.position.z = newZ;
-            player.position.y = 0.5;
-            // Update player rotation based on movement direction
-            if (isMoving) {
-                var angle = Math.atan2(movement.x, movement.z);
-                player.rotation.y = angle - Math.PI / 2;
-            }
-            // Emit position to server
-            this.socket.emit('move', {
-                x: player.position.x,
-                y: player.position.y,
-                z: player.position.z
-            });
         }
+        player.position.y = 0.5;
+        // Update player rotation based on movement direction
+        if (isMoving) {
+            var angle = Math.atan2(movement.x, movement.z);
+            player.rotation.y = angle - Math.PI / 2;
+        }
+        // Emit position to server
+        this.socket.emit('move', {
+            x: player.position.x,
+            y: player.position.y,
+            z: player.position.z
+        });
     };
     Game.prototype.onWindowResize = function () {
         this.camera.aspect = window.innerWidth / window.innerHeight;
