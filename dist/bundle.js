@@ -2118,13 +2118,24 @@ var Game = /** @class */ (function () {
             // Calculate the world height at this position on the terrain
             var terrainPointLocal = new THREE.Vector3(localPlayerPos.x, localPlayerPos.y, 0);
             var terrainPointWorld = plane.localToWorld(terrainPointLocal);
-            // Check if player should be lifted onto the terrain
-            if (position.y <= terrainPointWorld.y + radius + 0.1) { // Small tolerance
-                return {
-                    collided: true,
-                    terrainHeight: terrainPointWorld.y + radius,
-                    normal: new THREE.Vector3(0, 1, 0) // Always up for terrain
-                };
+            var targetHeight = terrainPointWorld.y + radius;
+            // Add tolerance to prevent jittery movement when player is already on terrain
+            var tolerance = 0.2; // Tolerance zone above terrain
+            var belowTolerance = 0.1; // Small tolerance for being below terrain
+            // Only trigger collision if player is below terrain or within small tolerance above
+            if (position.y <= targetHeight + tolerance && position.y >= targetHeight - belowTolerance) {
+                // If player is very close to target height, don't adjust (prevents jitter)
+                if (Math.abs(position.y - targetHeight) < 0.05) {
+                    return { collided: false }; // Player is stable on terrain
+                }
+                // Only lift player if they're significantly below the terrain
+                if (position.y < targetHeight - 0.02) {
+                    return {
+                        collided: true,
+                        terrainHeight: targetHeight,
+                        normal: new THREE.Vector3(0, 1, 0) // Always up for terrain
+                    };
+                }
             }
         }
         return { collided: false };
@@ -2619,8 +2630,35 @@ var Game = /** @class */ (function () {
                         player.position.y = slideCollision.terrainHeight;
                     }
                     else {
+                        // Check if we're still on terrain at the new position
+                        var terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(slideX, player.position.y, slideZ));
+                        if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
+                            player.position.y = terrainCheck.terrainHeight;
+                        }
+                        else {
+                            player.position.y = 0.5;
+                        }
+                    }
+                }
+                else {
+                    // Can't slide, check if we're still on terrain
+                    var terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(player.position.x, player.position.y, player.position.z));
+                    if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
+                        player.position.y = terrainCheck.terrainHeight;
+                    }
+                    else {
                         player.position.y = 0.5;
                     }
+                }
+            }
+            else {
+                // Can't move, check if we're still on terrain
+                var terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(player.position.x, player.position.y, player.position.z));
+                if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
+                    player.position.y = terrainCheck.terrainHeight;
+                }
+                else {
+                    player.position.y = 0.5;
                 }
             }
         }
@@ -2634,6 +2672,7 @@ var Game = /** @class */ (function () {
                 player.position.y = terrainCheck.terrainHeight;
             }
             else {
+                // If not on terrain, fall to ground level
                 player.position.y = 0.5;
             }
         }
