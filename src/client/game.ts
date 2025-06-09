@@ -527,11 +527,11 @@ export class Game {
         let material: THREE.MeshPhongMaterial;
         
         if (type === 'terrain') {
+            // Use the same material properties as the ground plane
             material = new THREE.MeshPhongMaterial({
-                color: 0x8B4513, // Brown color for terrain
+                color: ServerConfig.getInstance().getCurrentConfig().hemisphereLight.groundColor,
                 side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.7
+                shininess: 0  // Make it matte like the ground
             });
         } else {
             material = new THREE.MeshPhongMaterial({
@@ -1034,6 +1034,13 @@ export class Game {
                 this.ground.material.color.setHex(config.hemisphereLight.groundColor);
                 this.ground.material.needsUpdate = true;  // Ensure material updates
             }
+            // Update terrain plane colors to match ground
+            this.terrainPlanes.forEach(plane => {
+                if (plane.material instanceof THREE.MeshPhongMaterial) {
+                    plane.material.color.setHex(config.hemisphereLight.groundColor);
+                    plane.material.needsUpdate = true;
+                }
+            });
             // Update grid color if gridConfig is present
             if (config.gridConfig && this.gridHelper) {
                 // Remove old grid helper

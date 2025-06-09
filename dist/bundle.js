@@ -2010,11 +2010,11 @@ var Game = /** @class */ (function () {
         var geometry = new THREE.PlaneGeometry(width, height);
         var material;
         if (type === 'terrain') {
+            // Use the same material properties as the ground plane
             material = new THREE.MeshPhongMaterial({
-                color: 0x8B4513, // Brown color for terrain
+                color: server_config_1.ServerConfig.getInstance().getCurrentConfig().hemisphereLight.groundColor,
                 side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.7
+                shininess: 0 // Make it matte like the ground
             });
         }
         else {
@@ -2416,6 +2416,13 @@ var Game = /** @class */ (function () {
                 _this.ground.material.color.setHex(config.hemisphereLight.groundColor);
                 _this.ground.material.needsUpdate = true; // Ensure material updates
             }
+            // Update terrain plane colors to match ground
+            _this.terrainPlanes.forEach(function (plane) {
+                if (plane.material instanceof THREE.MeshPhongMaterial) {
+                    plane.material.color.setHex(config.hemisphereLight.groundColor);
+                    plane.material.needsUpdate = true;
+                }
+            });
             // Update grid color if gridConfig is present
             if (config.gridConfig && _this.gridHelper) {
                 // Remove old grid helper

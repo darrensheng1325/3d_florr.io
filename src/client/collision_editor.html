@@ -289,10 +289,11 @@
                 
                 if (plane.type === 'terrain') {
                     material = new THREE.MeshPhongMaterial({
-                        color: 0x8B4513, // Brown color for terrain
-                        transparent: true,
-                        opacity: 0.7,
-                        side: THREE.DoubleSide
+                        color: 0x00ff00, // Green color to match ground plane
+                        transparent: false,
+                        opacity: 1.0,
+                        side: THREE.DoubleSide,
+                        shininess: 0  // Make it matte like the ground
                     });
                 } else {
                     material = new THREE.MeshPhongMaterial({
@@ -403,7 +404,7 @@
                 this.planes.forEach((plane, index) => {
                     if (plane.type === 'terrain') {
                         plane.mesh.material.color.setHex(
-                            index === this.selectedPlane ? 0xD2691E : 0x8B4513
+                            index === this.selectedPlane ? 0x00CC00 : 0x00ff00  // Green shades for terrain
                         );
                     } else {
                         plane.mesh.material.color.setHex(
