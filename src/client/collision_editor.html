@@ -297,11 +297,11 @@
                     });
                 } else {
                     material = new THREE.MeshPhongMaterial({
-                        color: 0x0000ff,
-                        transparent: true,
-                        opacity: 0.5,
-                        side: THREE.DoubleSide
-                    });
+                    color: 0x0000ff,
+                    transparent: true,
+                    opacity: 0.5,
+                    side: THREE.DoubleSide
+                });
                 }
                 
                 const mesh = new THREE.Mesh(geometry, material);
@@ -407,9 +407,9 @@
                             index === this.selectedPlane ? 0x00CC00 : 0x00ff00  // Green shades for terrain
                         );
                     } else {
-                        plane.mesh.material.color.setHex(
-                            index === this.selectedPlane ? 0xff0000 : 0x0000ff
-                        );
+                    plane.mesh.material.color.setHex(
+                        index === this.selectedPlane ? 0xff0000 : 0x0000ff
+                    );
                     }
                 });
             }

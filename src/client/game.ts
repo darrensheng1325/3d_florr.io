@@ -673,9 +673,22 @@ export class Game {
         
         // Check terrain collisions
         for (const plane of this.terrainPlanes) {
-            const collision = this.checkTerrainCollision(plane, position, radius);
-            if (collision.collided) {
-                return { ...collision, type: 'terrain' };
+            // Check for walking on top of terrain
+            const terrainCollision = this.checkTerrainCollision(plane, position, radius);
+            if (terrainCollision.collided) {
+                return { ...terrainCollision, type: 'terrain' };
+            }
+            
+            // Check for bumping into terrain from below or sides (as a wall)
+            const wallCollision = this.checkSinglePlaneCollision(plane, position, radius);
+            if (wallCollision.collided) {
+                const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(plane.quaternion);
+                
+                // If the collision normal is opposite to the plane's "up" direction,
+                // it means we are hitting it from underneath.
+                if (wallCollision.normal!.dot(planeNormal) > 0.1) {
+                    return { ...wallCollision, type: 'wall' };
+                }
             }
         }
         
@@ -739,6 +752,7 @@ export class Game {
         plane.getWorldPosition(planePosition);
         const worldQuaternion = new THREE.Quaternion();
         plane.getWorldQuaternion(worldQuaternion);
+        const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(worldQuaternion);
 
         // Transform player position to plane's local space
         const localPlayerPos = plane.worldToLocal(position.clone());
@@ -758,23 +772,15 @@ export class Game {
             const terrainPointWorld = plane.localToWorld(terrainPointLocal);
             const targetHeight = terrainPointWorld.y + radius;
             
-            // Add tolerance to prevent jittery movement when player is already on terrain
-            const tolerance = 0.2; // Tolerance zone above terrain
-            const belowTolerance = 0.1; // Small tolerance for being below terrain
-            
-            // Only trigger collision if player is below terrain or within small tolerance above
-            if (position.y <= targetHeight + tolerance && position.y >= targetHeight - belowTolerance) {
-                // If player is very close to target height, don't adjust (prevents jitter)
-                if (Math.abs(position.y - targetHeight) < 0.05) {
-                    return { collided: false }; // Player is stable on terrain
-                }
-                
-                // Only lift player if they're significantly below the terrain
-                if (position.y < targetHeight - 0.02) {
+            // Player is inside the vertical bounds of the plane.
+            // Check if player is at or above the terrain surface.
+            if (position.y >= targetHeight - radius) { // Check from below
+                // If the player is on top of the terrain, we should adjust their height
+                if (position.y < targetHeight + 0.2) {
                     return { 
                         collided: true, 
                         terrainHeight: targetHeight,
-                        normal: new THREE.Vector3(0, 1, 0) // Always up for terrain
+                        normal: new THREE.Vector3(0, 1, 0)
                     };
                 }
             }
@@ -1407,8 +1413,8 @@ export class Game {
             player.position.x = newX;
             player.position.z = newZ;
             player.position.y = collision.terrainHeight;
-        } else if (collision.collided && collision.type === 'wall' && collision.normal) {
-            // For walls: handle sliding
+        } else if (collision.collided && (collision.type === 'wall' || collision.type === 'terrain') && collision.normal) {
+            // For walls or terrain hit from below: handle sliding
             const movementVector = new THREE.Vector3(movement.x, 0, movement.z);
             const normal = collision.normal;
             

@@ -567,7 +567,7 @@ function checkTerrainCollision(planeConfig: CollisionPlaneConfig, position: { x:
             }
             
             if (position.y < targetHeight - 0.02) {
-                return {
+    return {
                     collided: true,
                     terrainHeight: targetHeight,
                     normal: { x: 0, y: 1, z: 0 }
@@ -716,7 +716,7 @@ function updateEnemies() {
                         
                         // Apply collision-aware movement
                         const newPosition = applyEnemyMovement(enemy, newX, newZ);
-                        enemy.position = newPosition;
+                            enemy.position = newPosition;
 
                         // Calculate rotation to face player
                         const targetRotation = getEnemyRotation(enemy, Math.atan2(dx, dz));
@@ -904,7 +904,7 @@ function updateEnemies() {
 
                     // Apply collision-aware movement
                     const newPosition = applyEnemyMovement(enemy, newX, newZ);
-                    enemy.position = newPosition;
+                        enemy.position = newPosition;
 
                     // Calculate rotation to face movement direction
                     const rotation = Math.atan2(dx, dz);
