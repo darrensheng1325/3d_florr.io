@@ -730,41 +730,77 @@ function plural(ms, msAbs, n, name) {
 /***/ }),
 
 /***/ 493:
-/***/ ((__unused_webpack_module, exports) => {
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AccountManager = void 0;
+var login_1 = __webpack_require__(451);
 var AccountManager = /** @class */ (function () {
     function AccountManager() {
+        this.accountId = null;
+        this.username = null;
         this.inventory = {
             petals: [],
             collectedItems: []
         };
-        // Try to load existing account ID from localStorage
-        var storedId = localStorage.getItem(AccountManager.ACCOUNT_ID_KEY);
-        if (!storedId) {
-            // Generate new ID if none exists
-            var username = prompt("Enter a username");
-            if (username) {
-                var username_lower = username.toLowerCase().replace(/ /g, '_');
-                var total_characters = 1;
-                for (var i = 0; i < username_lower.length; i++) {
-                    var character = username_lower.charCodeAt(i);
-                    total_characters *= character;
-                }
-                storedId = total_characters.toString();
-                localStorage.setItem(AccountManager.ACCOUNT_ID_KEY, storedId);
-            }
-            else {
-                console.error("No username provided");
-            }
-        }
-        this.accountId = storedId || '';
+        this.isLoggedIn = false;
+        this.loginUI = new login_1.LoginUI();
+        this.loadStoredAccount();
     }
+    AccountManager.prototype.loadStoredAccount = function () {
+        // Try to load existing account from localStorage
+        var storedId = localStorage.getItem(AccountManager.ACCOUNT_ID_KEY);
+        var storedUsername = localStorage.getItem(AccountManager.USERNAME_KEY);
+        if (storedId && storedUsername) {
+            this.accountId = storedId;
+            this.username = storedUsername;
+            this.isLoggedIn = true;
+        }
+    };
     AccountManager.prototype.getAccountId = function () {
-        return this.accountId;
+        return this.accountId || '';
+    };
+    AccountManager.prototype.getUsername = function () {
+        return this.username || 'Guest';
+    };
+    AccountManager.prototype.hasAccount = function () {
+        return this.isLoggedIn && !!this.accountId;
+    };
+    AccountManager.prototype.showLoginIfNeeded = function () {
+        var _this = this;
+        return new Promise(function (resolve) {
+            if (_this.hasAccount()) {
+                resolve({
+                    accountId: _this.getAccountId(),
+                    username: _this.getUsername()
+                });
+                return;
+            }
+            _this.loginUI.show({
+                onLogin: function (accountId, username) {
+                    _this.accountId = accountId;
+                    _this.username = username;
+                    _this.isLoggedIn = true;
+                    // Only store persistent accounts (not guests)
+                    if (!accountId.startsWith('guest_')) {
+                        localStorage.setItem(AccountManager.ACCOUNT_ID_KEY, accountId);
+                        localStorage.setItem(AccountManager.USERNAME_KEY, username);
+                    }
+                    resolve({ accountId: accountId, username: username });
+                }
+            });
+        });
+    };
+    AccountManager.prototype.logout = function () {
+        this.accountId = null;
+        this.username = null;
+        this.isLoggedIn = false;
+        this.inventory = { petals: [], collectedItems: [] };
+        // Clear stored account
+        localStorage.removeItem(AccountManager.ACCOUNT_ID_KEY);
+        localStorage.removeItem(AccountManager.USERNAME_KEY);
     };
     AccountManager.prototype.getInventory = function () {
         return this.inventory;
@@ -808,7 +844,13 @@ var AccountManager = /** @class */ (function () {
     AccountManager.prototype.clearCollectedItems = function () {
         this.inventory.collectedItems = [];
     };
+    AccountManager.prototype.destroy = function () {
+        if (this.loginUI) {
+            this.loginUI.destroy();
+        }
+    };
     AccountManager.ACCOUNT_ID_KEY = 'florr_account_id';
+    AccountManager.USERNAME_KEY = 'florr_username';
     return AccountManager;
 }());
 exports.AccountManager = AccountManager;
@@ -1577,6 +1619,42 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
+    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (g && (g = 0, op[0] && (_ = 0)), _) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -1735,13 +1813,8 @@ var Game = /** @class */ (function () {
         this.ground.position.y = 0;
         this.scene.add(this.ground);
         this.init();
-        // Connect to server immediately for spectating
-        this.socket = (0, socket_io_client_1.io)('/', {
-            query: {
-                accountId: this.accountManager.getAccountId()
-            }
-        });
-        this.setupSpectatorEvents();
+        // Initialize spectator connection for title screen
+        this.initializeSpectatorConnection();
         // Setup wave events
         this.setupWaveEvents();
         // Setup server connection monitoring
@@ -1749,6 +1822,25 @@ var Game = /** @class */ (function () {
         // Create settings button
         this.createSettingsButton();
     }
+    Game.prototype.initializeSpectatorConnection = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            var accountId;
+            return __generator(this, function (_a) {
+                accountId = 'spectator_' + Math.random().toString(36).substr(2, 9);
+                if (this.accountManager.hasAccount()) {
+                    accountId = this.accountManager.getAccountId();
+                }
+                // Connect to server immediately for spectating with temporary ID
+                this.socket = (0, socket_io_client_1.io)('/', {
+                    query: {
+                        accountId: accountId
+                    }
+                });
+                this.setupSpectatorEvents();
+                return [2 /*return*/];
+            });
+        });
+    };
     Game.prototype.determinePetalDrop = function (enemyRarity) {
         // 50% chance to drop a petal
         if (Math.random() > 0.5) {
@@ -1875,9 +1967,33 @@ var Game = /** @class */ (function () {
         // Add space key listener
         document.addEventListener('keydown', function (event) {
             if (event.code === 'Space' && !_this.isGameStarted) {
-                _this.startGame();
+                _this.handleStartGame();
             }
         });
+        // Add login button
+        var loginButton = document.createElement('button');
+        loginButton.style.cssText = "\n            position: fixed;\n            top: 60%;\n            left: 50%;\n            transform: translateX(-50%);\n            padding: 15px 30px;\n            font-size: 18px;\n            font-weight: bold;\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n            color: white;\n            border: none;\n            border-radius: 12px;\n            cursor: pointer;\n            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);\n            transition: all 0.3s ease;\n            z-index: 1000;\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n        ";
+        loginButton.textContent = 'Play Game';
+        loginButton.addEventListener('click', function () { return _this.handleStartGame(); });
+        loginButton.addEventListener('mouseover', function () {
+            loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
+            loginButton.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.3)';
+        });
+        loginButton.addEventListener('mouseout', function () {
+            loginButton.style.transform = 'translateX(-50%)';
+            loginButton.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+        });
+        document.body.appendChild(loginButton);
+        // Store reference to remove later
+        window.titleLoginButton = loginButton;
+        // Show account status if logged in
+        if (this.accountManager.hasAccount()) {
+            var accountStatus = document.createElement('div');
+            accountStatus.style.cssText = "\n                position: fixed;\n                top: 70%;\n                left: 50%;\n                transform: translateX(-50%);\n                text-align: center;\n                color: #ffffff;\n                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n                font-size: 14px;\n                background: rgba(0, 0, 0, 0.5);\n                padding: 10px 20px;\n                border-radius: 8px;\n                z-index: 1000;\n            ";
+            accountStatus.innerHTML = "\n                <div>Welcome back, <strong>".concat(this.accountManager.getUsername(), "</strong>!</div>\n                <div style=\"margin-top: 5px; font-size: 12px; opacity: 0.8;\">Your progress will be saved automatically</div>\n            ");
+            document.body.appendChild(accountStatus);
+            window.titleAccountStatus = accountStatus;
+        }
         // Update canvas size
         this.onWindowResize();
         // Animate title screen
@@ -1900,23 +2016,63 @@ var Game = /** @class */ (function () {
                 _this.titleCtx.fillStyle = '#ffffff';
                 _this.titleCtx.strokeStyle = '#000000';
                 _this.titleCtx.lineWidth = 5;
-                _this.titleCtx.strokeText('florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
-                _this.titleCtx.fillText('florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
+                _this.titleCtx.strokeText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
+                _this.titleCtx.fillText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
                 // Draw subtitle with floating animation
                 _this.titleCtx.font = '24px Arial';
-                _this.titleCtx.fillStyle = '#000000';
+                _this.titleCtx.fillStyle = '#ffffff';
+                _this.titleCtx.strokeStyle = '#000000';
+                _this.titleCtx.lineWidth = 2;
                 var yOffset = Math.sin(Date.now() * 0.002) * 5;
-                _this.titleCtx.fillText('Press SPACE to start', _this.titleCanvas.width / 2, _this.titleCanvas.height / 2 + yOffset);
+                var subtitleText = 'Press SPACE or click Play Game to start';
+                _this.titleCtx.strokeText(subtitleText, _this.titleCanvas.width / 2, _this.titleCanvas.height / 2 + yOffset);
+                _this.titleCtx.fillText(subtitleText, _this.titleCanvas.width / 2, _this.titleCanvas.height / 2 + yOffset);
             }
         };
         animate();
     };
-    Game.prototype.startGame = function () {
+    Game.prototype.handleStartGame = function () {
+        return __awaiter(this, void 0, void 0, function () {
+            var accountInfo, error_1;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        if (this.isGameStarted)
+                            return [2 /*return*/];
+                        _a.label = 1;
+                    case 1:
+                        _a.trys.push([1, 3, , 4]);
+                        return [4 /*yield*/, this.accountManager.showLoginIfNeeded()];
+                    case 2:
+                        accountInfo = _a.sent();
+                        // Now start the game with the account
+                        this.startGameWithAccount(accountInfo.accountId, accountInfo.username);
+                        return [3 /*break*/, 4];
+                    case 3:
+                        error_1 = _a.sent();
+                        console.error('Login failed:', error_1);
+                        return [3 /*break*/, 4];
+                    case 4: return [2 /*return*/];
+                }
+            });
+        });
+    };
+    Game.prototype.startGameWithAccount = function (accountId, username) {
         var _this = this;
         this.isGameStarted = true;
         // Remove title canvas if it exists and is attached
         if (this.titleCanvas && this.titleCanvas.parentNode === document.body) {
             document.body.removeChild(this.titleCanvas);
+        }
+        // Remove login button
+        var loginButton = window.titleLoginButton;
+        if (loginButton && loginButton.parentNode) {
+            loginButton.parentNode.removeChild(loginButton);
+        }
+        // Remove account status
+        var accountStatus = window.titleAccountStatus;
+        if (accountStatus && accountStatus.parentNode) {
+            accountStatus.parentNode.removeChild(accountStatus);
         }
         // Remove title from document head
         var title = document.querySelector('title');
@@ -1925,7 +2081,7 @@ var Game = /** @class */ (function () {
         }
         // Update title
         var newTitle = document.createElement('title');
-        newTitle.textContent = '3dflower.io | game';
+        newTitle.textContent = "3D Florr.io | ".concat(username);
         document.head.appendChild(newTitle);
         // Show wave UI
         this.waveUI.show();
@@ -1952,13 +2108,13 @@ var Game = /** @class */ (function () {
             item.remove();
         });
         this.items.clear();
-        // Reconnect to server to get a fresh connection
+        // Reconnect to server to get a fresh connection with actual account
         if (this.socket) {
             this.socket.disconnect();
         }
         this.socket = (0, socket_io_client_1.io)('/', {
             query: {
-                accountId: this.accountManager.getAccountId()
+                accountId: accountId
             }
         });
         // Setup game scene
@@ -2993,37 +3149,24 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.respawnPlayer = function () {
         var _this = this;
-        var _a;
-        if (!((_a = this.socket) === null || _a === void 0 ? void 0 : _a.id))
-            return;
-        // Hide death screen
-        this.hideDeathScreen();
-        // Clear game state
-        this.players.forEach(function (player) {
-            _this.scene.remove(player);
-        });
-        this.players.clear();
-        this.enemies.forEach(function (enemy) {
-            enemy.remove();
-        });
-        this.enemies.clear();
-        this.playerInventories.forEach(function (inventory) {
-            inventory.clear();
-        });
+        // Set title to back to spectating
+        var title = document.querySelector('title');
+        if (title) {
+            title.textContent = '3dflower.io | title screen';
+        }
+        // Remove inventory UI and other game elements
         this.playerInventories.clear();
-        this.playerHealthBars.forEach(function (healthBar) {
-            healthBar.remove();
-        });
-        this.playerHealthBars.clear();
-        // Reset game state
+        this.hideDeathScreen();
+        // Stop the game
         this.isGameStarted = false;
-        // Reconnect for spectating
+        // Reconnect for spectating with temporary spectator ID
         if (this.socket) {
             this.socket.disconnect();
         }
+        var spectatorId = 'spectator_' + Math.random().toString(36).substr(2, 9);
         this.socket = (0, socket_io_client_1.io)('/', {
             query: {
-                accountId: this.accountManager.getAccountId()
+                accountId: spectatorId
             }
         });
         this.setupSpectatorEvents();
@@ -3041,6 +3184,29 @@ var Game = /** @class */ (function () {
         if (!ctx)
             throw new Error('Could not get 2D context');
         this.titleCtx = ctx;
+        // Add login button for respawn
+        var loginButton = document.createElement('button');
+        loginButton.style.cssText = "\n            position: fixed;\n            top: 60%;\n            left: 50%;\n            transform: translateX(-50%);\n            padding: 15px 30px;\n            font-size: 18px;\n            font-weight: bold;\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n            color: white;\n            border: none;\n            border-radius: 12px;\n            cursor: pointer;\n            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);\n            transition: all 0.3s ease;\n            z-index: 1000;\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n        ";
+        loginButton.textContent = 'Play Again';
+        loginButton.addEventListener('click', function () { return _this.handleStartGame(); });
+        loginButton.addEventListener('mouseover', function () {
+            loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
+            loginButton.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.3)';
+        });
+        loginButton.addEventListener('mouseout', function () {
+            loginButton.style.transform = 'translateX(-50%)';
+            loginButton.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+        });
+        document.body.appendChild(loginButton);
+        window.titleLoginButton = loginButton;
+        // Show account status if logged in
+        if (this.accountManager.hasAccount()) {
+            var accountStatus = document.createElement('div');
+            accountStatus.style.cssText = "\n                position: fixed;\n                top: 70%;\n                left: 50%;\n                transform: translateX(-50%);\n                text-align: center;\n                color: #ffffff;\n                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n                font-size: 14px;\n                background: rgba(0, 0, 0, 0.5);\n                padding: 10px 20px;\n                border-radius: 8px;\n                z-index: 1000;\n            ";
+            accountStatus.innerHTML = "\n                <div>Welcome back, <strong>".concat(this.accountManager.getUsername(), "</strong>!</div>\n                <div style=\"margin-top: 5px; font-size: 12px; opacity: 0.8;\">Your progress will be saved automatically</div>\n            ");
+            document.body.appendChild(accountStatus);
+            window.titleAccountStatus = accountStatus;
+        }
         // Update canvas size
         this.onWindowResize();
         // Hide wave UI
@@ -3050,21 +3216,27 @@ var Game = /** @class */ (function () {
         var animate = function () {
             if (_this.isGameStarted)
                 return;
-            // Clear the canvas
+            // Clear and draw title text
             _this.titleCtx.clearRect(0, 0, _this.titleCanvas.width, _this.titleCanvas.height);
-            // Draw title text
-            _this.titleCtx.font = 'bold 64px Arial';
-            _this.titleCtx.fillStyle = '#ffffff';
+            // Draw title
+            _this.titleCtx.font = 'bold 72px Arial';
             _this.titleCtx.textAlign = 'center';
-            _this.titleCtx.textBaseline = 'middle';
-            _this.titleCtx.fillText('florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 2 - 40);
+            _this.titleCtx.fillStyle = '#ffffff';
+            _this.titleCtx.strokeStyle = '#000000';
+            _this.titleCtx.lineWidth = 5;
+            _this.titleCtx.strokeText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
+            _this.titleCtx.fillText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
             // Draw subtitle with floating animation
             _this.titleCtx.font = '24px Arial';
-            _this.titleCtx.fillStyle = '#000000';
-            var floatOffset = Math.sin(Date.now() * 0.003) * 5;
-            _this.titleCtx.fillText('Press SPACE to start', _this.titleCanvas.width / 2, _this.titleCanvas.height / 2 + 40 + floatOffset);
+            _this.titleCtx.fillStyle = '#ffffff';
+            _this.titleCtx.strokeStyle = '#000000';
+            _this.titleCtx.lineWidth = 2;
+            var yOffset = Math.sin(Date.now() * 0.002) * 5;
+            var subtitleText = 'Press SPACE or click Play Again to start';
+            _this.titleCtx.strokeText(subtitleText, _this.titleCanvas.width / 2, _this.titleCanvas.height / 2 + yOffset);
+            _this.titleCtx.fillText(subtitleText, _this.titleCanvas.width / 2, _this.titleCanvas.height / 2 + yOffset);
             // Rotate camera
-            angle += 0.002;
+            angle += 0.001;
             _this.camera.position.x = Math.sin(angle) * 15;
             _this.camera.position.z = Math.cos(angle) * 15;
             _this.camera.position.y = 15;
@@ -4260,6 +4432,216 @@ var Item = /** @class */ (function () {
     return Item;
 }());
 exports.Item = Item;
+
+
+/***/ }),
+
+/***/ 451:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.LoginUI = void 0;
+var LoginUI = /** @class */ (function () {
+    function LoginUI() {
+        this.isVisible = false;
+        this.onLoginCallback = null;
+        this.onCancelCallback = null;
+        this.overlay = this.createLoginOverlay();
+        document.body.appendChild(this.overlay);
+    }
+    LoginUI.prototype.createLoginOverlay = function () {
+        var _this = this;
+        var overlay = document.createElement('div');
+        overlay.style.cssText = "\n            position: fixed;\n            top: 0;\n            left: 0;\n            width: 100%;\n            height: 100%;\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n            display: none;\n            justify-content: center;\n            align-items: center;\n            z-index: 10000;\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n        ";
+        var loginContainer = document.createElement('div');
+        loginContainer.style.cssText = "\n            background: rgba(255, 255, 255, 0.95);\n            border-radius: 20px;\n            padding: 40px;\n            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);\n            backdrop-filter: blur(10px);\n            max-width: 400px;\n            width: 90%;\n            text-align: center;\n            animation: slideIn 0.3s ease-out;\n        ";
+        // Add CSS animation
+        var style = document.createElement('style');
+        style.textContent = "\n            @keyframes slideIn {\n                from {\n                    opacity: 0;\n                    transform: translateY(-30px);\n                }\n                to {\n                    opacity: 1;\n                    transform: translateY(0);\n                }\n            }\n            \n            .login-input {\n                width: 100%;\n                padding: 15px;\n                margin: 10px 0;\n                border: 2px solid #e1e5e9;\n                border-radius: 12px;\n                font-size: 16px;\n                outline: none;\n                transition: all 0.3s ease;\n                box-sizing: border-box;\n            }\n            \n            .login-input:focus {\n                border-color: #667eea;\n                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);\n            }\n            \n            .login-button {\n                width: 100%;\n                padding: 15px;\n                margin: 10px 0;\n                border: none;\n                border-radius: 12px;\n                font-size: 16px;\n                font-weight: 600;\n                cursor: pointer;\n                transition: all 0.3s ease;\n                text-transform: uppercase;\n                letter-spacing: 1px;\n            }\n            \n            .login-button-primary {\n                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n                color: white;\n            }\n            \n            .login-button-primary:hover {\n                transform: translateY(-2px);\n                box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);\n            }\n            \n            .login-button-secondary {\n                background: #f8f9fa;\n                color: #6c757d;\n                border: 2px solid #e9ecef;\n            }\n            \n            .login-button-secondary:hover {\n                background: #e9ecef;\n                transform: translateY(-1px);\n            }\n            \n            .login-divider {\n                margin: 25px 0;\n                position: relative;\n                text-align: center;\n            }\n            \n            .login-divider::before {\n                content: '';\n                position: absolute;\n                top: 50%;\n                left: 0;\n                right: 0;\n                height: 1px;\n                background: #e1e5e9;\n            }\n            \n            .login-divider span {\n                background: rgba(255, 255, 255, 0.95);\n                padding: 0 20px;\n                color: #6c757d;\n                font-weight: 500;\n            }\n        ";
+        document.head.appendChild(style);
+        // Title
+        var title = document.createElement('h1');
+        title.style.cssText = "\n            margin: 0 0 30px 0;\n            color: #2c3e50;\n            font-size: 28px;\n            font-weight: 700;\n        ";
+        title.textContent = '3D Florr.io';
+        loginContainer.appendChild(title);
+        // Subtitle
+        var subtitle = document.createElement('p');
+        subtitle.style.cssText = "\n            margin: 0 0 30px 0;\n            color: #6c757d;\n            font-size: 16px;\n        ";
+        subtitle.textContent = 'Enter your credentials to join the game';
+        loginContainer.appendChild(subtitle);
+        // Username input
+        var usernameInput = document.createElement('input');
+        usernameInput.className = 'login-input';
+        usernameInput.type = 'text';
+        usernameInput.placeholder = 'Enter your username';
+        usernameInput.maxLength = 20;
+        usernameInput.addEventListener('input', function () {
+            // Remove special characters and limit length
+            usernameInput.value = usernameInput.value.replace(/[^a-zA-Z0-9_\-]/g, '');
+        });
+        loginContainer.appendChild(usernameInput);
+        // Password input (optional for future use)
+        var passwordInput = document.createElement('input');
+        passwordInput.className = 'login-input';
+        passwordInput.type = 'password';
+        passwordInput.placeholder = 'Enter your password (optional)';
+        passwordInput.maxLength = 50;
+        loginContainer.appendChild(passwordInput);
+        // Login button
+        var loginButton = document.createElement('button');
+        loginButton.className = 'login-button login-button-primary';
+        loginButton.textContent = 'Join Game';
+        loginButton.addEventListener('click', function () {
+            _this.handleLogin(usernameInput.value.trim(), passwordInput.value);
+        });
+        loginContainer.appendChild(loginButton);
+        // Divider
+        var divider = document.createElement('div');
+        divider.className = 'login-divider';
+        divider.innerHTML = '<span>or</span>';
+        loginContainer.appendChild(divider);
+        // Guest button
+        var guestButton = document.createElement('button');
+        guestButton.className = 'login-button login-button-secondary';
+        guestButton.textContent = 'Play as Guest';
+        guestButton.addEventListener('click', function () {
+            _this.handleGuestLogin();
+        });
+        loginContainer.appendChild(guestButton);
+        // Account info
+        var accountInfo = document.createElement('div');
+        accountInfo.style.cssText = "\n            margin-top: 25px;\n            padding: 15px;\n            background: rgba(102, 126, 234, 0.1);\n            border-radius: 10px;\n            border-left: 4px solid #667eea;\n        ";
+        accountInfo.innerHTML = "\n            <div style=\"color: #2c3e50; font-weight: 600; margin-bottom: 5px;\">Account Information</div>\n            <div style=\"color: #6c757d; font-size: 14px; line-height: 1.4;\">\n                Your progress, inventory, and statistics will be saved automatically.\n                Accounts are identified by username - no email required.\n            </div>\n        ";
+        loginContainer.appendChild(accountInfo);
+        // Handle Enter key
+        var handleEnter = function (e) {
+            if (e.key === 'Enter') {
+                _this.handleLogin(usernameInput.value.trim(), passwordInput.value);
+            }
+        };
+        usernameInput.addEventListener('keydown', handleEnter);
+        passwordInput.addEventListener('keydown', handleEnter);
+        overlay.appendChild(loginContainer);
+        return overlay;
+    };
+    LoginUI.prototype.handleLogin = function (username, password) {
+        if (!username) {
+            this.showError('Please enter a username');
+            return;
+        }
+        if (username.length < 3) {
+            this.showError('Username must be at least 3 characters long');
+            return;
+        }
+        if (username.length > 20) {
+            this.showError('Username must be 20 characters or less');
+            return;
+        }
+        // Generate account ID from username (similar to current system but more robust)
+        var accountId = this.generateAccountId(username);
+        // Store the username for display purposes
+        localStorage.setItem('florr_username', username);
+        localStorage.setItem('florr_account_id', accountId);
+        if (this.onLoginCallback) {
+            this.onLoginCallback(accountId, username);
+        }
+        this.hide();
+    };
+    LoginUI.prototype.handleGuestLogin = function () {
+        // Generate a temporary guest account
+        var guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        var guestName = 'Guest_' + Math.random().toString(36).substr(2, 6);
+        // Don't store guest accounts in localStorage
+        if (this.onLoginCallback) {
+            this.onLoginCallback(guestId, guestName);
+        }
+        this.hide();
+    };
+    LoginUI.prototype.generateAccountId = function (username) {
+        // Create a more robust account ID generation
+        var baseString = username.toLowerCase().replace(/[^a-z0-9]/g, '');
+        var hash = 0;
+        for (var i = 0; i < baseString.length; i++) {
+            var char = baseString.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        // Make it positive and add prefix
+        return 'user_' + Math.abs(hash).toString();
+    };
+    LoginUI.prototype.showError = function (message) {
+        // Remove any existing error
+        var existingError = this.overlay.querySelector('.login-error');
+        if (existingError) {
+            existingError.remove();
+        }
+        var errorDiv = document.createElement('div');
+        errorDiv.className = 'login-error';
+        errorDiv.style.cssText = "\n            background: #fee;\n            color: #c33;\n            padding: 10px;\n            border-radius: 8px;\n            margin: 15px 0;\n            border: 1px solid #fcc;\n            font-size: 14px;\n        ";
+        errorDiv.textContent = message;
+        var container = this.overlay.querySelector('div');
+        if (container) {
+            var submitButton = container.querySelector('.login-button-primary');
+            if (submitButton) {
+                container.insertBefore(errorDiv, submitButton);
+            }
+        }
+        // Remove error after 5 seconds
+        setTimeout(function () {
+            if (errorDiv.parentNode) {
+                errorDiv.remove();
+            }
+        }, 5000);
+    };
+    LoginUI.prototype.show = function (options) {
+        this.onLoginCallback = options.onLogin;
+        this.onCancelCallback = options.onCancel || null;
+        this.overlay.style.display = 'flex';
+        this.isVisible = true;
+        // Focus on username input
+        var usernameInput = this.overlay.querySelector('input[type="text"]');
+        if (usernameInput) {
+            setTimeout(function () { return usernameInput.focus(); }, 100);
+        }
+    };
+    LoginUI.prototype.hide = function () {
+        this.overlay.style.display = 'none';
+        this.isVisible = false;
+        this.onLoginCallback = null;
+        this.onCancelCallback = null;
+        // Clear any errors
+        var error = this.overlay.querySelector('.login-error');
+        if (error) {
+            error.remove();
+        }
+    };
+    LoginUI.prototype.isShowing = function () {
+        return this.isVisible;
+    };
+    LoginUI.prototype.destroy = function () {
+        if (this.overlay.parentNode) {
+            this.overlay.parentNode.removeChild(this.overlay);
+        }
+    };
+    // Static helper methods for account management
+    LoginUI.getStoredUsername = function () {
+        return localStorage.getItem('florr_username');
+    };
+    LoginUI.getStoredAccountId = function () {
+        return localStorage.getItem('florr_account_id');
+    };
+    LoginUI.hasStoredAccount = function () {
+        return !!(this.getStoredAccountId() && this.getStoredUsername());
+    };
+    LoginUI.clearStoredAccount = function () {
+        localStorage.removeItem('florr_username');
+        localStorage.removeItem('florr_account_id');
+    };
+    return LoginUI;
+}());
+exports.LoginUI = LoginUI;
 
 
 /***/ }),

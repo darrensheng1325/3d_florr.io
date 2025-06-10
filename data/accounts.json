@@ -1,7 +1,7 @@
 {
   "21531027375": {
     "id": "21531027375",
-    "lastSeen": 1749511815362,
+    "lastSeen": 1749591372607,
     "totalXP": 450,
     "highestWave": 1,
     "inventory": {
@@ -13,15 +13,15 @@
         },
         {
           "type": "tetrahedron",
-          "amount": 18
+          "amount": 22
         },
         {
           "type": "stinger",
-          "amount": 4
+          "amount": 5
         },
         {
           "type": "pea",
-          "amount": 3
+          "amount": 23
         },
         {
           "type": "leaf",
@@ -34,6 +34,38 @@
       "totalDeaths": 3,
       "totalPlayTime": 88574,
       "bestXP": 150
+    }
+  },
+  "spectator_cvdw1q3ac": {
+    "id": "spectator_cvdw1q3ac",
+    "lastSeen": 1749591630581,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "user_109804663": {
+    "id": "user_109804663",
+    "lastSeen": 1749591639337,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
     }
   }
 }

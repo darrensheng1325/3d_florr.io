@@ -186,13 +186,8 @@ export class Game {
 
         this.init();
         
-        // Connect to server immediately for spectating
-        this.socket = io('/', {
-            query: {
-                accountId: this.accountManager.getAccountId()
-            }
-        });
-        this.setupSpectatorEvents();
+        // Initialize spectator connection for title screen
+        this.initializeSpectatorConnection();
 
         // Setup wave events
         this.setupWaveEvents();
@@ -202,6 +197,23 @@ export class Game {
 
         // Create settings button
         this.createSettingsButton();
+    }
+
+    private async initializeSpectatorConnection(): Promise<void> {
+        // Check if user has account, but don't force login yet
+        let accountId = 'spectator_' + Math.random().toString(36).substr(2, 9);
+        
+        if (this.accountManager.hasAccount()) {
+            accountId = this.accountManager.getAccountId();
+        }
+
+        // Connect to server immediately for spectating with temporary ID
+        this.socket = io('/', {
+            query: {
+                accountId: accountId
+            }
+        });
+        this.setupSpectatorEvents();
     }
 
     private determinePetalDrop(enemyRarity: Rarity): { shouldDrop: boolean; dropRarity: Rarity; petalType: PetalType } {
@@ -365,9 +377,69 @@ export class Game {
         // Add space key listener
         document.addEventListener('keydown', (event) => {
             if (event.code === 'Space' && !this.isGameStarted) {
-                this.startGame();
+                this.handleStartGame();
             }
         });
+
+        // Add login button
+        const loginButton = document.createElement('button');
+        loginButton.style.cssText = `
+            position: fixed;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        `;
+        loginButton.textContent = 'Play Game';
+        loginButton.addEventListener('click', () => this.handleStartGame());
+        loginButton.addEventListener('mouseover', () => {
+            loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
+            loginButton.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.3)';
+        });
+        loginButton.addEventListener('mouseout', () => {
+            loginButton.style.transform = 'translateX(-50%)';
+            loginButton.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+        });
+        document.body.appendChild(loginButton);
+
+        // Store reference to remove later
+        (window as any).titleLoginButton = loginButton;
+
+        // Show account status if logged in
+        if (this.accountManager.hasAccount()) {
+            const accountStatus = document.createElement('div');
+            accountStatus.style.cssText = `
+                position: fixed;
+                top: 70%;
+                left: 50%;
+                transform: translateX(-50%);
+                text-align: center;
+                color: #ffffff;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 14px;
+                background: rgba(0, 0, 0, 0.5);
+                padding: 10px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+            `;
+            accountStatus.innerHTML = `
+                <div>Welcome back, <strong>${this.accountManager.getUsername()}</strong>!</div>
+                <div style="margin-top: 5px; font-size: 12px; opacity: 0.8;">Your progress will be saved automatically</div>
+            `;
+            document.body.appendChild(accountStatus);
+            (window as any).titleAccountStatus = accountStatus;
+        }
 
         // Update canvas size
         this.onWindowResize();
@@ -396,25 +468,55 @@ export class Game {
                 this.titleCtx.fillStyle = '#ffffff';
                 this.titleCtx.strokeStyle = '#000000';
                 this.titleCtx.lineWidth = 5;
-                this.titleCtx.strokeText('florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
-                this.titleCtx.fillText('florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+                this.titleCtx.strokeText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+                this.titleCtx.fillText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
                 
                 // Draw subtitle with floating animation
                 this.titleCtx.font = '24px Arial';
-                this.titleCtx.fillStyle = '#000000';
+                this.titleCtx.fillStyle = '#ffffff';
+                this.titleCtx.strokeStyle = '#000000';
+                this.titleCtx.lineWidth = 2;
                 const yOffset = Math.sin(Date.now() * 0.002) * 5;
-                this.titleCtx.fillText('Press SPACE to start', this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
+                const subtitleText = 'Press SPACE or click Play Game to start';
+                this.titleCtx.strokeText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
+                this.titleCtx.fillText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
             }
         };
         animate();
     }
 
-    private startGame(): void {
+    private async handleStartGame(): Promise<void> {
+        if (this.isGameStarted) return;
+
+        try {
+            // Show login if needed and wait for result
+            const accountInfo = await this.accountManager.showLoginIfNeeded();
+            
+            // Now start the game with the account
+            this.startGameWithAccount(accountInfo.accountId, accountInfo.username);
+        } catch (error) {
+            console.error('Login failed:', error);
+        }
+    }
+
+    private startGameWithAccount(accountId: string, username: string): void {
         this.isGameStarted = true;
         
         // Remove title canvas if it exists and is attached
         if (this.titleCanvas && this.titleCanvas.parentNode === document.body) {
             document.body.removeChild(this.titleCanvas);
+        }
+
+        // Remove login button
+        const loginButton = (window as any).titleLoginButton;
+        if (loginButton && loginButton.parentNode) {
+            loginButton.parentNode.removeChild(loginButton);
+        }
+
+        // Remove account status
+        const accountStatus = (window as any).titleAccountStatus;
+        if (accountStatus && accountStatus.parentNode) {
+            accountStatus.parentNode.removeChild(accountStatus);
         }
 
         // Remove title from document head
@@ -425,7 +527,7 @@ export class Game {
 
         // Update title
         const newTitle = document.createElement('title');
-        newTitle.textContent = '3dflower.io | game';
+        newTitle.textContent = `3D Florr.io | ${username}`;
         document.head.appendChild(newTitle);
 
         // Show wave UI
@@ -460,13 +562,13 @@ export class Game {
         });
         this.items.clear();
 
-        // Reconnect to server to get a fresh connection
+        // Reconnect to server to get a fresh connection with actual account
         if (this.socket) {
             this.socket.disconnect();
         }
         this.socket = io('/', {
             query: {
-                accountId: this.accountManager.getAccountId()
+                accountId: accountId
             }
         });
 
@@ -1708,42 +1810,27 @@ export class Game {
     }
 
     private respawnPlayer(): void {
-        if (!this.socket?.id) return;
-        
-        // Hide death screen
-        this.hideDeathScreen();
-        
-        // Clear game state
-        this.players.forEach((player) => {
-            this.scene.remove(player);
-        });
-        this.players.clear();
+        // Set title to back to spectating
+        const title = document.querySelector('title');
+        if (title) {
+            title.textContent = '3dflower.io | title screen';
+        }
 
-        this.enemies.forEach((enemy) => {
-            enemy.remove();
-        });
-        this.enemies.clear();
-
-        this.playerInventories.forEach((inventory) => {
-            inventory.clear();
-        });
+        // Remove inventory UI and other game elements
         this.playerInventories.clear();
+        this.hideDeathScreen();
 
-        this.playerHealthBars.forEach((healthBar) => {
-            healthBar.remove();
-        });
-        this.playerHealthBars.clear();
-
-        // Reset game state
+        // Stop the game
         this.isGameStarted = false;
         
-        // Reconnect for spectating
+        // Reconnect for spectating with temporary spectator ID
         if (this.socket) {
             this.socket.disconnect();
         }
+        const spectatorId = 'spectator_' + Math.random().toString(36).substr(2, 9);
         this.socket = io('/', {
             query: {
-                accountId: this.accountManager.getAccountId()
+                accountId: spectatorId
             }
         });
         this.setupSpectatorEvents();
@@ -1764,6 +1851,64 @@ export class Game {
         if (!ctx) throw new Error('Could not get 2D context');
         this.titleCtx = ctx;
 
+        // Add login button for respawn
+        const loginButton = document.createElement('button');
+        loginButton.style.cssText = `
+            position: fixed;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        `;
+        loginButton.textContent = 'Play Again';
+        loginButton.addEventListener('click', () => this.handleStartGame());
+        loginButton.addEventListener('mouseover', () => {
+            loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
+            loginButton.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.3)';
+        });
+        loginButton.addEventListener('mouseout', () => {
+            loginButton.style.transform = 'translateX(-50%)';
+            loginButton.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+        });
+        document.body.appendChild(loginButton);
+        (window as any).titleLoginButton = loginButton;
+
+        // Show account status if logged in
+        if (this.accountManager.hasAccount()) {
+            const accountStatus = document.createElement('div');
+            accountStatus.style.cssText = `
+                position: fixed;
+                top: 70%;
+                left: 50%;
+                transform: translateX(-50%);
+                text-align: center;
+                color: #ffffff;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 14px;
+                background: rgba(0, 0, 0, 0.5);
+                padding: 10px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+            `;
+            accountStatus.innerHTML = `
+                <div>Welcome back, <strong>${this.accountManager.getUsername()}</strong>!</div>
+                <div style="margin-top: 5px; font-size: 12px; opacity: 0.8;">Your progress will be saved automatically</div>
+            `;
+            document.body.appendChild(accountStatus);
+            (window as any).titleAccountStatus = accountStatus;
+        }
+
         // Update canvas size
         this.onWindowResize();
 
@@ -1775,24 +1920,30 @@ export class Game {
         const animate = () => {
             if (this.isGameStarted) return;
 
-            // Clear the canvas
+            // Clear and draw title text
             this.titleCtx.clearRect(0, 0, this.titleCanvas.width, this.titleCanvas.height);
-
-            // Draw title text
-            this.titleCtx.font = 'bold 64px Arial';
-            this.titleCtx.fillStyle = '#ffffff';
+            
+            // Draw title
+            this.titleCtx.font = 'bold 72px Arial';
             this.titleCtx.textAlign = 'center';
-            this.titleCtx.textBaseline = 'middle';
-            this.titleCtx.fillText('florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 2 - 40);
-
+            this.titleCtx.fillStyle = '#ffffff';
+            this.titleCtx.strokeStyle = '#000000';
+            this.titleCtx.lineWidth = 5;
+            this.titleCtx.strokeText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+            this.titleCtx.fillText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+            
             // Draw subtitle with floating animation
             this.titleCtx.font = '24px Arial';
-            this.titleCtx.fillStyle = '#000000';
-            const floatOffset = Math.sin(Date.now() * 0.003) * 5;
-            this.titleCtx.fillText('Press SPACE to start', this.titleCanvas.width / 2, this.titleCanvas.height / 2 + 40 + floatOffset);
+            this.titleCtx.fillStyle = '#ffffff';
+            this.titleCtx.strokeStyle = '#000000';
+            this.titleCtx.lineWidth = 2;
+            const yOffset = Math.sin(Date.now() * 0.002) * 5;
+            const subtitleText = 'Press SPACE or click Play Again to start';
+            this.titleCtx.strokeText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
+            this.titleCtx.fillText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
 
             // Rotate camera
-            angle += 0.002;
+            angle += 0.001;
             this.camera.position.x = Math.sin(angle) * 15;
             this.camera.position.z = Math.cos(angle) * 15;
             this.camera.position.y = 15;
