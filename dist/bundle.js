@@ -5240,7 +5240,8 @@ var ServerConfig = /** @class */ (function () {
                     "height": 5,
                     "rotationX": 0,
                     "rotationY": 90,
-                    "rotationZ": 0
+                    "rotationZ": 0,
+                    "type": "wall"
                 },
                 {
                     "x": 0,
@@ -5250,17 +5251,8 @@ var ServerConfig = /** @class */ (function () {
                     "height": 5,
                     "rotationX": 0,
                     "rotationY": 180,
-                    "rotationZ": 0
-                },
-                {
-                    "x": -40,
-                    "y": 0,
-                    "z": 0,
-                    "width": 80,
-                    "height": 5,
-                    "rotationX": 0,
-                    "rotationY": 270,
-                    "rotationZ": 0
+                    "rotationZ": 0,
+                    "type": "wall"
                 },
                 {
                     "x": 0,
@@ -5270,19 +5262,152 @@ var ServerConfig = /** @class */ (function () {
                     "height": 5,
                     "rotationX": 0,
                     "rotationY": 0,
-                    "rotationZ": 0
+                    "rotationZ": 0,
+                    "type": "wall"
+                },
+                {
+                    "x": -40,
+                    "y": 0,
+                    "z": 0,
+                    "width": 80,
+                    "height": 5,
+                    "rotationX": 0,
+                    "rotationY": 270,
+                    "rotationZ": 0,
+                    "type": "wall"
+                },
+                {
+                    "x": -20,
+                    "y": 1.1,
+                    "z": 0,
+                    "width": 10,
+                    "height": 5,
+                    "rotationX": 90,
+                    "rotationY": 30,
+                    "rotationZ": 90,
+                    "type": "terrain"
+                },
+                {
+                    "x": -20,
+                    "y": 0.5,
+                    "z": -20,
+                    "width": 5,
+                    "height": 5,
+                    "rotationX": 90,
+                    "rotationY": 0,
+                    "rotationZ": 90,
+                    "type": "terrain"
+                },
+                {
+                    "x": -18,
+                    "y": 0.5,
+                    "z": -20,
+                    "width": 5,
+                    "height": 5,
+                    "rotationX": 90,
+                    "rotationY": -30,
+                    "rotationZ": 90,
+                    "type": "terrain"
+                },
+                {
+                    "x": -22,
+                    "y": 0.5,
+                    "z": -20,
+                    "width": 5,
+                    "height": 5,
+                    "rotationX": 90,
+                    "rotationY": 30,
+                    "rotationZ": 90,
+                    "type": "terrain"
+                },
+                {
+                    "x": 30,
+                    "y": -0.5,
+                    "z": 30,
+                    "width": 10,
+                    "height": 10,
+                    "rotationX": 45,
+                    "rotationY": 270,
+                    "rotationZ": 90,
+                    "type": "wall"
+                },
+                {
+                    "x": 30,
+                    "y": -0.5,
+                    "z": 30,
+                    "width": 10,
+                    "height": 10,
+                    "rotationX": 45,
+                    "rotationY": 45,
+                    "rotationZ": 45,
+                    "type": "wall"
                 },
                 {
                     "x": 0,
-                    "y": 0,
+                    "y": -0.5,
                     "z": 0,
-                    "width": 5,
-                    "height": 5,
-                    "rotationX": 35,
+                    "width": 80,
+                    "height": 80,
+                    "rotationX": 90,
                     "rotationY": 0,
-                    "rotationZ": 0,
+                    "rotationZ": 90,
                     "type": "terrain"
-                }
+                },
+                {
+                    "x": -20,
+                    "y": -0.5,
+                    "z": 30,
+                    "width": 10,
+                    "height": 10,
+                    "rotationX": 45,
+                    "rotationY": 45,
+                    "rotationZ": 45,
+                    "type": "terrain"
+                },
+                {
+                    "x": -20,
+                    "y": 2.5,
+                    "z": 32,
+                    "width": 10,
+                    "height": 10,
+                    "rotationX": 45,
+                    "rotationY": 45,
+                    "rotationZ": 45,
+                    "type": "terrain"
+                },
+                {
+                    "x": -16.5,
+                    "y": 8.5,
+                    "z": 32,
+                    "width": 10,
+                    "height": 10,
+                    "rotationX": 45,
+                    "rotationY": 45,
+                    "rotationZ": 45,
+                    "type": "terrain"
+                },
+                {
+                    "x": 20,
+                    "y": 0.5,
+                    "z": -20,
+                    "width": 10,
+                    "height": 5,
+                    "rotationX": 120,
+                    "rotationY": 1,
+                    "rotationZ": 60,
+                    "type": "terrain"
+                },
+                {
+                    "x": 20,
+                    "y": 3.5,
+                    "z": -25,
+                    "width": 10,
+                    "height": 5,
+                    "rotationX": 120,
+                    "rotationY": 1,
+                    "rotationZ": 60,
+                    "type": "terrain"
+                },
             ]
         };
         this.mobConfig = {

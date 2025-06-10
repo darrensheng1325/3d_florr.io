@@ -54,12 +54,17 @@
   },
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1749591639337,
+    "lastSeen": 1749596800308,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
       "petals": [],
-      "collectedItems": []
+      "collectedItems": [
+        {
+          "type": "cube",
+          "amount": 1
+        }
+      ]
     },
     "stats": {
       "totalKills": 0,
