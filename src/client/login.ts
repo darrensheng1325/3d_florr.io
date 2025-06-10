@@ -142,7 +142,7 @@ export class LoginUI {
             font-size: 28px;
             font-weight: 700;
         `;
-        title.textContent = '3D Florr.io';
+        title.textContent = '3dflower.io';
         loginContainer.appendChild(title);
 
         // Subtitle

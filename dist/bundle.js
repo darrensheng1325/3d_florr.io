@@ -1972,8 +1972,8 @@ var Game = /** @class */ (function () {
         });
         // Add login button
         var loginButton = document.createElement('button');
-        loginButton.style.cssText = "\n            position: fixed;\n            top: 60%;\n            left: 50%;\n            transform: translateX(-50%);\n            padding: 15px 30px;\n            font-size: 18px;\n            font-weight: bold;\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n            color: white;\n            border: none;\n            border-radius: 12px;\n            cursor: pointer;\n            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);\n            transition: all 0.3s ease;\n            z-index: 1000;\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n        ";
-        loginButton.textContent = 'Play Game';
+        loginButton.style.cssText = "\n            position: fixed;\n            top: 60%;\n            left: 50%;\n            transform: translateX(-50%);\n            padding: 15px 30px;\n            font-size: 18px;\n            font-weight: bold;\n            background: linear-gradient(135deg, #00FF00 0%, #AAFF00 100%);\n            color: white;\n            border: none;\n            border-radius: 12px;\n            cursor: pointer;\n            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);\n            transition: all 0.3s ease;\n            z-index: 1000;\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n        ";
+        loginButton.textContent = 'Start';
         loginButton.addEventListener('click', function () { return _this.handleStartGame(); });
         loginButton.addEventListener('mouseover', function () {
             loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
@@ -2016,8 +2016,8 @@ var Game = /** @class */ (function () {
                 _this.titleCtx.fillStyle = '#ffffff';
                 _this.titleCtx.strokeStyle = '#000000';
                 _this.titleCtx.lineWidth = 5;
-                _this.titleCtx.strokeText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
-                _this.titleCtx.fillText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
+                _this.titleCtx.strokeText('3dflower.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
+                _this.titleCtx.fillText('3dflower.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
                 // Draw subtitle with floating animation
                 _this.titleCtx.font = '24px Arial';
                 _this.titleCtx.fillStyle = '#ffffff';
@@ -2081,7 +2081,7 @@ var Game = /** @class */ (function () {
         }
         // Update title
         var newTitle = document.createElement('title');
-        newTitle.textContent = "3D Florr.io | ".concat(username);
+        newTitle.textContent = "3dflower.io | ".concat(username);
         document.head.appendChild(newTitle);
         // Show wave UI
         this.waveUI.show();
@@ -3224,8 +3224,8 @@ var Game = /** @class */ (function () {
             _this.titleCtx.fillStyle = '#ffffff';
             _this.titleCtx.strokeStyle = '#000000';
             _this.titleCtx.lineWidth = 5;
-            _this.titleCtx.strokeText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
-            _this.titleCtx.fillText('3D Florr.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
+            _this.titleCtx.strokeText('3dflower.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
+            _this.titleCtx.fillText('3dflower.io', _this.titleCanvas.width / 2, _this.titleCanvas.height / 3);
             // Draw subtitle with floating animation
             _this.titleCtx.font = '24px Arial';
             _this.titleCtx.fillStyle = '#ffffff';
@@ -4464,7 +4464,7 @@ var LoginUI = /** @class */ (function () {
         // Title
         var title = document.createElement('h1');
         title.style.cssText = "\n            margin: 0 0 30px 0;\n            color: #2c3e50;\n            font-size: 28px;\n            font-weight: 700;\n        ";
-        title.textContent = '3D Florr.io';
+        title.textContent = '3dflower.io';
         loginContainer.appendChild(title);
         // Subtitle
         var subtitle = document.createElement('p');

@@ -67,5 +67,37 @@
       "totalPlayTime": 0,
       "bestXP": 0
     }
+  },
+  "spectator_tvn7oximk": {
+    "id": "spectator_tvn7oximk",
+    "lastSeen": 1749591770141,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "spectator_n2gnmmik7": {
+    "id": "spectator_n2gnmmik7",
+    "lastSeen": 1749591919308,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
   }
 }

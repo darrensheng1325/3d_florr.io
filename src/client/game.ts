@@ -391,7 +391,7 @@ export class Game {
             padding: 15px 30px;
             font-size: 18px;
             font-weight: bold;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #00FF00 0%, #AAFF00 100%);
             color: white;
             border: none;
             border-radius: 12px;
@@ -401,7 +401,7 @@ export class Game {
             z-index: 1000;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         `;
-        loginButton.textContent = 'Play Game';
+        loginButton.textContent = 'Start';
         loginButton.addEventListener('click', () => this.handleStartGame());
         loginButton.addEventListener('mouseover', () => {
             loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
@@ -468,8 +468,8 @@ export class Game {
                 this.titleCtx.fillStyle = '#ffffff';
                 this.titleCtx.strokeStyle = '#000000';
                 this.titleCtx.lineWidth = 5;
-                this.titleCtx.strokeText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
-                this.titleCtx.fillText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+                this.titleCtx.strokeText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+                this.titleCtx.fillText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
                 
                 // Draw subtitle with floating animation
                 this.titleCtx.font = '24px Arial';
@@ -527,7 +527,7 @@ export class Game {
 
         // Update title
         const newTitle = document.createElement('title');
-        newTitle.textContent = `3D Florr.io | ${username}`;
+        newTitle.textContent = `3dflower.io | ${username}`;
         document.head.appendChild(newTitle);
 
         // Show wave UI
@@ -1929,8 +1929,8 @@ export class Game {
             this.titleCtx.fillStyle = '#ffffff';
             this.titleCtx.strokeStyle = '#000000';
             this.titleCtx.lineWidth = 5;
-            this.titleCtx.strokeText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
-            this.titleCtx.fillText('3D Florr.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+            this.titleCtx.strokeText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
+            this.titleCtx.fillText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
             
             // Draw subtitle with floating animation
             this.titleCtx.font = '24px Arial';
