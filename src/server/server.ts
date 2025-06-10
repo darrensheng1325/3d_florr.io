@@ -355,25 +355,238 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
     });
 }
 
-// Add this helper function to constrain position within map bounds
-function constrainToMap(position: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
-    return {
-        x: Math.max(-MAP_SIZE, Math.min(MAP_SIZE, position.x)),
-        y: position.y,
-        z: Math.max(-MAP_SIZE, Math.min(MAP_SIZE, position.z))
-    };
+// Collision detection functions for enemies
+function checkEnemyCollisionPlanes(position: { x: number, y: number, z: number }, radius: number = 0.5): { collided: boolean; normal?: { x: number, y: number, z: number }; type?: 'wall' | 'terrain'; terrainHeight?: number } {
+    const config = ServerConfig.getInstance().getCurrentConfig();
+    const collisionPlanes = config.collisionPlanes;
+    
+    // Check wall collisions first
+    for (const planeConfig of collisionPlanes) {
+        if (planeConfig.type !== 'terrain') {
+            const collision = checkSinglePlaneCollision(planeConfig, position, radius);
+            if (collision.collided) {
+                return { ...collision, type: 'wall' };
+            }
+        }
+    }
+    
+    // Check terrain collisions
+    for (const planeConfig of collisionPlanes) {
+        if (planeConfig.type === 'terrain') {
+            const collision = checkTerrainCollision(planeConfig, position, radius);
+            if (collision.collided) {
+                return { ...collision, type: 'terrain' };
+            }
+        }
+    }
+    
+    return { collided: false };
 }
 
-// Add helper function to calculate avoidance vector
+function checkSinglePlaneCollision(planeConfig: CollisionPlaneConfig, position: { x: number, y: number, z: number }, radius: number): { collided: boolean; normal?: { x: number, y: number, z: number } } {
+    // Create transformation matrices manually
+    const radX = planeConfig.rotationX * Math.PI / 180;
+    const radY = planeConfig.rotationY * Math.PI / 180;
+    const radZ = planeConfig.rotationZ * Math.PI / 180;
+    
+    // Calculate plane normal (0, 0, 1) rotated by plane rotations
+    const cosX = Math.cos(radX), sinX = Math.sin(radX);
+    const cosY = Math.cos(radY), sinY = Math.sin(radY);
+    const cosZ = Math.cos(radZ), sinZ = Math.sin(radZ);
+    
+    // Apply rotations in order: X, Y, Z
+    let nx = 0, ny = 0, nz = 1;
+    
+    // Rotate around X
+    let tempY = ny * cosX - nz * sinX;
+    nz = ny * sinX + nz * cosX;
+    ny = tempY;
+    
+    // Rotate around Y
+    let tempX = nx * cosY + nz * sinY;
+    nz = -nx * sinY + nz * cosY;
+    nx = tempX;
+    
+    // Rotate around Z
+    tempX = nx * cosZ - ny * sinZ;
+    ny = nx * sinZ + ny * cosZ;
+    nx = tempX;
+    
+    const planeNormal = { x: nx, y: ny, z: nz };
+    
+    // Calculate distance from sphere center to the infinite plane
+    const dx = position.x - planeConfig.x;
+    const dy = position.y - planeConfig.y;
+    const dz = position.z - planeConfig.z;
+    const distance = planeNormal.x * dx + planeNormal.y * dy + planeNormal.z * dz;
+    
+    // If the sphere is too far from the plane, no collision
+    if (Math.abs(distance) > radius) {
+        return { collided: false };
+    }
+    
+    // Project sphere center onto the plane
+    const projectedX = position.x - planeNormal.x * distance;
+    const projectedY = position.y - planeNormal.y * distance;
+    const projectedZ = position.z - planeNormal.z * distance;
+    
+    // Transform to plane's local space for bounds checking
+    const localX = projectedX - planeConfig.x;
+    const localY = projectedY - planeConfig.y;
+    const localZ = projectedZ - planeConfig.z;
+    
+    // Apply inverse rotations to get local coordinates
+    // Inverse rotation order: Z, Y, X
+    let lx = localX, ly = localY, lz = localZ;
+    
+    // Inverse Z rotation
+    tempX = lx * cosZ + ly * sinZ;
+    ly = -lx * sinZ + ly * cosZ;
+    lx = tempX;
+    
+    // Inverse Y rotation
+    tempX = lx * cosY - lz * sinY;
+    lz = lx * sinY + lz * cosY;
+    lx = tempX;
+    
+    // Inverse X rotation
+    tempY = ly * cosX + lz * sinX;
+    lz = -ly * sinX + lz * cosX;
+    ly = tempY;
+    
+    // Check bounds
+    const halfWidth = planeConfig.width / 2;
+    const halfHeight = planeConfig.height / 2;
+    
+    const closestX = Math.max(-halfWidth, Math.min(halfWidth, lx));
+    const closestY = Math.max(-halfHeight, Math.min(halfHeight, ly));
+    
+    // Transform closest point back to world space
+    let cwx = closestX, cwy = closestY, cwz = 0;
+    
+    // Apply rotations: X, Y, Z
+    tempY = cwy * cosX - cwz * sinX;
+    cwz = cwy * sinX + cwz * cosX;
+    cwy = tempY;
+    
+    tempX = cwx * cosY + cwz * sinY;
+    cwz = -cwx * sinY + cwz * cosY;
+    cwx = tempX;
+    
+    tempX = cwx * cosZ - cwy * sinZ;
+    cwy = cwx * sinZ + cwy * cosZ;
+    cwx = tempX;
+    
+    const closestWorldX = cwx + planeConfig.x;
+    const closestWorldY = cwy + planeConfig.y;
+    const closestWorldZ = cwz + planeConfig.z;
+    
+    // Check distance to closest point
+    const distX = position.x - closestWorldX;
+    const distY = position.y - closestWorldY;
+    const distZ = position.z - closestWorldZ;
+    const distanceToClosest = Math.sqrt(distX * distX + distY * distY + distZ * distZ);
+    
+    if (distanceToClosest <= radius) {
+        const length = Math.sqrt(distX * distX + distY * distY + distZ * distZ);
+        const normal = {
+            x: length > 0 ? distX / length : 0,
+            y: length > 0 ? distY / length : 0,
+            z: length > 0 ? distZ / length : 0
+        };
+        return { collided: true, normal };
+    }
+    
+    return { collided: false };
+}
+
+function checkTerrainCollision(planeConfig: CollisionPlaneConfig, position: { x: number, y: number, z: number }, radius: number): { collided: boolean; normal?: { x: number, y: number, z: number }; terrainHeight?: number } {
+    // Similar transformation logic as wall collision but simplified for terrain
+    const radX = planeConfig.rotationX * Math.PI / 180;
+    const radY = planeConfig.rotationY * Math.PI / 180;
+    const radZ = planeConfig.rotationZ * Math.PI / 180;
+    
+    const cosX = Math.cos(radX), sinX = Math.sin(radX);
+    const cosY = Math.cos(radY), sinY = Math.sin(radY);
+    const cosZ = Math.cos(radZ), sinZ = Math.sin(radZ);
+    
+    // Transform player position to plane's local space
+    const localX = position.x - planeConfig.x;
+    const localY = position.y - planeConfig.y;
+    const localZ = position.z - planeConfig.z;
+    
+    // Apply inverse rotations
+    let lx = localX, ly = localY, lz = localZ;
+    
+    // Inverse Z rotation
+    let tempX = lx * cosZ + ly * sinZ;
+    ly = -lx * sinZ + ly * cosZ;
+    lx = tempX;
+    
+    // Inverse Y rotation
+    tempX = lx * cosY - lz * sinY;
+    lz = lx * sinY + lz * cosY;
+    lx = tempX;
+    
+    // Inverse X rotation
+    let tempY = ly * cosX + lz * sinX;
+    lz = -ly * sinX + lz * cosX;
+    ly = tempY;
+    
+    const halfWidth = planeConfig.width / 2;
+    const halfHeight = planeConfig.height / 2;
+    
+    // Check if within horizontal bounds
+    if (lx >= -halfWidth && lx <= halfWidth && ly >= -halfHeight && ly <= halfHeight) {
+        // Calculate world height at this position
+        let terrainX = lx, terrainY = ly, terrainZ = 0;
+        
+        // Transform back to world space
+        tempY = terrainY * cosX - terrainZ * sinX;
+        terrainZ = terrainY * sinX + terrainZ * cosX;
+        terrainY = tempY;
+        
+        tempX = terrainX * cosY + terrainZ * sinY;
+        terrainZ = -terrainX * sinY + terrainZ * cosY;
+        terrainX = tempX;
+        
+        tempX = terrainX * cosZ - terrainY * sinZ;
+        terrainY = terrainX * sinZ + terrainY * cosZ;
+        terrainX = tempX;
+        
+        const terrainWorldY = terrainY + planeConfig.y;
+        const targetHeight = terrainWorldY + radius;
+        
+        // Add tolerance for terrain collision
+        const tolerance = 0.2;
+        const belowTolerance = 0.1;
+        
+        if (position.y <= targetHeight + tolerance && position.y >= targetHeight - belowTolerance) {
+            if (Math.abs(position.y - targetHeight) < 0.05) {
+                return { collided: false };
+            }
+            
+            if (position.y < targetHeight - 0.02) {
+                return {
+                    collided: true,
+                    terrainHeight: targetHeight,
+                    normal: { x: 0, y: 1, z: 0 }
+                };
+            }
+        }
+    }
+    
+    return { collided: false };
+}
+
+// Remove the old boundary avoidance function
 function calculateAvoidanceVector(enemy: Enemy): { x: number, z: number } {
     const avoidanceRadius = 1.5; // Radius to start avoiding other enemies
     const avoidanceForce = 0.02; // Strength of avoidance
-    const boundaryAvoidanceRadius = 2; // Start avoiding boundaries when this close
-    const boundaryForce = 0.03; // Stronger force for boundary avoidance
     let avoidX = 0;
     let avoidZ = 0;
 
-    // Avoid other enemies
+    // Only avoid other enemies, remove boundary avoidance
     enemies.forEach((otherEnemy) => {
         if (otherEnemy.id !== enemy.id) {
             const dx = enemy.position.x - otherEnemy.position.x;
@@ -389,27 +602,67 @@ function calculateAvoidanceVector(enemy: Enemy): { x: number, z: number } {
         }
     });
 
-    // Avoid map boundaries
-    const distanceToLeft = enemy.position.x + MAP_SIZE;
-    const distanceToRight = MAP_SIZE - enemy.position.x;
-    const distanceToBottom = enemy.position.z + MAP_SIZE;
-    const distanceToTop = MAP_SIZE - enemy.position.z;
-
-    // Add boundary avoidance forces
-    if (distanceToLeft < boundaryAvoidanceRadius) {
-        avoidX += boundaryForce * (1 - distanceToLeft / boundaryAvoidanceRadius);
-    }
-    if (distanceToRight < boundaryAvoidanceRadius) {
-        avoidX -= boundaryForce * (1 - distanceToRight / boundaryAvoidanceRadius);
-    }
-    if (distanceToBottom < boundaryAvoidanceRadius) {
-        avoidZ += boundaryForce * (1 - distanceToBottom / boundaryAvoidanceRadius);
-    }
-    if (distanceToTop < boundaryAvoidanceRadius) {
-        avoidZ -= boundaryForce * (1 - distanceToTop / boundaryAvoidanceRadius);
-    }
-
     return { x: avoidX, z: avoidZ };
+}
+
+// Helper function to apply movement with collision detection
+function applyEnemyMovement(enemy: Enemy, newX: number, newZ: number): { x: number, y: number, z: number } {
+    const radius = BASE_ENEMY_STATS[enemy.type].size;
+    const testPosition = { x: newX, y: enemy.position.y, z: newZ };
+    
+    const collision = checkEnemyCollisionPlanes(testPosition, radius);
+    
+    if (collision.collided && collision.type === 'terrain' && collision.terrainHeight !== undefined) {
+        // On terrain: move and adjust height
+        return { x: newX, y: collision.terrainHeight, z: newZ };
+    } else if (collision.collided && collision.type === 'wall' && collision.normal) {
+        // Hit wall: try sliding
+        const movementX = newX - enemy.position.x;
+        const movementZ = newZ - enemy.position.z;
+        const normal = collision.normal;
+        
+        // Calculate sliding direction
+        const normalComponent = movementX * normal.x + movementZ * normal.z;
+        const slideX = movementX - normal.x * normalComponent;
+        const slideZ = movementZ - normal.z * normalComponent;
+        
+        if (Math.abs(slideX) > 0.001 || Math.abs(slideZ) > 0.001) {
+            const slideNewX = enemy.position.x + slideX;
+            const slideNewZ = enemy.position.z + slideZ;
+            const slideTest = { x: slideNewX, y: enemy.position.y, z: slideNewZ };
+            const slideCollision = checkEnemyCollisionPlanes(slideTest, radius);
+            
+            if (!slideCollision.collided || slideCollision.type === 'terrain') {
+                if (slideCollision.collided && slideCollision.type === 'terrain' && slideCollision.terrainHeight !== undefined) {
+                    return { x: slideNewX, y: slideCollision.terrainHeight, z: slideNewZ };
+                } else {
+                    // Check if still on terrain
+                    const terrainCheck = checkEnemyCollisionPlanes({ x: slideNewX, y: enemy.position.y, z: slideNewZ }, radius);
+                    if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
+                        return { x: slideNewX, y: terrainCheck.terrainHeight, z: slideNewZ };
+                    } else {
+                        return { x: slideNewX, y: BASE_ENEMY_STATS[enemy.type].size, z: slideNewZ };
+                    }
+                }
+            }
+        }
+        
+        // Can't move, stay in place but check terrain
+        const terrainCheck = checkEnemyCollisionPlanes(enemy.position, radius);
+        if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
+            return { x: enemy.position.x, y: terrainCheck.terrainHeight, z: enemy.position.z };
+        } else {
+            return { x: enemy.position.x, y: BASE_ENEMY_STATS[enemy.type].size, z: enemy.position.z };
+        }
+    } else {
+        // No collision: move normally but check for terrain
+        const terrainCheck = checkEnemyCollisionPlanes(testPosition, radius);
+        if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
+            return { x: newX, y: terrainCheck.terrainHeight, z: newZ };
+        } else {
+            return { x: newX, y: BASE_ENEMY_STATS[enemy.type].size, z: newZ };
+        }
+    }
 }
 
 // Helper function to get rotation based on enemy type and angle
@@ -458,16 +711,12 @@ function updateEnemies() {
                     // Move towards player if not too close
                     if (distance > 0.5) {
                         const speed = enemyStats.speed;
-                        const newPosition = {
-                            x: enemy.position.x + (dx / distance) * speed,
-                            y: enemy.position.y,
-                            z: enemy.position.z + (dz / distance) * speed
-                        };
-
-                        // Only update position if within bounds
-                        if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
-                            enemy.position = newPosition;
-                        }
+                        const newX = enemy.position.x + (dx / distance) * speed;
+                        const newZ = enemy.position.z + (dz / distance) * speed;
+                        
+                        // Apply collision-aware movement
+                        const newPosition = applyEnemyMovement(enemy, newX, newZ);
+                        enemy.position = newPosition;
 
                         // Calculate rotation to face player
                         const targetRotation = getEnemyRotation(enemy, Math.atan2(dx, dz));
@@ -553,18 +802,20 @@ function updateEnemies() {
                 // Calculate avoidance
                 const avoidance = calculateAvoidanceVector(enemy);
                 
-                const newPosition = {
-                    x: enemy.position.x + baseX + sineWave * Math.cos(enemy.wanderAngle + Math.PI/2) + avoidance.x,
-                    y: enemy.position.y,
-                    z: enemy.position.z + baseZ + sineWave * Math.sin(enemy.wanderAngle + Math.PI/2) + avoidance.z
-                };
+                const newX = enemy.position.x + baseX + sineWave * Math.cos(enemy.wanderAngle + Math.PI/2) + avoidance.x;
+                const newZ = enemy.position.z + baseZ + sineWave * Math.sin(enemy.wanderAngle + Math.PI/2) + avoidance.z;
 
-                // Check if new position would be out of bounds
-                if (newPosition.x <= -MAP_SIZE || newPosition.x >= MAP_SIZE) {
+                // Test movement with collision detection
+                const radius = BASE_ENEMY_STATS[enemy.type].size;
+                const testPosition = { x: newX, y: enemy.position.y, z: newZ };
+                const collision = checkEnemyCollisionPlanes(testPosition, radius);
+                
+                if (collision.collided && collision.type === 'wall') {
+                    // Hit wall: reverse direction
                     enemy.wanderAngle = Math.PI - enemy.wanderAngle;
-                } else if (newPosition.z <= -MAP_SIZE || newPosition.z >= MAP_SIZE) {
-                    enemy.wanderAngle = -enemy.wanderAngle;
                 } else {
+                    // Apply collision-aware movement
+                    const newPosition = applyEnemyMovement(enemy, newX, newZ);
                     enemy.position = newPosition;
                 }
 
@@ -578,38 +829,39 @@ function updateEnemies() {
             } else if (enemy.type === 'centipede_segment') {
                 // Segments are handled by the follow logic below
             } else {
-                // Regular enemies (ladybugs and bees) use normal wandering
+                // Other enemy types (ladybug, bee, spider, etc.) wander normally
                 const speed = enemyStats.passiveSpeed;
+                
+                // Calculate base movement
+                const baseX = Math.cos(enemy.wanderAngle) * speed;
+                const baseZ = Math.sin(enemy.wanderAngle) * speed;
                 
                 // Calculate avoidance
                 const avoidance = calculateAvoidanceVector(enemy);
                 
-                let newPosition;
-                if (enemy.type === 'bee') {
-                    // Bees have gentle vertical movement
-                    const time = currentTime * 0.001; // Convert to seconds
-                    const verticalOffset = Math.sin(time) * 0.2; // Reduced oscillation amplitude
-                    const baseHeight = BASE_ENEMY_STATS.bee.size + 0.5; // Lower base hover height
-                    
-                    newPosition = {
-                        x: enemy.position.x + Math.cos(enemy.wanderAngle) * speed + avoidance.x,
-                        y: baseHeight + verticalOffset, // Gentler height variation
-                        z: enemy.position.z + Math.sin(enemy.wanderAngle) * speed + avoidance.z
-                    };
-                } else {
-                    newPosition = {
-                        x: enemy.position.x + Math.cos(enemy.wanderAngle) * speed + avoidance.x,
-                        y: enemy.position.y,
-                        z: enemy.position.z + Math.sin(enemy.wanderAngle) * speed + avoidance.z
-                    };
-                }
+                const newX = enemy.position.x + baseX + avoidance.x;
+                const newZ = enemy.position.z + baseZ + avoidance.z;
 
-                // Check if new position would be out of bounds
-                if (newPosition.x <= -MAP_SIZE || newPosition.x >= MAP_SIZE ||
-                    newPosition.z <= -MAP_SIZE || newPosition.z >= MAP_SIZE) {
-                    // Reverse direction if would go out of bounds
+                // Test movement with collision detection
+                const radius = BASE_ENEMY_STATS[enemy.type].size;
+                const testPosition = { x: newX, y: enemy.position.y, z: newZ };
+                const collision = checkEnemyCollisionPlanes(testPosition, radius);
+                
+                if (collision.collided && collision.type === 'wall') {
+                    // Hit wall: reverse direction
                     enemy.wanderAngle = Math.PI + enemy.wanderAngle;
                 } else {
+                    // Apply collision-aware movement
+                    let newPosition = applyEnemyMovement(enemy, newX, newZ);
+                    
+                    // Special handling for bees - they hover above ground/terrain
+                    if (enemy.type === 'bee') {
+                        const time = currentTime * 0.001;
+                        const verticalOffset = Math.sin(time) * 0.2;
+                        const baseHeight = BASE_ENEMY_STATS.bee.size + 0.5;
+                        newPosition.y = baseHeight + verticalOffset;
+                    }
+                    
                     enemy.position = newPosition;
                     
                     // Gradually adjust wanderAngle based on avoidance
@@ -647,16 +899,12 @@ function updateEnemies() {
                     const dirZ = dz / distance;
                     
                     // Set position directly behind leader
-                    const newPosition = {
-                        x: leader.position.x - dirX * segmentLength,
-                        y: leader.position.y,
-                        z: leader.position.z - dirZ * segmentLength
-                    };
+                    const newX = leader.position.x - dirX * segmentLength;
+                    const newZ = leader.position.z - dirZ * segmentLength;
 
-                    // Only update if within bounds
-                    if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
-                        enemy.position = newPosition;
-                    }
+                    // Apply collision-aware movement
+                    const newPosition = applyEnemyMovement(enemy, newX, newZ);
+                    enemy.position = newPosition;
 
                     // Calculate rotation to face movement direction
                     const rotation = Math.atan2(dx, dz);
@@ -682,20 +930,23 @@ function updateEnemies() {
             enemy.velocity.x *= decay;
             enemy.velocity.z *= decay;
 
-            // Apply velocity while respecting bounds
-            const newPosition = {
-                x: enemy.position.x + enemy.velocity.x,
-                y: enemy.position.y,
-                z: enemy.position.z + enemy.velocity.z
-            };
-
-            // Only update if within bounds
-            if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
-                enemy.position = newPosition;
-            } else {
-                // If hitting boundary, stop velocity
+            // Apply velocity with collision detection
+            const newX = enemy.position.x + enemy.velocity.x;
+            const newZ = enemy.position.z + enemy.velocity.z;
+            
+            // Test movement with collision detection
+            const radius = BASE_ENEMY_STATS[enemy.type].size;
+            const testPosition = { x: newX, y: enemy.position.y, z: newZ };
+            const collision = checkEnemyCollisionPlanes(testPosition, radius);
+            
+            if (collision.collided && collision.type === 'wall') {
+                // Hit wall: stop velocity
                 enemy.velocity.x = 0;
                 enemy.velocity.z = 0;
+            } else {
+                // Apply collision-aware movement
+                const newPosition = applyEnemyMovement(enemy, newX, newZ);
+                enemy.position = newPosition;
             }
 
             const velocityRotation = getEnemyRotation(enemy, Math.atan2(enemy.velocity.x, enemy.velocity.z));
@@ -1054,20 +1305,23 @@ io.on('connection', (socket) => {
             enemy.velocity.z = knockback.z * knockbackForce;
             enemy.lastKnockbackTime = currentTime;
             
-            // Apply knockback while respecting bounds
-            const newPosition = {
-                x: enemy.position.x + enemy.velocity.x,
-                y: enemy.position.y,
-                z: enemy.position.z + enemy.velocity.z
-            };
-
-            // Only update if within bounds
-            if (Math.abs(newPosition.x) <= MAP_SIZE && Math.abs(newPosition.z) <= MAP_SIZE) {
-                enemy.position = newPosition;
-            } else {
-                // If hitting boundary, stop velocity
+            // Apply knockback with collision detection
+            const newX = enemy.position.x + enemy.velocity.x;
+            const newZ = enemy.position.z + enemy.velocity.z;
+            
+            // Test movement with collision detection
+            const radius = BASE_ENEMY_STATS[enemy.type].size;
+            const testPosition = { x: newX, y: enemy.position.y, z: newZ };
+            const collision = checkEnemyCollisionPlanes(testPosition, radius);
+            
+            if (collision.collided && collision.type === 'wall') {
+                // Hit wall: stop velocity
                 enemy.velocity.x = 0;
                 enemy.velocity.z = 0;
+            } else {
+                // Apply collision-aware movement
+                const newPosition = applyEnemyMovement(enemy, newX, newZ);
+                enemy.position = newPosition;
             }
             
             if (enemy.health <= 0) {

@@ -1,7 +1,7 @@
 {
   "21531027375": {
     "id": "21531027375",
-    "lastSeen": 1748475381346,
+    "lastSeen": 1749511815362,
     "totalXP": 450,
     "highestWave": 1,
     "inventory": {
@@ -9,19 +9,19 @@
       "collectedItems": [
         {
           "type": "cube",
-          "amount": 2
-        },
-        {
-          "type": "tetrahedron",
-          "amount": 16
-        },
-        {
-          "type": "stinger",
           "amount": 3
         },
         {
+          "type": "tetrahedron",
+          "amount": 18
+        },
+        {
+          "type": "stinger",
+          "amount": 4
+        },
+        {
           "type": "pea",
-          "amount": 1
+          "amount": 3
         },
         {
           "type": "leaf",
