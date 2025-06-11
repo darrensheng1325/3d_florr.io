@@ -164,7 +164,7 @@ export class Petal {
             geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
             geometry.setIndex(new THREE.BufferAttribute(indices, 1));
             geometry.computeVertexNormals();
-        } else if (this.type === 'basic' || this.type === 'basic_uncommon' || this.type === 'basic_rare') {
+        } else if (this.type === PetalType.BASIC || this.type === PetalType.BASIC_UNCOMMON || this.type === PetalType.BASIC_RARE) {
             geometry = new THREE.SphereGeometry(0.225, 32, 32);
         } else {
             geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
@@ -175,8 +175,8 @@ export class Petal {
             color: this.getPetalColor(),
             shininess: this.type === PetalType.LEAF ? 10 : 30,
             side: THREE.DoubleSide,
-            transparent: this.type === 'basic' ? false : true, // Basic petals are opaque
-            opacity: this.type === 'basic' ? 1.0 : 0.9
+            transparent: this.type === PetalType.BASIC ? false : true, // Basic petals are opaque
+            opacity: this.type === PetalType.BASIC ? 1.0 : 0.9
         });
 
         this.mesh = new THREE.Mesh(geometry, material);

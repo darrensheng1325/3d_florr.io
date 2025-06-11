@@ -7,15 +7,22 @@ import { Enemy } from './enemy';
 import { Inventory, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { PetalType, Rarity, RARITY_COLORS, EnemyType, LightingConfig } from '../shared/types';
+import { PetalType, Rarity, RARITY_COLORS, EnemyType, LightingConfig, CollisionPlaneConfig } from '../shared/types';
 import { CraftingSystem } from './crafting';
 import { ServerConfig } from '../server/server_config';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { AccountManager } from './account';
+import { CollisionManager } from './managers/CollisionManager';
+import { SceneManager } from './managers/SceneManager';
+import { UIManager } from './managers/UIManager';
+import { NetworkManager } from './managers/NetworkManager';
 
 const MAP_SIZE = 15;  // Match server's map size
 
 export class Game {
+    private sceneManager: SceneManager;
+    private uiManager: UIManager;
+    private networkManager: NetworkManager;
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
     private renderer: THREE.WebGLRenderer;
@@ -77,17 +84,27 @@ export class Game {
     private ambientLight: THREE.AmbientLight;
     private directionalLight: THREE.DirectionalLight;
     private hemisphereLight: THREE.HemisphereLight;
-    private collisionPlanes: THREE.Mesh[] = []; // Add this line for collision planes
-    private terrainPlanes: THREE.Mesh[] = []; // Add this line for terrain planes
+    private collisionManager: CollisionManager;
 
     constructor() {
         this.accountManager = new AccountManager();
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer();
+        this.sceneManager = new SceneManager(MAP_SIZE);
+        this.networkManager = new NetworkManager(this.accountManager);
+        this.scene = this.sceneManager.scene;
+        this.camera = this.sceneManager.camera;
+        this.renderer = this.sceneManager.renderer;
+        this.uiManager = new UIManager(
+            this.accountManager, 
+            this.renderer, 
+            this.camera, 
+            this.scene,
+            () => this.isGameStarted,
+            () => this.respawnPlayer()
+        );
         this.players = new Map();
         this.textureLoader = new THREE.TextureLoader();
         this.waveUI = new WaveUI();
+        this.collisionManager = new CollisionManager(this.scene);
         const title = document.createElement('title');
         title.textContent = '3dflower.io | title screen';
         document.head.appendChild(title);
@@ -187,7 +204,8 @@ export class Game {
         this.init();
         
         // Initialize spectator connection for title screen
-        this.initializeSpectatorConnection();
+        this.networkManager.initializeSpectatorConnection();
+        this.socket = this.networkManager.socket;
 
         // Setup wave events
         this.setupWaveEvents();
@@ -197,25 +215,162 @@ export class Game {
 
         // Create settings button
         this.createSettingsButton();
+        this.setupNetworkListeners();
     }
 
-    private async initializeSpectatorConnection(): Promise<void> {
-        // Check if user has account, but don't force login yet
-        let accountId = 'spectator_' + Math.random().toString(36).substr(2, 9);
-        
-        if (this.accountManager.hasAccount()) {
-            accountId = this.accountManager.getAccountId();
-        }
-
-        // Connect to server immediately for spectating with temporary ID
-        this.socket = io('/', {
-            query: {
-                accountId: accountId
+    private setupNetworkListeners(): void {
+        this.networkManager.on('playerJoined', (data) => {
+            if (!this.isGameStarted) {
+                this.createPlayer(data.id);
             }
         });
-        this.setupSpectatorEvents();
-    }
+        
+        this.networkManager.on('playerLeft', (playerId) => {
+            const player = this.players.get(playerId);
+            if (player) {
+                this.scene.remove(player);
+                this.players.delete(playerId);
+            }
+        });
 
+        this.networkManager.on('playerMoved', (data) => {
+            const player = this.players.get(data.id);
+            if (player) {
+                player.position.set(data.position.x, data.position.y, data.position.z);
+            }
+        });
+        
+        this.networkManager.on('gameConnect', (data) => {
+            if (data.id) {
+                this.createPlayer(data.id);
+                this.playerVelocities.set(data.id, new THREE.Vector3());
+            }
+        });
+        
+        this.networkManager.on('lightingConfig', (config: LightingConfig) => {
+            this.sceneManager.updateLighting(config);
+            this.collisionManager.clearCollisionPlanes();
+            config.collisionPlanes.forEach((planeData: CollisionPlaneConfig) => {
+                this.addCollisionPlane(
+                    planeData.x,
+                    planeData.y,
+                    planeData.z,
+                    planeData.width,
+                    planeData.height,
+                    planeData.rotationX,
+                    planeData.rotationY,
+                    planeData.rotationZ,
+                    planeData.type || 'wall'
+                );
+            });
+        });
+        
+        this.networkManager.on('configUpdate', (config) => {
+            this.sceneManager.updateLighting(config);
+            this.collisionManager.getTerrainPlanes().forEach(plane => {
+                if (plane.material instanceof THREE.MeshPhongMaterial) {
+                    plane.material.color.setHex(config.hemisphereLight.groundColor);
+                    plane.material.needsUpdate = true;
+                }
+            });
+        });
+
+        this.networkManager.on('playerDamaged', (data) => {
+            const socketId = this.socket?.id;
+            if (socketId && socketId === data.id) {
+                const healthBar = this.playerHealthBars.get(socketId);
+                if (healthBar) {
+                    const isDead = healthBar.takeDamage(10);
+                    if (isDead) {
+                        this.uiManager.showDeathScreen();
+                    }
+                }
+            }
+        });
+
+        this.networkManager.on('enemySpawned', (data) => {
+            const enemy = new Enemy(
+                this.scene,
+                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                this.camera,
+                data.type as EnemyType,
+                data.id,
+                data.health,
+                data.isAggressive,
+                data.rarity
+            );
+            this.enemies.set(data.id, enemy);
+        });
+
+        this.networkManager.on('enemyMoved', (data) => {
+            const enemy = this.enemies.get(data.id);
+            if (enemy) {
+                enemy.updatePosition(data.position, data.rotation);
+            }
+        });
+
+        this.networkManager.on('enemyDied', (data) => {
+            const enemy = this.enemies.get(data.enemyId);
+            if (enemy) {
+                enemy.remove();
+                this.enemies.delete(data.enemyId);
+                this.enemiesKilled++;
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+
+                if (data.enemyType !== 'worker_ant') {
+                    const dropResult = this.determinePetalDrop(data.enemyRarity);
+                    if (dropResult.shouldDrop) {
+                        const inventory = this.playerInventories.get(this.socket?.id || '');
+                        if (inventory) {
+                            const slots = inventory.getSlots();
+                            const emptySlotIndex = slots.findIndex(slot => slot.petal === null);
+                            if (emptySlotIndex !== -1) {
+                                inventory.addPetal(dropResult.petalType, emptySlotIndex);
+                            }
+                        }
+                    }
+                }
+
+                if (data.enemyType === 'worker_ant') {
+                    const itemId = `item_${data.enemyId}`;
+                    const item = new Item(
+                        this.scene,
+                        new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                        ItemType.LEAF,
+                        itemId
+                    );
+                    this.items.set(itemId, item);
+                } else if (data.itemType) {
+                    const itemId = `item_${data.enemyId}`;
+                    const item = new Item(
+                        this.scene,
+                        new THREE.Vector3(data.position.x, data.position.y, data.position.z),
+                        data.itemType as ItemType,
+                        itemId
+                    );
+                    this.items.set(itemId, item);
+                }
+            }
+        });
+
+        this.networkManager.on('disconnect', (reason) => {
+            console.log('Disconnected from server:', reason);
+            if (reason === 'io server disconnect' || reason === 'transport close') {
+                this.attemptReconnect();
+            }
+        });
+
+        this.networkManager.on('connect_error', (error) => {
+            console.log('Connection error:', error);
+            this.attemptReconnect();
+        });
+
+        this.networkManager.on('connect', () => {
+            console.log('Connected to server');
+            this.reconnectAttempts = 0;
+        });
+    }
+    
     private determinePetalDrop(enemyRarity: Rarity): { shouldDrop: boolean; dropRarity: Rarity; petalType: PetalType } {
         // 50% chance to drop a petal
         if (Math.random() > 0.5) {
@@ -256,268 +411,19 @@ export class Game {
     }
 
     private setupEnemyEvents(): void {
-        if (!this.socket) return;
-
-        // Handle enemies
-        this.socket.on('enemySpawned', (data: { 
-            id: string, 
-            type: string, 
-            position: { x: number, y: number, z: number }, 
-            health: number, 
-            isAggressive: boolean,
-            rarity: Rarity 
-        }) => {
-            const enemy = new Enemy(
-                this.scene,
-                new THREE.Vector3(data.position.x, data.position.y, data.position.z),
-                this.camera,
-                data.type as EnemyType,
-                data.id,
-                data.health,
-                data.isAggressive,
-                data.rarity
-            );
-            this.enemies.set(data.id, enemy);
-        });
-
-        this.socket.on('enemyMoved', (data: { id: string, position: { x: number, y: number, z: number }, rotation: number }) => {
-            const enemy = this.enemies.get(data.id);
-            if (enemy) {
-                enemy.updatePosition(data.position, data.rotation);
-            }
-        });
-
-        this.socket.on('enemyDied', (data: { enemyId: string, position: { x: number, y: number, z: number }, itemType: string, enemyRarity: Rarity, enemyType: EnemyType }) => {
-            const enemy = this.enemies.get(data.enemyId);
-            if (enemy) {
-                enemy.remove();
-                this.enemies.delete(data.enemyId);
-                this.enemiesKilled++;
-                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
-
-                // Handle petal drops - skip for worker ants
-                if (data.enemyType !== 'worker_ant') {
-                    const dropResult = this.determinePetalDrop(data.enemyRarity);
-                    if (dropResult.shouldDrop) {
-                        // Find first empty inventory slot
-                        const inventory = this.playerInventories.get(this.socket?.id || '');
-                        if (inventory) {
-                            const slots = inventory.getSlots();
-                            const emptySlotIndex = slots.findIndex(slot => slot.petal === null);
-                            if (emptySlotIndex !== -1) {
-                                inventory.addPetal(dropResult.petalType, emptySlotIndex);
-                            }
-                        }
-                    }
-                }
-
-                // Handle item drops
-                if (data.enemyType === 'worker_ant') {
-                    // Worker ants always drop leaves
-                    const itemId = `item_${data.enemyId}`;
-                    const item = new Item(
-                        this.scene,
-                        new THREE.Vector3(data.position.x, data.position.y, data.position.z),
-                        ItemType.LEAF,
-                        itemId
-                    );
-                    this.items.set(itemId, item);
-                } else if (data.itemType) {
-                    // Handle other enemy drops
-                    const itemId = `item_${data.enemyId}`;
-                    const item = new Item(
-                        this.scene,
-                        new THREE.Vector3(data.position.x, data.position.y, data.position.z),
-                        data.itemType as ItemType,
-                        itemId
-                    );
-                    this.items.set(itemId, item);
-                }
-            }
-        });
+        // This is now handled by the network manager listeners
     }
 
     private setupSpectatorEvents(): void {
-        if (!this.socket) return;
-
-        // Handle other players
-        this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number } }) => {
-            if (!this.isGameStarted) {  // Only handle other players while spectating
-                this.createPlayer(data.id);
-            }
-        });
-
-        this.socket.on('playerLeft', (playerId: string) => {
-            const player = this.players.get(playerId);
-            if (player) {
-                this.scene.remove(player);
-                this.players.delete(playerId);
-            }
-        });
-
-        this.socket.on('playerMoved', (data: { id: string, position: { x: number, y: number, z: number } }) => {
-            const player = this.players.get(data.id);
-            if (player) {
-                player.position.set(data.position.x, data.position.y, data.position.z);
-            }
-        });
-
-        // Setup enemy events
-        this.setupEnemyEvents();
-    }
-
-    private createTitleScreen(): void {
-        // Set camera for spectating
-        this.camera.position.set(0, 15, 0);
-        this.camera.lookAt(0, 0, 0);
-
-        // Start rotating camera for spectating
-        let angle = 0;
-        
-        // Add space key listener
-        document.addEventListener('keydown', (event) => {
-            if (event.code === 'Space' && !this.isGameStarted) {
-                this.handleStartGame();
-            }
-        });
-
-        // Add login button
-        const loginButton = document.createElement('button');
-        loginButton.style.cssText = `
-            position: fixed;
-            top: 60%;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            background: linear-gradient(135deg, #00FF00 0%, #AAFF00 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-            z-index: 1000;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        `;
-        loginButton.textContent = 'Start';
-        loginButton.addEventListener('click', () => this.handleStartGame());
-        loginButton.addEventListener('mouseover', () => {
-            loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
-            loginButton.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.3)';
-        });
-        loginButton.addEventListener('mouseout', () => {
-            loginButton.style.transform = 'translateX(-50%)';
-            loginButton.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
-        });
-        document.body.appendChild(loginButton);
-
-        // Store reference to remove later
-        (window as any).titleLoginButton = loginButton;
-
-        // Show account status if logged in
-        if (this.accountManager.hasAccount()) {
-            const accountStatus = document.createElement('div');
-            accountStatus.style.cssText = `
-                position: fixed;
-                top: 70%;
-                left: 50%;
-                transform: translateX(-50%);
-                text-align: center;
-                color: #ffffff;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                font-size: 14px;
-                background: rgba(0, 0, 0, 0.5);
-                padding: 10px 20px;
-                border-radius: 8px;
-                z-index: 1000;
-            `;
-            accountStatus.innerHTML = `
-                <div>Welcome back, <strong>${this.accountManager.getUsername()}</strong>!</div>
-                <div style="margin-top: 5px; font-size: 12px; opacity: 0.8;">Your progress will be saved automatically</div>
-            `;
-            document.body.appendChild(accountStatus);
-            (window as any).titleAccountStatus = accountStatus;
-        }
-
-        // Update canvas size
-        this.onWindowResize();
-
-        // Animate title screen
-        const animate = () => {
-            if (!this.isGameStarted) {
-                requestAnimationFrame(animate);
-                
-                // Rotate camera around the scene
-                angle += 0.001;
-                const radius = 15;
-                this.camera.position.x = Math.cos(angle) * radius;
-                this.camera.position.z = Math.sin(angle) * radius;
-                this.camera.lookAt(0, 0, 0);
-
-                // Render game scene
-                this.renderer.render(this.scene, this.camera);
-                
-                // Clear and draw title text
-                this.titleCtx.clearRect(0, 0, this.titleCanvas.width, this.titleCanvas.height);
-                
-                // Draw title
-                this.titleCtx.font = 'bold 72px Arial';
-                this.titleCtx.textAlign = 'center';
-                this.titleCtx.fillStyle = '#ffffff';
-                this.titleCtx.strokeStyle = '#000000';
-                this.titleCtx.lineWidth = 5;
-                this.titleCtx.strokeText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
-                this.titleCtx.fillText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
-                
-                // Draw subtitle with floating animation
-                this.titleCtx.font = '24px Arial';
-                this.titleCtx.fillStyle = '#ffffff';
-                this.titleCtx.strokeStyle = '#000000';
-                this.titleCtx.lineWidth = 2;
-                const yOffset = Math.sin(Date.now() * 0.002) * 5;
-                const subtitleText = 'Press SPACE or click Play Game to start';
-                this.titleCtx.strokeText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
-                this.titleCtx.fillText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
-            }
-        };
-        animate();
+        // This is now handled by the network manager listeners
     }
 
     private async handleStartGame(): Promise<void> {
         if (this.isGameStarted) return;
 
-        try {
-            // Show login if needed and wait for result
-            const accountInfo = await this.accountManager.showLoginIfNeeded();
-            
-            // Now start the game with the account
-            this.startGameWithAccount(accountInfo.accountId, accountInfo.username);
-        } catch (error) {
-            console.error('Login failed:', error);
-        }
-    }
-
-    private startGameWithAccount(accountId: string, username: string): void {
         this.isGameStarted = true;
         
-        // Remove title canvas if it exists and is attached
-        if (this.titleCanvas && this.titleCanvas.parentNode === document.body) {
-            document.body.removeChild(this.titleCanvas);
-        }
-
-        // Remove login button
-        const loginButton = (window as any).titleLoginButton;
-        if (loginButton && loginButton.parentNode) {
-            loginButton.parentNode.removeChild(loginButton);
-        }
-
-        // Remove account status
-        const accountStatus = (window as any).titleAccountStatus;
-        if (accountStatus && accountStatus.parentNode) {
-            accountStatus.parentNode.removeChild(accountStatus);
-        }
+        this.uiManager.clearTitleScreen();
 
         // Remove title from document head
         const title = document.querySelector('title');
@@ -527,7 +433,7 @@ export class Game {
 
         // Update title
         const newTitle = document.createElement('title');
-        newTitle.textContent = `3dflower.io | ${username}`;
+        newTitle.textContent = `3dflower.io | ${this.accountManager.getUsername()}`;
         document.head.appendChild(newTitle);
 
         // Show wave UI
@@ -563,14 +469,8 @@ export class Game {
         this.items.clear();
 
         // Reconnect to server to get a fresh connection with actual account
-        if (this.socket) {
-            this.socket.disconnect();
-        }
-        this.socket = io('/', {
-            query: {
-                accountId: accountId
-            }
-        });
+        this.networkManager.connectWithAccount(this.accountManager.getAccountId());
+        this.socket = this.networkManager.socket;
 
         // Setup game scene
         this.setupGame();
@@ -593,35 +493,8 @@ export class Game {
     }
 
     private init(): void {
-        // Setup renderer
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-        document.body.appendChild(this.renderer.domElement);
-
-        // Set default background color (will be updated from server)
-        this.scene.background = new THREE.Color(0x87CEEB);
-
-        // Add lights (positions will be updated from server)
-        this.scene.add(this.ambientLight);
-        this.directionalLight.position.set(0, 10, 0);
-        this.directionalLight.target.position.set(0, 0, 0);
-        this.scene.add(this.directionalLight);
-        this.scene.add(this.directionalLight.target);
-        this.scene.add(this.hemisphereLight);
-
-        // Add ground to scene
-        this.scene.add(this.ground);
-
-        // Add grid helper with default color
-        this.gridHelper = new THREE.GridHelper(30, 30, 0x038f21, 0x038f21);
-        this.gridHelper.position.y = 0.01;
-        this.scene.add(this.gridHelper);
-
-        // Handle window resize
-        window.addEventListener('resize', () => this.onWindowResize());
-
         // Create and show title screen
-        this.createTitleScreen();
+        this.uiManager.createTitleScreen(() => this.handleStartGame());
     }
 
     private addCollisionPlane(x: number, y: number, z: number, width: number, height: number, rotationX: number = 0, rotationY: number = 0, rotationZ: number = 0, type: 'wall' | 'terrain' = 'wall'): void {
@@ -653,18 +526,13 @@ export class Game {
         
         plane.position.set(x, y, z);
         plane.userData = { type }; // Store the type in userData
-        this.scene.add(plane);
         
-        if (type === 'terrain') {
-            this.terrainPlanes.push(plane);
-        } else {
-            this.collisionPlanes.push(plane);
-        }
+        this.collisionManager.addCollisionPlane(plane, type);
     }
 
     private checkCollisionPlanes(position: THREE.Vector3, radius: number = 0.5): { collided: boolean; normal?: THREE.Vector3; type?: 'wall' | 'terrain'; terrainHeight?: number } {
         // Check wall collisions first
-        for (const plane of this.collisionPlanes) {
+        for (const plane of this.collisionManager.getCollisionPlanes()) {
             const collision = this.checkSinglePlaneCollision(plane, position, radius);
             if (collision.collided) {
                 return { ...collision, type: 'wall' };
@@ -672,7 +540,7 @@ export class Game {
         }
         
         // Check terrain collisions
-        for (const plane of this.terrainPlanes) {
+        for (const plane of this.collisionManager.getTerrainPlanes()) {
             // Check for walking on top of terrain
             const terrainCollision = this.checkTerrainCollision(plane, position, radius);
             if (terrainCollision.collided) {
@@ -1018,34 +886,24 @@ export class Game {
         // Add lighting configuration handler
         this.socket.on('lightingConfig', (config: LightingConfig) => {
             console.log('Received lighting config from server:', config);
-            this.updateLighting(config);
+            this.sceneManager.updateLighting(config);
             
-            // Clear existing collision planes
-            this.collisionPlanes.forEach(plane => {
-                this.scene.remove(plane);
-            });
-            this.collisionPlanes = [];
-            
-            // Clear existing terrain planes
-            this.terrainPlanes.forEach(plane => {
-                this.scene.remove(plane);
-            });
-            this.terrainPlanes = [];
+            this.collisionManager.clearCollisionPlanes();
 
             // Add collision planes from config
             console.log('Adding collision planes:', config.collisionPlanes);
-            config.collisionPlanes.forEach(plane => {
-                console.log('Creating collision plane:', plane);
+            config.collisionPlanes.forEach(planeData => {
+                console.log('Creating collision plane:', planeData);
                 this.addCollisionPlane(
-                    plane.x,
-                    plane.y,
-                    plane.z,
-                    plane.width,
-                    plane.height,
-                    plane.rotationX,
-                    plane.rotationY,
-                    plane.rotationZ,
-                    plane.type || 'wall'
+                    planeData.x,
+                    planeData.y,
+                    planeData.z,
+                    planeData.width,
+                    planeData.height,
+                    planeData.rotationX,
+                    planeData.rotationY,
+                    planeData.rotationZ,
+                    planeData.type || 'wall'
                 );
             });
         });
@@ -1057,7 +915,7 @@ export class Game {
                 if (healthBar) {
                     const isDead = healthBar.takeDamage(10);
                     if (isDead) {
-                        this.showDeathScreen();
+                        this.uiManager.showDeathScreen();
                     }
                 }
             }
@@ -1134,16 +992,9 @@ export class Game {
         });
 
         this.socket?.on('configUpdate', (config: any) => {
-            this.updateLighting(config);
-            // Update sky color
-            this.scene.background = new THREE.Color(config.skyColor);
-            // Update ground color
-            if (this.ground && this.ground.material instanceof THREE.MeshPhongMaterial) {
-                this.ground.material.color.setHex(config.hemisphereLight.groundColor);
-                this.ground.material.needsUpdate = true;  // Ensure material updates
-            }
+            this.sceneManager.updateLighting(config);
             // Update terrain plane colors to match ground
-            this.terrainPlanes.forEach(plane => {
+            this.collisionManager.getTerrainPlanes().forEach(plane => {
                 if (plane.material instanceof THREE.MeshPhongMaterial) {
                     plane.material.color.setHex(config.hemisphereLight.groundColor);
                     plane.material.needsUpdate = true;
@@ -1406,7 +1257,7 @@ export class Game {
         const testPosition = new THREE.Vector3(newX, player.position.y, newZ);
 
         // Check collision planes and handle different types
-        const collision = this.checkCollisionPlanes(testPosition);
+        const collision = this.collisionManager.checkCollisionPlanes(testPosition);
         
         if (collision.collided && collision.type === 'terrain' && collision.terrainHeight !== undefined) {
             // For terrain: move the player and adjust height
@@ -1430,7 +1281,7 @@ export class Game {
                 
                 // Test sliding movement for additional collisions
                 const slideTestPosition = new THREE.Vector3(slideX, player.position.y, slideZ);
-                const slideCollision = this.checkCollisionPlanes(slideTestPosition);
+                const slideCollision = this.collisionManager.checkCollisionPlanes(slideTestPosition);
                 
                 if (!slideCollision.collided || slideCollision.type === 'terrain') {
                     player.position.x = slideX;
@@ -1441,7 +1292,7 @@ export class Game {
                         player.position.y = slideCollision.terrainHeight;
                     } else {
                         // Check if we're still on terrain at the new position
-                        const terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(slideX, player.position.y, slideZ));
+                        const terrainCheck = this.collisionManager.checkCollisionPlanes(new THREE.Vector3(slideX, player.position.y, slideZ));
                         if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
                             player.position.y = terrainCheck.terrainHeight;
                         } else {
@@ -1450,7 +1301,7 @@ export class Game {
                     }
                 } else {
                     // Can't slide, check if we're still on terrain
-                    const terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(player.position.x, player.position.y, player.position.z));
+                    const terrainCheck = this.collisionManager.checkCollisionPlanes(new THREE.Vector3(player.position.x, player.position.y, player.position.z));
                     if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
                         player.position.y = terrainCheck.terrainHeight;
                     } else {
@@ -1459,7 +1310,7 @@ export class Game {
                 }
             } else {
                 // Can't move, check if we're still on terrain
-                const terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(player.position.x, player.position.y, player.position.z));
+                const terrainCheck = this.collisionManager.checkCollisionPlanes(new THREE.Vector3(player.position.x, player.position.y, player.position.z));
                 if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
                     player.position.y = terrainCheck.terrainHeight;
                 } else {
@@ -1472,7 +1323,7 @@ export class Game {
             player.position.z = newZ;
             
             // Check if we're standing on terrain at the new position
-            const terrainCheck = this.checkCollisionPlanes(new THREE.Vector3(newX, player.position.y, newZ));
+            const terrainCheck = this.collisionManager.checkCollisionPlanes(new THREE.Vector3(newX, player.position.y, newZ));
             if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
                 player.position.y = terrainCheck.terrainHeight;
             } else {
@@ -1496,11 +1347,6 @@ export class Game {
     }
 
     private onWindowResize(): void {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        
-        // Update title canvas size if it exists
         if (this.titleCanvas) {
             this.titleCanvas.width = window.innerWidth;
             this.titleCanvas.height = window.innerHeight;
@@ -1799,23 +1645,7 @@ export class Game {
         this.deathScreen.appendChild(continueButton);
     }
 
-    private showDeathScreen(): void {
-        if (!this.deathScreen) {
-            this.createDeathScreen();
-        }
-        document.body.appendChild(this.deathScreen!);
-
-        // Stop game loop
-        this.isGameStarted = false;
-    }
-
-    private hideDeathScreen(): void {
-        if (this.deathScreen && this.deathScreen.parentNode) {
-            this.deathScreen.parentNode.removeChild(this.deathScreen);
-        }
-    }
-
-    private respawnPlayer(): void {
+    public respawnPlayer(): void {
         // Set title to back to spectating
         const title = document.querySelector('title');
         if (title) {
@@ -1824,143 +1654,24 @@ export class Game {
 
         // Remove inventory UI and other game elements
         this.playerInventories.clear();
-        this.hideDeathScreen();
+        this.uiManager.hideDeathScreen();
 
         // Stop the game
         this.isGameStarted = false;
         
         // Reconnect for spectating with temporary spectator ID
-        if (this.socket) {
-            this.socket.disconnect();
-        }
-        const spectatorId = 'spectator_' + Math.random().toString(36).substr(2, 9);
-        this.socket = io('/', {
-            query: {
-                accountId: spectatorId
-            }
-        });
-        this.setupSpectatorEvents();
+        this.networkManager.initializeSpectatorConnection();
+        this.socket = this.networkManager.socket;
 
         // Reset camera for spectating
         this.camera.position.set(0, 15, 0);
         this.camera.lookAt(0, 0, 0);
 
         // Recreate and show title screen
-        this.titleCanvas = document.createElement('canvas');
-        this.titleCanvas.style.position = 'absolute';
-        this.titleCanvas.style.top = '0';
-        this.titleCanvas.style.left = '0';
-        this.titleCanvas.style.pointerEvents = 'none';
-        document.body.appendChild(this.titleCanvas);
-        
-        const ctx = this.titleCanvas.getContext('2d');
-        if (!ctx) throw new Error('Could not get 2D context');
-        this.titleCtx = ctx;
-
-        // Add login button for respawn
-        const loginButton = document.createElement('button');
-        loginButton.style.cssText = `
-            position: fixed;
-            top: 60%;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-            z-index: 1000;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        `;
-        loginButton.textContent = 'Play Again';
-        loginButton.addEventListener('click', () => this.handleStartGame());
-        loginButton.addEventListener('mouseover', () => {
-            loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
-            loginButton.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.3)';
-        });
-        loginButton.addEventListener('mouseout', () => {
-            loginButton.style.transform = 'translateX(-50%)';
-            loginButton.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
-        });
-        document.body.appendChild(loginButton);
-        (window as any).titleLoginButton = loginButton;
-
-        // Show account status if logged in
-        if (this.accountManager.hasAccount()) {
-            const accountStatus = document.createElement('div');
-            accountStatus.style.cssText = `
-                position: fixed;
-                top: 70%;
-                left: 50%;
-                transform: translateX(-50%);
-                text-align: center;
-                color: #ffffff;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                font-size: 14px;
-                background: rgba(0, 0, 0, 0.5);
-                padding: 10px 20px;
-                border-radius: 8px;
-                z-index: 1000;
-            `;
-            accountStatus.innerHTML = `
-                <div>Welcome back, <strong>${this.accountManager.getUsername()}</strong>!</div>
-                <div style="margin-top: 5px; font-size: 12px; opacity: 0.8;">Your progress will be saved automatically</div>
-            `;
-            document.body.appendChild(accountStatus);
-            (window as any).titleAccountStatus = accountStatus;
-        }
-
-        // Update canvas size
-        this.onWindowResize();
+        this.uiManager.createTitleScreen(() => this.handleStartGame());
 
         // Hide wave UI
         this.waveUI.hide();
-
-        // Start title screen animation
-        let angle = 0;
-        const animate = () => {
-            if (this.isGameStarted) return;
-
-            // Clear and draw title text
-            this.titleCtx.clearRect(0, 0, this.titleCanvas.width, this.titleCanvas.height);
-            
-            // Draw title
-            this.titleCtx.font = 'bold 72px Arial';
-            this.titleCtx.textAlign = 'center';
-            this.titleCtx.fillStyle = '#ffffff';
-            this.titleCtx.strokeStyle = '#000000';
-            this.titleCtx.lineWidth = 5;
-            this.titleCtx.strokeText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
-            this.titleCtx.fillText('3dflower.io', this.titleCanvas.width / 2, this.titleCanvas.height / 3);
-            
-            // Draw subtitle with floating animation
-            this.titleCtx.font = '24px Arial';
-            this.titleCtx.fillStyle = '#ffffff';
-            this.titleCtx.strokeStyle = '#000000';
-            this.titleCtx.lineWidth = 2;
-            const yOffset = Math.sin(Date.now() * 0.002) * 5;
-            const subtitleText = 'Press SPACE or click Play Again to start';
-            this.titleCtx.strokeText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
-            this.titleCtx.fillText(subtitleText, this.titleCanvas.width / 2, this.titleCanvas.height / 2 + yOffset);
-
-            // Rotate camera
-            angle += 0.001;
-            this.camera.position.x = Math.sin(angle) * 15;
-            this.camera.position.z = Math.cos(angle) * 15;
-            this.camera.position.y = 15;
-            this.camera.lookAt(0, 0, 0);
-
-            // Render scene
-            this.renderer.render(this.scene, this.camera);
-
-            requestAnimationFrame(animate);
-        };
-        animate();
     }
 
     private createInventoryMenu(): void {

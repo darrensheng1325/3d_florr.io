@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PetalType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
+exports.PetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
 var Rarity;
 (function (Rarity) {
     Rarity["COMMON"] = "COMMON";
@@ -45,9 +45,17 @@ exports.MODEL_BASE_SIZES = {
     worker_ant: 0.2, // The size the worker ant model was designed for
     baby_ant: 0.15 // The size the baby ant model was designed for
 };
+var ItemType;
+(function (ItemType) {
+    ItemType["TETRAHEDRON"] = "TETRAHEDRON";
+    ItemType["LEAF"] = "LEAF";
+    ItemType["STINGER"] = "STINGER";
+    ItemType["PEA"] = "PEA";
+    ItemType["CUBE"] = "CUBE";
+})(ItemType || (exports.ItemType = ItemType = {}));
 var PetalType;
 (function (PetalType) {
-    PetalType["BASIC"] = "basic";
+    PetalType["BASIC"] = "BASIC";
     PetalType["BASIC_UNCOMMON"] = "basic_uncommon";
     PetalType["BASIC_RARE"] = "basic_rare";
     PetalType["TETRAHEDRON"] = "tetrahedron";

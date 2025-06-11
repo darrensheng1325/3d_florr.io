@@ -99,11 +99,22 @@ export interface LightingConfig {
         intensity: number;
     };
     skyColor: number;
+    gridConfig?: {
+        gridColor: number;
+    };
     collisionPlanes: CollisionPlaneConfig[];  // Add collision planes to config
 }
 
+export enum ItemType {
+    TETRAHEDRON = 'TETRAHEDRON',
+    LEAF = 'LEAF',
+    STINGER = 'STINGER',
+    PEA = 'PEA',
+    CUBE = 'CUBE'
+}
+
 export enum PetalType {
-    BASIC = 'basic',
+    BASIC = 'BASIC',
     BASIC_UNCOMMON = 'basic_uncommon',
     BASIC_RARE = 'basic_rare',
     TETRAHEDRON = 'tetrahedron',
