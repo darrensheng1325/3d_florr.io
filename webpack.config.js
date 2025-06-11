@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
 
 module.exports = {
   entry: './src/client/game.ts',
@@ -52,6 +53,18 @@ module.exports = {
     }]
   },
   optimization: {
-    minimize: false
+    minimize: true,
+    splitChunks: {
+      chunks: 'async',
+    },
+    minimizer: [
+      new TerserPlugin({
+        terserOptions: {
+          compress: {
+            drop_console: true,
+          },
+        },
+      }),
+    ]
   },
 }; 
