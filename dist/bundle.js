@@ -1879,10 +1879,46 @@ var Game = /** @class */ (function () {
                 var healthBar = _this.playerHealthBars.get(socketId);
                 if (healthBar) {
                     var isDead = healthBar.takeDamage(10);
-                    if (isDead) {
-                        _this.uiManager.showDeathScreen();
-                    }
+                    // if (isDead) {
+                    //     if (this.socket) {
+                    //         this.socket.emit('playerDied'); // tell server that player died
+                    //         this.socket.disconnect(); // disconnect from server
+                    //     }
+                    //     this.uiManager.showDeathScreen();
+                    // }
                 }
+            }
+        });
+        this.networkManager.on('playerDeathSequence', function (data) {
+            var _a, _b;
+            console.log('Player death sequence:', data);
+            if (((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) === data.id) {
+                // Properly remove all game objects from the scene
+                _this.enemies.forEach(function (enemy) {
+                    enemy.remove();
+                });
+                _this.enemies.clear();
+                _this.items.forEach(function (item) {
+                    item.remove();
+                });
+                _this.items.clear();
+                _this.players.forEach(function (player) {
+                    _this.scene.remove(player);
+                });
+                _this.players.delete(data.id);
+                _this.playerInventories.forEach(function (inventory) {
+                    inventory.clear();
+                });
+                _this.playerInventories.clear();
+                _this.playerHealthBars.forEach(function (healthBar) {
+                    healthBar.remove();
+                });
+                _this.playerHealthBars.clear();
+                _this.playerVelocities.clear();
+                _this.waveUI.hide();
+                // Show death screen and disconnect
+                _this.uiManager.showDeathScreen();
+                (_b = _this.socket) === null || _b === void 0 ? void 0 : _b.disconnect();
             }
         });
         this.networkManager.on('enemySpawned', function (data) {
@@ -2012,9 +2048,11 @@ var Game = /** @class */ (function () {
                     enemy.remove();
                 });
                 this.enemies.clear();
+                // Properly clear all inventories and their petals
                 this.playerInventories.forEach(function (inventory) {
-                    inventory.loadPetals();
+                    inventory.clear();
                 });
+                this.playerInventories.clear();
                 this.playerHealthBars.forEach(function (healthBar) {
                     healthBar.remove();
                 });
@@ -2378,19 +2416,6 @@ var Game = /** @class */ (function () {
                 console.log('Creating collision plane:', planeData);
                 _this.addCollisionPlane(planeData.x, planeData.y, planeData.z, planeData.width, planeData.height, planeData.rotationX, planeData.rotationY, planeData.rotationZ, planeData.type || 'wall');
             });
-        });
-        // Add player damage event handler
-        this.socket.on('playerDamaged', function (data) {
-            var _a;
-            if (((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) === data.id) {
-                var healthBar = _this.playerHealthBars.get(_this.socket.id);
-                if (healthBar) {
-                    var isDead = healthBar.takeDamage(10);
-                    if (isDead) {
-                        _this.uiManager.showDeathScreen();
-                    }
-                }
-            }
         });
         // Add item spawn event handler
         this.socket.on('itemSpawned', function (data) {
@@ -3010,13 +3035,34 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.respawnPlayer = function () {
         var _this = this;
+        var _a;
+        (_a = this.socket) === null || _a === void 0 ? void 0 : _a.disconnect();
         // Set title to back to spectating
         var title = document.querySelector('title');
         if (title) {
             title.textContent = '3dflower.io | title screen';
         }
-        // Remove inventory UI and other game elements
+        // Properly clean up all game objects
+        this.enemies.forEach(function (enemy) {
+            enemy.remove();
+        });
+        this.enemies.clear();
+        this.items.forEach(function (item) {
+            item.remove();
+        });
+        this.items.clear();
+        this.players.forEach(function (player) {
+            _this.scene.remove(player);
+        });
+        this.players.clear();
+        this.playerInventories.forEach(function (inventory) {
+            inventory.clear();
+        });
         this.playerInventories.clear();
+        this.playerHealthBars.forEach(function (healthBar) {
+            healthBar.remove();
+        });
+        this.playerHealthBars.clear();
         this.uiManager.hideDeathScreen();
         // Stop the game
         this.isGameStarted = false;
@@ -4761,6 +4807,9 @@ var NetworkManager = /** @class */ (function (_super) {
         });
         this.socket.on('playerDamaged', function (data) {
             _super.prototype.emit.call(_this, 'playerDamaged', data);
+        });
+        this.socket.on('playerDeathSequence', function (data) {
+            _super.prototype.emit.call(_this, 'playerDeathSequence', data);
         });
         this.socket.on('itemSpawned', function (data) {
             _super.prototype.emit.call(_this, 'itemSpawned', data);

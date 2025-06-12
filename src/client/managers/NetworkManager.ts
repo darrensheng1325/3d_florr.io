@@ -101,6 +101,10 @@ export class NetworkManager extends EventEmitter<any> {
             super.emit('playerDamaged', data);
         });
 
+        this.socket.on('playerDeathSequence', (data: { id: string }) => {
+            super.emit('playerDeathSequence', data);
+        });
+
         this.socket.on('itemSpawned', (data: { id: string, type: string, position: { x: number, y: number, z: number } }) => {
             super.emit('itemSpawned', data);
         });

@@ -281,10 +281,52 @@ export class Game {
                 const healthBar = this.playerHealthBars.get(socketId);
                 if (healthBar) {
                     const isDead = healthBar.takeDamage(10);
-                    if (isDead) {
-                        this.uiManager.showDeathScreen();
-                    }
+                    // if (isDead) {
+                    //     if (this.socket) {
+                    //         this.socket.emit('playerDied'); // tell server that player died
+                    //         this.socket.disconnect(); // disconnect from server
+                    //     }
+                    //     this.uiManager.showDeathScreen();
+                    // }
                 }
+            }
+        });
+
+        this.networkManager.on('playerDeathSequence', (data) => {
+            console.log('Player death sequence:', data);
+            if (this.socket?.id === data.id) {
+                // Properly remove all game objects from the scene
+                this.enemies.forEach(enemy => {
+                    enemy.remove();
+                });
+                this.enemies.clear();
+                
+                this.items.forEach(item => {
+                    item.remove();
+                });
+                this.items.clear();
+                
+                this.players.forEach(player => {
+                    this.scene.remove(player);
+                });
+                this.players.delete(data.id);
+                
+                this.playerInventories.forEach(inventory => {
+                    inventory.clear();
+                });
+                this.playerInventories.clear();
+                
+                this.playerHealthBars.forEach(healthBar => {
+                    healthBar.remove();
+                });
+                this.playerHealthBars.clear();
+                
+                this.playerVelocities.clear();
+                this.waveUI.hide();
+                
+                // Show death screen and disconnect
+                this.uiManager.showDeathScreen();
+                this.socket?.disconnect();
             }
         });
 
@@ -450,9 +492,11 @@ export class Game {
         });
         this.enemies.clear();
 
+        // Properly clear all inventories and their petals
         this.playerInventories.forEach((inventory) => {
-            inventory.loadPetals();
+            inventory.clear();
         });
+        this.playerInventories.clear();
 
         this.playerHealthBars.forEach((healthBar) => {
             healthBar.remove();
@@ -906,19 +950,6 @@ export class Game {
                     planeData.type || 'wall'
                 );
             });
-        });
-
-        // Add player damage event handler
-        this.socket.on('playerDamaged', (data: { id: string, health: number }) => {
-            if (this.socket?.id === data.id) {
-                const healthBar = this.playerHealthBars.get(this.socket.id);
-                if (healthBar) {
-                    const isDead = healthBar.takeDamage(10);
-                    if (isDead) {
-                        this.uiManager.showDeathScreen();
-                    }
-                }
-            }
         });
 
         // Add item spawn event handler
@@ -1646,14 +1677,39 @@ export class Game {
     }
 
     public respawnPlayer(): void {
+        this.socket?.disconnect();
         // Set title to back to spectating
         const title = document.querySelector('title');
         if (title) {
             title.textContent = '3dflower.io | title screen';
         }
 
-        // Remove inventory UI and other game elements
+        // Properly clean up all game objects
+        this.enemies.forEach(enemy => {
+            enemy.remove();
+        });
+        this.enemies.clear();
+        
+        this.items.forEach(item => {
+            item.remove();
+        });
+        this.items.clear();
+        
+        this.players.forEach(player => {
+            this.scene.remove(player);
+        });
+        this.players.clear();
+        
+        this.playerInventories.forEach(inventory => {
+            inventory.clear();
+        });
         this.playerInventories.clear();
+        
+        this.playerHealthBars.forEach(healthBar => {
+            healthBar.remove();
+        });
+        this.playerHealthBars.clear();
+        
         this.uiManager.hideDeathScreen();
 
         // Stop the game

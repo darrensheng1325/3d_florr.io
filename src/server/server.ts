@@ -1483,8 +1483,8 @@ io.on('connection', (socket) => {
                         }
                         // Check if server needs reset (no players left)
                         checkAndResetServer();
-                    }, 5000); // 5 second delay to show death screen
-                }, 1000); // 1 second for death animation
+                    }, 100); // 5 second delay to show death screen
+                }, 100); // 1 second for death animation
             }
         }
     });
