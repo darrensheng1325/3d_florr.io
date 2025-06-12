@@ -1865,12 +1865,16 @@ var Game = /** @class */ (function () {
         });
         this.networkManager.on('configUpdate', function (config) {
             _this.sceneManager.updateLighting(config);
-            _this.collisionManager.getTerrainPlanes().forEach(function (plane) {
-                if (plane.material instanceof THREE.MeshPhongMaterial) {
-                    plane.material.color.setHex(config.hemisphereLight.groundColor);
-                    plane.material.needsUpdate = true;
-                }
-            });
+            _this.updateTerrainPlaneColors(config.hemisphereLight.groundColor);
+            // Update grid color if gridConfig is present
+            if (config.gridConfig && _this.gridHelper) {
+                // Remove old grid helper
+                _this.scene.remove(_this.gridHelper);
+                // Create new grid helper with updated color
+                _this.gridHelper = new THREE.GridHelper(30, 30, config.gridConfig.gridColor, config.gridConfig.gridColor);
+                _this.gridHelper.position.y = 0.01;
+                _this.scene.add(_this.gridHelper);
+            }
         });
         this.networkManager.on('playerDamaged', function (data) {
             var _a;
@@ -2098,12 +2102,44 @@ var Game = /** @class */ (function () {
         var geometry = new THREE.PlaneGeometry(width, height);
         var material;
         if (type === 'terrain') {
-            // Use the same material properties as the ground plane
+            // Enhanced terrain material with better lighting and visibility
+            var baseColor = server_config_1.ServerConfig.getInstance().getCurrentConfig().hemisphereLight.groundColor;
+            // Make terrain slightly darker and more saturated than ground
+            var color = new THREE.Color(baseColor);
+            color.multiplyScalar(0.8); // Make it 20% darker
+            color.offsetHSL(0, 0.2, 0); // Increase saturation by 20%
             material = new THREE.MeshPhongMaterial({
-                color: server_config_1.ServerConfig.getInstance().getCurrentConfig().hemisphereLight.groundColor,
+                color: color,
                 side: THREE.DoubleSide,
-                shininess: 0 // Make it matte like the ground
+                shininess: 30, // Add some shininess for directional lighting
+                specular: 0x222222, // Subtle specular highlights
+                transparent: false, // Make it fully opaque
+                flatShading: false, // Use smooth shading for better lighting
+                // Add normal map effect by adjusting how light interacts
+                bumpScale: 0.1
             });
+            // Add subtle wireframe overlay for better edge definition
+            var wireframeGeometry = new THREE.EdgesGeometry(geometry);
+            var wireframeMaterial = new THREE.LineBasicMaterial({
+                color: 0x444444,
+                transparent: true,
+                opacity: 0.3
+            });
+            var wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+            var plane_1 = new THREE.Mesh(geometry, material);
+            // Apply rotations in order: X, Y, Z
+            plane_1.rotation.x = rotationX * Math.PI / 180;
+            plane_1.rotation.y = rotationY * Math.PI / 180;
+            plane_1.rotation.z = rotationZ * Math.PI / 180;
+            plane_1.position.set(x, y, z);
+            plane_1.userData = { type: type }; // Store the type in userData
+            // Apply same rotation to wireframe
+            wireframe.rotation.copy(plane_1.rotation);
+            wireframe.position.copy(plane_1.position);
+            // Add both plane and wireframe to scene
+            this.scene.add(wireframe);
+            this.collisionManager.addCollisionPlane(plane_1, type);
+            return;
         }
         else {
             material = new THREE.MeshPhongMaterial({
@@ -2476,12 +2512,7 @@ var Game = /** @class */ (function () {
         (_a = this.socket) === null || _a === void 0 ? void 0 : _a.on('configUpdate', function (config) {
             _this.sceneManager.updateLighting(config);
             // Update terrain plane colors to match ground
-            _this.collisionManager.getTerrainPlanes().forEach(function (plane) {
-                if (plane.material instanceof THREE.MeshPhongMaterial) {
-                    plane.material.color.setHex(config.hemisphereLight.groundColor);
-                    plane.material.needsUpdate = true;
-                }
-            });
+            _this.updateTerrainPlaneColors(config.hemisphereLight.groundColor);
             // Update grid color if gridConfig is present
             if (config.gridConfig && _this.gridHelper) {
                 // Remove old grid helper
@@ -3772,6 +3803,19 @@ var Game = /** @class */ (function () {
         if (this.isInventoryOpen) {
             this.updateInventoryDisplay();
         }
+    };
+    Game.prototype.updateTerrainPlaneColors = function (groundColor) {
+        // Update terrain plane colors with enhanced material properties
+        this.collisionManager.getTerrainPlanes().forEach(function (plane) {
+            if (plane.material instanceof THREE.MeshPhongMaterial) {
+                // Make terrain slightly darker and more saturated than ground
+                var color = new THREE.Color(groundColor);
+                color.multiplyScalar(0.8); // Make it 20% darker
+                color.offsetHSL(0, 0.2, 0); // Increase saturation by 20%
+                plane.material.color.copy(color);
+                plane.material.needsUpdate = true;
+            }
+        });
     };
     return Game;
 }());

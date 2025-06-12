@@ -267,12 +267,16 @@ export class Game {
         
         this.networkManager.on('configUpdate', (config) => {
             this.sceneManager.updateLighting(config);
-            this.collisionManager.getTerrainPlanes().forEach(plane => {
-                if (plane.material instanceof THREE.MeshPhongMaterial) {
-                    plane.material.color.setHex(config.hemisphereLight.groundColor);
-                    plane.material.needsUpdate = true;
-                }
-            });
+            this.updateTerrainPlaneColors(config.hemisphereLight.groundColor);
+            // Update grid color if gridConfig is present
+            if (config.gridConfig && this.gridHelper) {
+                // Remove old grid helper
+                this.scene.remove(this.gridHelper);
+                // Create new grid helper with updated color
+                this.gridHelper = new THREE.GridHelper(30, 30, config.gridConfig.gridColor, config.gridConfig.gridColor);
+                this.gridHelper.position.y = 0.01;
+                this.scene.add(this.gridHelper);
+            }
         });
 
         this.networkManager.on('playerDamaged', (data) => {
@@ -546,12 +550,53 @@ export class Game {
         let material: THREE.MeshPhongMaterial;
         
         if (type === 'terrain') {
-            // Use the same material properties as the ground plane
+            // Enhanced terrain material with better lighting and visibility
+            const baseColor = ServerConfig.getInstance().getCurrentConfig().hemisphereLight.groundColor;
+            
+            // Make terrain slightly darker and more saturated than ground
+            const color = new THREE.Color(baseColor);
+            color.multiplyScalar(0.8); // Make it 20% darker
+            color.offsetHSL(0, 0.2, 0); // Increase saturation by 20%
+            
             material = new THREE.MeshPhongMaterial({
-                color: ServerConfig.getInstance().getCurrentConfig().hemisphereLight.groundColor,
+                color: color,
                 side: THREE.DoubleSide,
-                shininess: 0  // Make it matte like the ground
+                shininess: 30,        // Add some shininess for directional lighting
+                specular: 0x222222,   // Subtle specular highlights
+                transparent: false,   // Make it fully opaque
+                flatShading: false,   // Use smooth shading for better lighting
+                // Add normal map effect by adjusting how light interacts
+                bumpScale: 0.1
             });
+            
+            // Add subtle wireframe overlay for better edge definition
+            const wireframeGeometry = new THREE.EdgesGeometry(geometry);
+            const wireframeMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x444444, 
+                transparent: true, 
+                opacity: 0.3 
+            });
+            const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
+            
+            const plane = new THREE.Mesh(geometry, material);
+            
+            // Apply rotations in order: X, Y, Z
+            plane.rotation.x = rotationX * Math.PI / 180;
+            plane.rotation.y = rotationY * Math.PI / 180;
+            plane.rotation.z = rotationZ * Math.PI / 180;
+            
+            plane.position.set(x, y, z);
+            plane.userData = { type }; // Store the type in userData
+            
+            // Apply same rotation to wireframe
+            wireframe.rotation.copy(plane.rotation);
+            wireframe.position.copy(plane.position);
+            
+            // Add both plane and wireframe to scene
+            this.scene.add(wireframe);
+            this.collisionManager.addCollisionPlane(plane, type);
+            
+            return;
         } else {
             material = new THREE.MeshPhongMaterial({
                 color: 0x808080,
@@ -1025,12 +1070,7 @@ export class Game {
         this.socket?.on('configUpdate', (config: any) => {
             this.sceneManager.updateLighting(config);
             // Update terrain plane colors to match ground
-            this.collisionManager.getTerrainPlanes().forEach(plane => {
-                if (plane.material instanceof THREE.MeshPhongMaterial) {
-                    plane.material.color.setHex(config.hemisphereLight.groundColor);
-                    plane.material.needsUpdate = true;
-                }
-            });
+            this.updateTerrainPlaneColors(config.hemisphereLight.groundColor);
             // Update grid color if gridConfig is present
             if (config.gridConfig && this.gridHelper) {
                 // Remove old grid helper
@@ -2496,6 +2536,21 @@ export class Game {
         if (this.isInventoryOpen) {
             this.updateInventoryDisplay();
         }
+    }
+
+    private updateTerrainPlaneColors(groundColor: number): void {
+        // Update terrain plane colors with enhanced material properties
+        this.collisionManager.getTerrainPlanes().forEach(plane => {
+            if (plane.material instanceof THREE.MeshPhongMaterial) {
+                // Make terrain slightly darker and more saturated than ground
+                const color = new THREE.Color(groundColor);
+                color.multiplyScalar(0.8); // Make it 20% darker
+                color.offsetHSL(0, 0.2, 0); // Increase saturation by 20%
+                
+                plane.material.color.copy(color);
+                plane.material.needsUpdate = true;
+            }
+        });
     }
 }
 
