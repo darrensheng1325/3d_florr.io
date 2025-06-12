@@ -54,7 +54,7 @@ export class ServerConfig {
             },
             hemisphereLight: {
                 skyColor: 0x1a1a2e,     // Dark navy night sky
-                groundColor: 0x0f3460,  // Dark blue-green ground
+                groundColor: 0x00ff00,  // Dark blue-green ground
                 intensity: 0.6          // Reduced intensity
             },
             skyColor: 0x1a1a2e      // Dark navy night sky

@@ -54,7 +54,7 @@
   },
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1749690080858,
+    "lastSeen": 1749690514528,
     "totalXP": 271882750,
     "highestWave": 46,
     "inventory": {
@@ -62,15 +62,15 @@
       "collectedItems": [
         {
           "type": "cube",
-          "amount": 5
+          "amount": 8
         },
         {
           "type": "tetrahedron",
-          "amount": 7
+          "amount": 9
         },
         {
           "type": "stinger",
-          "amount": 7
+          "amount": 9
         },
         {
           "type": "pea",
