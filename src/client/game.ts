@@ -7,7 +7,7 @@ import { Enemy } from './enemy';
 import { Inventory, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { PetalType, Rarity, RARITY_COLORS, EnemyType, LightingConfig, CollisionPlaneConfig } from '../shared/types';
+import { PetalType, Rarity, RARITY_COLORS, EnemyType, LightingConfig, CollisionPlaneConfig, WaveStartData } from '../shared/types';
 import { CraftingSystem } from './crafting';
 import { ServerConfig } from '../server/server_config';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -361,7 +361,7 @@ export class Game {
                 enemy.remove();
                 this.enemies.delete(data.enemyId);
                 this.enemiesKilled++;
-                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, undefined, undefined);
 
                 if (data.enemyType !== 'worker_ant') {
                     const dropResult = this.determinePetalDrop(data.enemyRarity);
@@ -1046,7 +1046,7 @@ export class Game {
         this.setupEnemyEvents();
 
         // Wave and XP events
-        this.socket.on('waveStart', (data: { wave: number, minRarity: Rarity }) => {
+        this.socket.on('waveStart', (data: WaveStartData) => {
             // Clear all existing enemies
             this.enemies.forEach(enemy => {
                 enemy.remove();
@@ -1057,13 +1057,13 @@ export class Game {
             this.currentWave = data.wave;
             this.enemiesKilled = 0;
             this.totalXP = 0;
-            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, data.minRarity);
+            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, data.minRarity, data.isNight);
         });
 
         this.socket.on('playerXP', (data: { id: string, xp: number }) => {
             if (this.socket?.id === data.id) {
                 this.totalXP = data.xp % this.XP_PER_WAVE;
-                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP);
+                this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, undefined, undefined);
             }
         });
 
@@ -1649,11 +1649,11 @@ export class Game {
     private setupWaveEvents(): void {
         if (!this.socket) return;
 
-        this.socket.on('waveStart', (data: { wave: number, minRarity: Rarity }) => {
+        this.socket.on('waveStart', (data: WaveStartData) => {
             this.currentWave = data.wave;
             this.enemiesKilled = 0;
             this.totalXP = 0;
-            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, data.minRarity);
+            this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, data.minRarity, data.isNight);
         });
 
         this.socket.on('playerXP', (data: { id: string, xp: number }) => {

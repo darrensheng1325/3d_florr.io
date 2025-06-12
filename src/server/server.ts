@@ -71,6 +71,23 @@ let totalXPInWave = 0;
 let enemiesSpawnedInWave = 0;  // Track how many enemies we've spawned
 let waveSpawnInterval: NodeJS.Timeout | null = null;
 
+// Night mode configuration
+function isNightWave(wave: number): boolean {
+    // Night waves: 5-9, 15-19, 25-29, etc.
+    // Pattern: waves 5-9 of every 10-wave cycle
+    const cyclePosition = ((wave - 1) % 10) + 1;
+    return cyclePosition >= 5 && cyclePosition <= 9;
+}
+
+function getNightOnlyMobs(): EnemyType[] {
+    return ['spider', 'soldier_ant'];
+}
+
+function isDayOnlyMob(mobType: EnemyType): boolean {
+    const nightOnlyMobs = getNightOnlyMobs();
+    return !nightOnlyMobs.includes(mobType);
+}
+
 // Update ENEMY_STATS with base stats (before rarity multipliers)
 const BASE_ENEMY_STATS: Record<EnemyType, Omit<EnemyStats, 'rarity'>> = {
     ladybug: {
@@ -1001,16 +1018,26 @@ function startNewWave() {
     else if (currentWave >= 10) minRarity = Rarity.UNCOMMON;
     else minRarity = Rarity.COMMON;
     
+    // Check if this is a night wave
+    const isNight = isNightWave(currentWave);
+    
     // Clear any existing spawn interval
     if (waveSpawnInterval) {
         clearInterval(waveSpawnInterval);
     }
     
-    // Broadcast wave start with minimum rarity info
+    // Broadcast wave start with minimum rarity and night mode info
     io.emit('waveStart', { 
         wave: currentWave,
-        minRarity: minRarity
+        minRarity: minRarity,
+        isNight: isNight
     });
+    
+    // Send lighting configuration for the current time of day
+    const lightingConfig = serverConfig.getLightingConfig(isNight);
+    io.emit('configUpdate', lightingConfig);
+    
+    console.log(`Starting wave ${currentWave} - ${isNight ? 'NIGHT' : 'DAY'} mode`);
     
     // Start spawning enemies for this wave
     waveSpawnInterval = setInterval(() => {
@@ -1032,10 +1059,11 @@ function spawnRandomEnemy() {
     // Use grid configuration for spawn position
     const position = serverConfig.getSpawnPosition();
     
-    // Get random mob type based on configuration
-    const type = serverConfig.getRandomMobType(currentWave);
+    // Get random mob type based on configuration and night mode
+    const isNight = isNightWave(currentWave);
+    const type = serverConfig.getRandomMobType(currentWave, isNight);
     
-    console.log('Spawning enemy:', type);
+    console.log(`Spawning enemy: ${type} (Wave ${currentWave} - ${isNight ? 'NIGHT' : 'DAY'})`);
     
     spawnEnemy(type, { 
         x: position.x, 
@@ -1077,11 +1105,19 @@ function resetServerState() {
         waveSpawnInterval = null;
     }
 
-    // Broadcast wave reset with wave 1
+    // Check if wave 1 is a night wave (it shouldn't be, but for consistency)
+    const isNight = isNightWave(currentWave);
+
+    // Broadcast wave reset with wave 1 and night mode info
     io.emit('waveStart', { 
         wave: currentWave,
-        minRarity: Rarity.COMMON
+        minRarity: Rarity.COMMON,
+        isNight: isNight
     });
+
+    // Send lighting configuration for the current time of day
+    const lightingConfig = serverConfig.getLightingConfig(isNight);
+    io.emit('configUpdate', lightingConfig);
 
     // Start spawning enemies for wave 1
     waveSpawnInterval = setInterval(() => {
@@ -1506,9 +1542,11 @@ io.on('connection', (socket) => {
         io.emit('lightingConfig', serverConfig.getCurrentConfig());
     });
 
-    // Send initial lighting config
-    socket.emit('lightingConfig', serverConfig.getCurrentConfig());
-    console.log('Sent initial lighting config to client:', serverConfig.getCurrentConfig());
+    // Send initial lighting config based on current wave
+    const currentIsNight = isNightWave(currentWave);
+    const initialLightingConfig = serverConfig.getLightingConfig(currentIsNight);
+    socket.emit('lightingConfig', initialLightingConfig);
+    console.log(`Sent initial lighting config to client (${currentIsNight ? 'NIGHT' : 'DAY'} mode):`, initialLightingConfig);
 });
 
 // Start the first wave when server starts
@@ -1766,6 +1804,107 @@ process.stdin.on('data', (data: string) => {
             });
             break;
 
+        case 'setwave':
+            if (args.length !== 1) {
+                console.log('Usage: setwave <wave_number>');
+                console.log('Example: setwave 10');
+                return;
+            }
+
+            const newWave = parseInt(args[0]);
+            if (isNaN(newWave) || newWave < 1) {
+                console.log('Wave number must be a positive integer');
+                return;
+            }
+
+            // Clear all existing enemies
+            enemies.forEach((_, enemyId) => {
+                io.emit('enemyDied', { 
+                    enemyId,
+                    position: { x: 0, y: 0, z: 0 },
+                    itemType: ''
+                });
+            });
+            enemies.clear();
+
+            // Clear any existing spawn interval
+            if (waveSpawnInterval) {
+                clearInterval(waveSpawnInterval);
+                waveSpawnInterval = null;
+            }
+
+            // Set the new wave
+            currentWave = newWave;
+            enemiesKilledInWave = 0;
+            totalXPInWave = 0;
+            enemiesSpawnedInWave = 0;
+
+            // Determine minimum rarity for this wave
+            let minRarity: Rarity;
+            if (currentWave >= 40) minRarity = Rarity.LEGENDARY;
+            else if (currentWave >= 30) minRarity = Rarity.EPIC;
+            else if (currentWave >= 20) minRarity = Rarity.RARE;
+            else if (currentWave >= 10) minRarity = Rarity.UNCOMMON;
+            else minRarity = Rarity.COMMON;
+
+            // Check if this is a night wave
+            const isNight = isNightWave(currentWave);
+
+            console.log(`Wave set to ${currentWave} - ${isNight ? 'NIGHT' : 'DAY'} mode`);
+
+            // Broadcast wave start with new wave info
+            io.emit('waveStart', { 
+                wave: currentWave,
+                minRarity: minRarity,
+                isNight: isNight
+            });
+
+            // Send lighting configuration for the current time of day
+            const lightingConfig = serverConfig.getLightingConfig(isNight);
+            io.emit('configUpdate', lightingConfig);
+
+            // Start spawning enemies for this wave
+            waveSpawnInterval = setInterval(() => {
+                if (enemiesSpawnedInWave < ENEMIES_PER_WAVE) {
+                    spawnRandomEnemy();
+                    enemiesSpawnedInWave++;
+                    
+                    if (enemiesSpawnedInWave >= ENEMIES_PER_WAVE) {
+                        if (waveSpawnInterval) {
+                            clearInterval(waveSpawnInterval);
+                            waveSpawnInterval = null;
+                        }
+                    }
+                }
+            }, WAVE_SPAWN_INTERVAL);
+            break;
+
+        case 'nextwave':
+            console.log('Advancing to next wave...');
+            
+            // Clear all existing enemies
+            enemies.forEach((_, enemyId) => {
+                io.emit('enemyDied', { 
+                    enemyId,
+                    position: { x: 0, y: 0, z: 0 },
+                    itemType: ''
+                });
+            });
+            enemies.clear();
+
+            // Force start the next wave
+            startNewWave();
+            break;
+
+        case 'wave':
+            const nightStatus = isNightWave(currentWave) ? 'NIGHT' : 'DAY';
+            console.log(`Current wave: ${currentWave} (${nightStatus} mode)`);
+            console.log(`Enemies killed: ${enemiesKilledInWave}/${ENEMIES_PER_WAVE}`);
+            console.log(`Total XP this wave: ${totalXPInWave}`);
+            console.log(`Enemies spawned: ${enemiesSpawnedInWave}/${ENEMIES_PER_WAVE}`);
+            console.log(`Active enemies: ${enemies.size}`);
+            break;
+
         case 'help':
             console.log('Available commands:');
             console.log('  spawn <type> [count] [rarity] - Spawn enemies');
@@ -1775,14 +1914,119 @@ process.stdin.on('data', (data: string) => {
             console.log('  spawnitem <type> [count]      - Spawn items at center of map');
             console.log('    - type: tetrahedron, cube, leaf, stinger');
             console.log('    - count: number of items to spawn (default: 1)');
-            console.log('  setsky <color>                 - Set sky color (hex)');
-            console.log('  setground <color>              - Set ground color (hex)');
-            console.log('  setlight <type> <prop> <val>   - Set light properties');
+            console.log('  setwave <wave_number>         - Set current wave to specific number');
+            console.log('  nextwave                      - Advance to next wave immediately');
+            console.log('  wave                          - Show current wave status and info');
+            console.log('  setsky <color>                - Set sky color (hex)');
+            console.log('  setground <color>             - Set ground color (hex)');
+            console.log('  setlight <type> <prop> <val>  - Set light properties');
             console.log('  setlightpos <x> <y> <z>       - Set directional light position');
-            console.log('  setgrid <color>                - Set grid color (hex)');
+            console.log('  setnightsky <color>           - Set night mode sky color (hex)');
+            console.log('  setnightground <color>        - Set night mode ground color (hex)');
+            console.log('  setnightlight <type> <prop> <val> - Set night mode light properties');
+            console.log('  setnightlightpos <x> <y> <z>  - Set night mode directional light position');
+            console.log('  setgrid <color>               - Set grid color (hex)');
             console.log('  setmob <type> <property> <value> - Set mob properties');
             console.log('  listmobs                      - List current mob configuration');
             console.log('  help                          - Show this help message');
+            break;
+
+        case 'setnightsky':
+            if (args.length !== 1) {
+                console.log('Usage: setnightsky <color>');
+                console.log('Example: setnightsky 0x1a1a2e');
+                return;
+            }
+            try {
+                const color = parseInt(args[0]);
+                serverConfig.setNightSkyColor(color);
+                // Send updated config if currently in night mode
+                const currentIsNight = isNightWave(currentWave);
+                if (currentIsNight) {
+                    io.emit('configUpdate', serverConfig.getLightingConfig(true));
+                }
+                console.log('Night sky color updated');
+            } catch (e) {
+                console.log('Invalid color format. Use hexadecimal (e.g., 0x1a1a2e)');
+            }
+            break;
+
+        case 'setnightground':
+            if (args.length !== 1) {
+                console.log('Usage: setnightground <color>');
+                console.log('Example: setnightground 0x0f3460');
+                return;
+            }
+            try {
+                const color = parseInt(args[0]);
+                serverConfig.setNightGroundColor(color);
+                // Send updated config if currently in night mode
+                const currentIsNight = isNightWave(currentWave);
+                if (currentIsNight) {
+                    io.emit('configUpdate', serverConfig.getLightingConfig(true));
+                }
+                console.log('Night ground color updated');
+            } catch (e) {
+                console.log('Invalid color format. Use hexadecimal (e.g., 0x0f3460)');
+            }
+            break;
+
+        case 'setnightlight':
+            if (args.length !== 3) {
+                console.log('Usage: setnightlight <type> <prop> <val>');
+                console.log('Types: ambient, directional, hemisphere');
+                console.log('Properties: color, intensity');
+                console.log('Example: setnightlight ambient intensity 0.3');
+                console.log('Example: setnightlight directional color 0x9090ff');
+                return;
+            }
+            
+            const [nightLightType, nightProperty, nightValue] = args;
+            if (!['ambient', 'directional', 'hemisphere'].includes(nightLightType)) {
+                console.log('Invalid light type. Use: ambient, directional, or hemisphere');
+                return;
+            }
+
+            try {
+                if (nightProperty === 'intensity') {
+                    const intensity = parseFloat(nightValue);
+                    serverConfig.setNightLightIntensity(nightLightType as any, intensity);
+                } else if (nightProperty === 'color' && nightLightType !== 'hemisphere') {
+                    const color = parseInt(nightValue);
+                    serverConfig.setNightLightColor(nightLightType as any, color);
+                } else {
+                    console.log('Invalid property. Use: color or intensity');
+                    return;
+                }
+                // Send updated config if currently in night mode
+                const currentIsNight = isNightWave(currentWave);
+                if (currentIsNight) {
+                    io.emit('configUpdate', serverConfig.getLightingConfig(true));
+                }
+                console.log(`Night ${nightLightType} light ${nightProperty} updated`);
+            } catch (e) {
+                console.log('Invalid value format');
+            }
+            break;
+
+        case 'setnightlightpos':
+            if (args.length !== 3) {
+                console.log('Usage: setnightlightpos <x> <y> <z>');
+                console.log('Example: setnightlightpos -5 15 -5');
+                return;
+            }
+            try {
+                const [x, y, z] = args.map(Number);
+                serverConfig.setNightDirectionalLightPosition(x, y, z);
+                // Send updated config if currently in night mode
+                const currentIsNight = isNightWave(currentWave);
+                if (currentIsNight) {
+                    io.emit('configUpdate', serverConfig.getLightingConfig(true));
+                }
+                console.log('Night directional light position updated');
+            } catch (e) {
+                console.log('Invalid position format. Use numbers for x, y, z coordinates');
+            }
             break;
 
         default:

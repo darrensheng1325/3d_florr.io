@@ -1942,7 +1942,7 @@ var Game = /** @class */ (function () {
                 enemy.remove();
                 _this.enemies.delete(data.enemyId);
                 _this.enemiesKilled++;
-                _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP);
+                _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP, undefined, undefined);
                 if (data.enemyType !== 'worker_ant') {
                     var dropResult = _this.determinePetalDrop(data.enemyRarity);
                     if (dropResult.shouldDrop) {
@@ -2500,13 +2500,13 @@ var Game = /** @class */ (function () {
             _this.currentWave = data.wave;
             _this.enemiesKilled = 0;
             _this.totalXP = 0;
-            _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP, data.minRarity);
+            _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP, data.minRarity, data.isNight);
         });
         this.socket.on('playerXP', function (data) {
             var _a;
             if (((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) === data.id) {
                 _this.totalXP = data.xp % _this.XP_PER_WAVE;
-                _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP);
+                _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP, undefined, undefined);
             }
         });
         (_a = this.socket) === null || _a === void 0 ? void 0 : _a.on('configUpdate', function (config) {
@@ -3008,7 +3008,7 @@ var Game = /** @class */ (function () {
             _this.currentWave = data.wave;
             _this.enemiesKilled = 0;
             _this.totalXP = 0;
-            _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP, data.minRarity);
+            _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP, data.minRarity, data.isNight);
         });
         this.socket.on('playerXP', function (data) {
             var _a;
@@ -5627,6 +5627,17 @@ var WaveUI = /** @class */ (function () {
         this.waveText.style.marginBottom = '10px';
         this.waveText.textContent = 'Wave 1'; // Set initial text
         this.container.appendChild(this.waveText);
+        // Create night mode text
+        this.nightModeText = document.createElement('div');
+        this.nightModeText.style.color = '#9370DB'; // Medium purple
+        this.nightModeText.style.fontFamily = 'Arial, sans-serif';
+        this.nightModeText.style.fontSize = '18px';
+        this.nightModeText.style.fontWeight = 'bold';
+        this.nightModeText.style.textShadow = '2px 2px 4px rgba(0,0,0,0.7)';
+        this.nightModeText.style.marginBottom = '5px';
+        this.nightModeText.style.display = 'none'; // Hidden by default
+        this.nightModeText.textContent = '🌙 NIGHT MODE 🌙';
+        this.container.appendChild(this.nightModeText);
         // Create rarity text
         this.rarityText = document.createElement('div');
         this.rarityText.style.fontSize = '16px';
@@ -5685,9 +5696,27 @@ var WaveUI = /** @class */ (function () {
         progressText.textContent = '0 / 20 enemies - 0 XP';
         this.progressContainer.appendChild(progressText);
     }
-    WaveUI.prototype.update = function (wave, enemiesKilled, totalXP, minRarity) {
+    WaveUI.prototype.update = function (wave, enemiesKilled, totalXP, minRarity, isNight) {
         // Update wave text
         this.waveText.textContent = "Wave ".concat(wave);
+        // Update night mode display
+        if (isNight !== undefined) {
+            if (isNight) {
+                this.nightModeText.style.display = 'block';
+                // Add pulsing animation for night mode
+                this.nightModeText.style.animation = 'pulse 2s infinite';
+                // Add CSS animation if not already added
+                if (!document.querySelector('#night-mode-animation')) {
+                    var style = document.createElement('style');
+                    style.id = 'night-mode-animation';
+                    style.textContent = "\n                        @keyframes pulse {\n                            0% { opacity: 0.7; }\n                            50% { opacity: 1; }\n                            100% { opacity: 0.7; }\n                        }\n                    ";
+                    document.head.appendChild(style);
+                }
+            }
+            else {
+                this.nightModeText.style.display = 'none';
+            }
+        }
         // Calculate progress
         var killProgress = Math.min((enemiesKilled / 20) * 100, 100);
         var xpProgress = Math.min((totalXP / 1000) * 100, 100);
@@ -5776,6 +5805,27 @@ var ServerConfig = /** @class */ (function () {
                 intensity: 1.0
             },
             skyColor: 0x87ceeb, // Sky blue
+            nightMode: {
+                ambientLight: {
+                    color: 0x404080, // Dark blue-purple
+                    intensity: 0.3 // Much dimmer
+                },
+                directionalLight: {
+                    color: 0x9090ff, // Pale blue moonlight
+                    intensity: 0.4, // Dimmer than day
+                    position: {
+                        x: -5, // Moon from opposite side
+                        y: 15, // Higher in sky
+                        z: -5
+                    }
+                },
+                hemisphereLight: {
+                    skyColor: 0x1a1a2e, // Dark navy night sky
+                    groundColor: 0x0f3460, // Dark blue-green ground
+                    intensity: 0.6 // Reduced intensity
+                },
+                skyColor: 0x1a1a2e // Dark navy night sky
+            },
             collisionPlanes: [
                 {
                     "x": 40,
@@ -6072,6 +6122,27 @@ var ServerConfig = /** @class */ (function () {
                     intensity: 0.8
                 },
                 skyColor: 0xa15402, // Dark gray
+                nightMode: {
+                    ambientLight: {
+                        color: 0x2a1a0a, // Very dark brown
+                        intensity: 0.2 // Very dim
+                    },
+                    directionalLight: {
+                        color: 0x6a4a2a, // Dark orange moonlight
+                        intensity: 0.3, // Very dim
+                        position: {
+                            x: -5,
+                            y: 20,
+                            z: -5
+                        }
+                    },
+                    hemisphereLight: {
+                        skyColor: 0x0a0a0a, // Almost black sky
+                        groundColor: 0x2a1a0a, // Very dark brown ground
+                        intensity: 0.4 // Very reduced intensity
+                    },
+                    skyColor: 0x0a0a0a // Almost black sky
+                },
                 collisionPlanes: []
             };
         }
@@ -6125,6 +6196,51 @@ var ServerConfig = /** @class */ (function () {
     ServerConfig.prototype.setDirectionalLightPosition = function (x, y, z) {
         this.currentConfig.directionalLight.position = { x: x, y: y, z: z };
     };
+    // Night mode lighting methods
+    ServerConfig.prototype.setNightSkyColor = function (color) {
+        this.currentConfig.nightMode.skyColor = color;
+        this.currentConfig.nightMode.hemisphereLight.skyColor = color;
+    };
+    ServerConfig.prototype.setNightGroundColor = function (color) {
+        this.currentConfig.nightMode.hemisphereLight.groundColor = color;
+    };
+    ServerConfig.prototype.setNightLightIntensity = function (type, intensity) {
+        switch (type) {
+            case 'ambient':
+                this.currentConfig.nightMode.ambientLight.intensity = intensity;
+                break;
+            case 'directional':
+                this.currentConfig.nightMode.directionalLight.intensity = intensity;
+                break;
+            case 'hemisphere':
+                this.currentConfig.nightMode.hemisphereLight.intensity = intensity;
+                break;
+        }
+    };
+    ServerConfig.prototype.setNightLightColor = function (type, color) {
+        switch (type) {
+            case 'ambient':
+                this.currentConfig.nightMode.ambientLight.color = color;
+                break;
+            case 'directional':
+                this.currentConfig.nightMode.directionalLight.color = color;
+                break;
+        }
+    };
+    ServerConfig.prototype.setNightDirectionalLightPosition = function (x, y, z) {
+        this.currentConfig.nightMode.directionalLight.position = { x: x, y: y, z: z };
+    };
+    // Get lighting config for specific time of day
+    ServerConfig.prototype.getLightingConfig = function (isNight) {
+        if (isNight) {
+            // Return config with night mode lighting applied
+            return __assign(__assign({}, this.currentConfig), { ambientLight: this.currentConfig.nightMode.ambientLight, directionalLight: this.currentConfig.nightMode.directionalLight, hemisphereLight: this.currentConfig.nightMode.hemisphereLight, skyColor: this.currentConfig.nightMode.skyColor });
+        }
+        else {
+            // Return normal day config
+            return this.currentConfig;
+        }
+    };
     // Mob configuration methods
     ServerConfig.prototype.getMobConfig = function () {
         return this.mobConfig;
@@ -6159,19 +6275,52 @@ var ServerConfig = /** @class */ (function () {
         }
         return spawnable;
     };
-    ServerConfig.prototype.getRandomMobType = function (currentWave) {
+    ServerConfig.prototype.getRandomMobType = function (currentWave, isNight) {
         var spawnable = [];
         var weights = [];
         var totalWeight = 0;
+        // Night-only mobs
+        var nightOnlyMobs = ['spider', 'soldier_ant'];
         // First, get all eligible mobs and their total weight
         for (var _i = 0, _a = Object.entries(this.mobConfig); _i < _a.length; _i++) {
             var _b = _a[_i], type = _b[0], config = _b[1];
             if (config.enabled && config.weight > 0 &&
                 config.minWave <= currentWave &&
                 type !== 'centipede_segment') {
-                spawnable.push(type);
-                weights.push(config.weight);
-                totalWeight += config.weight;
+                var mobType = type;
+                // Apply night mode restrictions
+                if (isNight !== undefined) {
+                    if (isNight) {
+                        // Night mode: only allow night-only mobs and general mobs
+                        // For now, we'll allow all mobs during night but give preference to night-only mobs
+                        if (nightOnlyMobs.includes(mobType)) {
+                            // Give night-only mobs 3x weight during night
+                            spawnable.push(mobType);
+                            weights.push(config.weight * 3);
+                            totalWeight += config.weight * 3;
+                        }
+                        else {
+                            // Regular mobs get normal weight during night
+                            spawnable.push(mobType);
+                            weights.push(config.weight);
+                            totalWeight += config.weight;
+                        }
+                    }
+                    else {
+                        // Day mode: exclude night-only mobs
+                        if (!nightOnlyMobs.includes(mobType)) {
+                            spawnable.push(mobType);
+                            weights.push(config.weight);
+                            totalWeight += config.weight;
+                        }
+                    }
+                }
+                else {
+                    // No night mode specified, use normal logic
+                    spawnable.push(mobType);
+                    weights.push(config.weight);
+                    totalWeight += config.weight;
+                }
             }
         }
         // If no mobs are available, return ladybug as fallback

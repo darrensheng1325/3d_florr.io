@@ -9,6 +9,7 @@ export class WaveUI {
     private progressText: HTMLDivElement;
     private xpText: HTMLDivElement;
     private rarityText: HTMLDivElement;
+    private nightModeText: HTMLDivElement;
 
     constructor() {
         // Create main container
@@ -32,6 +33,18 @@ export class WaveUI {
         this.waveText.style.marginBottom = '10px';
         this.waveText.textContent = 'Wave 1';  // Set initial text
         this.container.appendChild(this.waveText);
+
+        // Create night mode text
+        this.nightModeText = document.createElement('div');
+        this.nightModeText.style.color = '#9370DB';  // Medium purple
+        this.nightModeText.style.fontFamily = 'Arial, sans-serif';
+        this.nightModeText.style.fontSize = '18px';
+        this.nightModeText.style.fontWeight = 'bold';
+        this.nightModeText.style.textShadow = '2px 2px 4px rgba(0,0,0,0.7)';
+        this.nightModeText.style.marginBottom = '5px';
+        this.nightModeText.style.display = 'none';  // Hidden by default
+        this.nightModeText.textContent = '🌙 NIGHT MODE 🌙';
+        this.container.appendChild(this.nightModeText);
 
         // Create rarity text
         this.rarityText = document.createElement('div');
@@ -98,9 +111,33 @@ export class WaveUI {
         this.progressContainer.appendChild(progressText);
     }
 
-    public update(wave: number, enemiesKilled: number, totalXP: number, minRarity?: Rarity): void {
+    public update(wave: number, enemiesKilled: number, totalXP: number, minRarity?: Rarity, isNight?: boolean): void {
         // Update wave text
         this.waveText.textContent = `Wave ${wave}`;
+
+        // Update night mode display
+        if (isNight !== undefined) {
+            if (isNight) {
+                this.nightModeText.style.display = 'block';
+                // Add pulsing animation for night mode
+                this.nightModeText.style.animation = 'pulse 2s infinite';
+                // Add CSS animation if not already added
+                if (!document.querySelector('#night-mode-animation')) {
+                    const style = document.createElement('style');
+                    style.id = 'night-mode-animation';
+                    style.textContent = `
+                        @keyframes pulse {
+                            0% { opacity: 0.7; }
+                            50% { opacity: 1; }
+                            100% { opacity: 0.7; }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+            } else {
+                this.nightModeText.style.display = 'none';
+            }
+        }
 
         // Calculate progress
         const killProgress = Math.min((enemiesKilled / 20) * 100, 100);

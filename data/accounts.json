@@ -54,19 +54,19 @@
   },
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1749688465887,
-    "totalXP": 33984000,
-    "highestWave": 1,
+    "lastSeen": 1749690080858,
+    "totalXP": 271882750,
+    "highestWave": 46,
     "inventory": {
       "petals": [],
       "collectedItems": [
         {
           "type": "cube",
-          "amount": 3
+          "amount": 5
         },
         {
           "type": "tetrahedron",
-          "amount": 5
+          "amount": 7
         },
         {
           "type": "stinger",
@@ -83,10 +83,10 @@
       ]
     },
     "stats": {
-      "totalKills": 7,
-      "totalDeaths": 38,
-      "totalPlayTime": 579273,
-      "bestXP": 16992000
+      "totalKills": 15,
+      "totalDeaths": 41,
+      "totalPlayTime": 665669,
+      "bestXP": 135941750
     }
   },
   "spectator_tvn7oximk": {

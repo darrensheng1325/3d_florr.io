@@ -99,6 +99,27 @@ export interface LightingConfig {
         intensity: number;
     };
     skyColor: number;
+    nightMode: {
+        ambientLight: {
+            color: number;
+            intensity: number;
+        };
+        directionalLight: {
+            color: number;
+            intensity: number;
+            position: {
+                x: number;
+                y: number;
+                z: number;
+            };
+        };
+        hemisphereLight: {
+            skyColor: number;
+            groundColor: number;
+            intensity: number;
+        };
+        skyColor: number;
+    };
     gridConfig?: {
         gridColor: number;
     };
@@ -124,4 +145,10 @@ export enum PetalType {
     LEAF = 'leaf',
     STINGER = 'stinger',
     PEA = 'pea'
+}
+
+export interface WaveStartData {
+    wave: number;
+    minRarity: Rarity;
+    isNight: boolean;
 } 

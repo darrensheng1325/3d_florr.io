@@ -38,6 +38,27 @@ export class ServerConfig {
             intensity: 1.0
         },
         skyColor: 0x87ceeb,  // Sky blue
+        nightMode: {
+            ambientLight: {
+                color: 0x404080,    // Dark blue-purple
+                intensity: 0.3      // Much dimmer
+            },
+            directionalLight: {
+                color: 0x9090ff,    // Pale blue moonlight
+                intensity: 0.4,     // Dimmer than day
+                position: {
+                    x: -5,          // Moon from opposite side
+                    y: 15,          // Higher in sky
+                    z: -5
+                }
+            },
+            hemisphereLight: {
+                skyColor: 0x1a1a2e,     // Dark navy night sky
+                groundColor: 0x0f3460,  // Dark blue-green ground
+                intensity: 0.6          // Reduced intensity
+            },
+            skyColor: 0x1a1a2e      // Dark navy night sky
+        },
         collisionPlanes: [
             {
                 "x": 40,
@@ -350,6 +371,27 @@ export class ServerConfig {
                     intensity: 0.8
                 },
                 skyColor: 0xa15402,  // Dark gray
+                nightMode: {
+                    ambientLight: {
+                        color: 0x2a1a0a,    // Very dark brown
+                        intensity: 0.2      // Very dim
+                    },
+                    directionalLight: {
+                        color: 0x6a4a2a,    // Dark orange moonlight
+                        intensity: 0.3,     // Very dim
+                        position: {
+                            x: -5,
+                            y: 20,
+                            z: -5
+                        }
+                    },
+                    hemisphereLight: {
+                        skyColor: 0x0a0a0a,     // Almost black sky
+                        groundColor: 0x2a1a0a,  // Very dark brown ground
+                        intensity: 0.4          // Very reduced intensity
+                    },
+                    skyColor: 0x0a0a0a      // Almost black sky
+                },
                 collisionPlanes: [
                     
                 ]
@@ -432,6 +474,62 @@ export class ServerConfig {
         this.currentConfig.directionalLight.position = { x, y, z };
     }
 
+    // Night mode lighting methods
+    public setNightSkyColor(color: number): void {
+        this.currentConfig.nightMode.skyColor = color;
+        this.currentConfig.nightMode.hemisphereLight.skyColor = color;
+    }
+
+    public setNightGroundColor(color: number): void {
+        this.currentConfig.nightMode.hemisphereLight.groundColor = color;
+    }
+
+    public setNightLightIntensity(type: 'ambient' | 'directional' | 'hemisphere', intensity: number): void {
+        switch (type) {
+            case 'ambient':
+                this.currentConfig.nightMode.ambientLight.intensity = intensity;
+                break;
+            case 'directional':
+                this.currentConfig.nightMode.directionalLight.intensity = intensity;
+                break;
+            case 'hemisphere':
+                this.currentConfig.nightMode.hemisphereLight.intensity = intensity;
+                break;
+        }
+    }
+
+    public setNightLightColor(type: 'ambient' | 'directional', color: number): void {
+        switch (type) {
+            case 'ambient':
+                this.currentConfig.nightMode.ambientLight.color = color;
+                break;
+            case 'directional':
+                this.currentConfig.nightMode.directionalLight.color = color;
+                break;
+        }
+    }
+
+    public setNightDirectionalLightPosition(x: number, y: number, z: number): void {
+        this.currentConfig.nightMode.directionalLight.position = { x, y, z };
+    }
+
+    // Get lighting config for specific time of day
+    public getLightingConfig(isNight: boolean): LightingConfig {
+        if (isNight) {
+            // Return config with night mode lighting applied
+            return {
+                ...this.currentConfig,
+                ambientLight: this.currentConfig.nightMode.ambientLight,
+                directionalLight: this.currentConfig.nightMode.directionalLight,
+                hemisphereLight: this.currentConfig.nightMode.hemisphereLight,
+                skyColor: this.currentConfig.nightMode.skyColor
+            };
+        } else {
+            // Return normal day config
+            return this.currentConfig;
+        }
+    }
+
     // Mob configuration methods
     public getMobConfig(): Record<EnemyType, MobSpawnConfig> {
         return this.mobConfig;
@@ -472,19 +570,52 @@ export class ServerConfig {
         return spawnable;
     }
 
-    public getRandomMobType(currentWave: number): EnemyType {
+    public getRandomMobType(currentWave: number, isNight?: boolean): EnemyType {
         const spawnable: EnemyType[] = [];
         const weights: number[] = [];
         let totalWeight = 0;
+
+        // Night-only mobs
+        const nightOnlyMobs: EnemyType[] = ['spider', 'soldier_ant'];
 
         // First, get all eligible mobs and their total weight
         for (const [type, config] of Object.entries(this.mobConfig)) {
             if (config.enabled && config.weight > 0 && 
                 config.minWave <= currentWave && 
                 type !== 'centipede_segment') {
-                spawnable.push(type as EnemyType);
-                weights.push(config.weight);
-                totalWeight += config.weight;
+                
+                const mobType = type as EnemyType;
+                
+                // Apply night mode restrictions
+                if (isNight !== undefined) {
+                    if (isNight) {
+                        // Night mode: only allow night-only mobs and general mobs
+                        // For now, we'll allow all mobs during night but give preference to night-only mobs
+                        if (nightOnlyMobs.includes(mobType)) {
+                            // Give night-only mobs 3x weight during night
+                            spawnable.push(mobType);
+                            weights.push(config.weight * 3);
+                            totalWeight += config.weight * 3;
+                        } else {
+                            // Regular mobs get normal weight during night
+                            spawnable.push(mobType);
+                            weights.push(config.weight);
+                            totalWeight += config.weight;
+                        }
+                    } else {
+                        // Day mode: exclude night-only mobs
+                        if (!nightOnlyMobs.includes(mobType)) {
+                            spawnable.push(mobType);
+                            weights.push(config.weight);
+                            totalWeight += config.weight;
+                        }
+                    }
+                } else {
+                    // No night mode specified, use normal logic
+                    spawnable.push(mobType);
+                    weights.push(config.weight);
+                    totalWeight += config.weight;
+                }
             }
         }
 
