@@ -120,5 +120,134 @@
       "totalPlayTime": 0,
       "bestXP": 0
     }
+  },
+  "spectator_3vzhvd5y3": {
+    "id": "spectator_3vzhvd5y3",
+    "lastSeen": 1749690698286,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "": {
+    "id": "",
+    "lastSeen": 1749690759041,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": [
+        {
+          "type": "pea",
+          "amount": 6
+        },
+        {
+          "type": "stinger",
+          "amount": 1
+        },
+        {
+          "type": "cube",
+          "amount": 2
+        },
+        {
+          "type": "tetrahedron",
+          "amount": 1
+        }
+      ]
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "spectator_fmfzxyjzh": {
+    "id": "spectator_fmfzxyjzh",
+    "lastSeen": 1749690712240,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "spectator_tnjhvtqtv": {
+    "id": "spectator_tnjhvtqtv",
+    "lastSeen": 1749690770877,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "spectator_ogn54ohcn": {
+    "id": "spectator_ogn54ohcn",
+    "lastSeen": 1749690818488,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "spectator_18134a6f6": {
+    "id": "spectator_18134a6f6",
+    "lastSeen": 1749691107847,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "spectator_9vun37t0m": {
+    "id": "spectator_9vun37t0m",
+    "lastSeen": 1749691189028,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
   }
 }

@@ -2027,55 +2027,84 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.handleStartGame = function () {
         return __awaiter(this, void 0, void 0, function () {
-            var title, newTitle;
-            var _this = this;
-            return __generator(this, function (_a) {
-                if (this.isGameStarted)
-                    return [2 /*return*/];
-                this.isGameStarted = true;
-                this.uiManager.clearTitleScreen();
-                title = document.querySelector('title');
-                if (title) {
-                    document.head.removeChild(title);
+            var _a, accountId, username, error_1;
+            return __generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0:
+                        if (this.isGameStarted)
+                            return [2 /*return*/];
+                        if (!!this.accountManager.hasAccount()) return [3 /*break*/, 5];
+                        _b.label = 1;
+                    case 1:
+                        _b.trys.push([1, 3, , 4]);
+                        return [4 /*yield*/, this.accountManager.showLoginIfNeeded()];
+                    case 2:
+                        _a = _b.sent(), accountId = _a.accountId, username = _a.username;
+                        console.log("Logged in as: ".concat(username, " (").concat(accountId, ")"));
+                        // After successful login, proceed with game start
+                        this.startGameAfterLogin();
+                        return [3 /*break*/, 4];
+                    case 3:
+                        error_1 = _b.sent();
+                        console.error('Login failed:', error_1);
+                        return [2 /*return*/];
+                    case 4: return [3 /*break*/, 6];
+                    case 5:
+                        // User has stored credentials, start game directly
+                        this.startGameAfterLogin();
+                        _b.label = 6;
+                    case 6: return [2 /*return*/];
                 }
-                newTitle = document.createElement('title');
-                newTitle.textContent = "3dflower.io | ".concat(this.accountManager.getUsername());
-                document.head.appendChild(newTitle);
-                // Show wave UI
-                this.waveUI.show();
-                // Clear the scene of all spectator elements
-                this.players.forEach(function (player, id) {
-                    _this.scene.remove(player);
-                });
-                this.players.clear();
-                this.enemies.forEach(function (enemy) {
-                    enemy.remove();
-                });
-                this.enemies.clear();
-                // Properly clear all inventories and their petals
-                this.playerInventories.forEach(function (inventory) {
-                    inventory.clear();
-                });
-                this.playerInventories.clear();
-                this.playerHealthBars.forEach(function (healthBar) {
-                    healthBar.remove();
-                });
-                this.playerHealthBars.clear();
-                // Clear the renderer
-                this.renderer.clear();
-                // Clear items
-                this.items.forEach(function (item) {
-                    item.remove();
-                });
-                this.items.clear();
-                // Reconnect to server to get a fresh connection with actual account
-                this.networkManager.connectWithAccount(this.accountManager.getAccountId());
-                this.socket = this.networkManager.socket;
-                // Setup game scene
-                this.setupGame();
-                return [2 /*return*/];
             });
         });
+    };
+    Game.prototype.startGameAfterLogin = function () {
+        var _this = this;
+        if (this.isGameStarted)
+            return;
+        this.isGameStarted = true;
+        this.uiManager.clearTitleScreen();
+        // Remove title from document head
+        var title = document.querySelector('title');
+        if (title) {
+            document.head.removeChild(title);
+        }
+        // Update title
+        var newTitle = document.createElement('title');
+        newTitle.textContent = "3dflower.io | ".concat(this.accountManager.getUsername());
+        document.head.appendChild(newTitle);
+        // Show wave UI
+        this.waveUI.show();
+        // Clear the scene of all spectator elements
+        this.players.forEach(function (player, id) {
+            _this.scene.remove(player);
+        });
+        this.players.clear();
+        this.enemies.forEach(function (enemy) {
+            enemy.remove();
+        });
+        this.enemies.clear();
+        // Properly clear all inventories and their petals
+        this.playerInventories.forEach(function (inventory) {
+            inventory.clear();
+        });
+        this.playerInventories.clear();
+        this.playerHealthBars.forEach(function (healthBar) {
+            healthBar.remove();
+        });
+        this.playerHealthBars.clear();
+        // Clear the renderer
+        this.renderer.clear();
+        // Clear items
+        this.items.forEach(function (item) {
+            item.remove();
+        });
+        this.items.clear();
+        // Reconnect to server to get a fresh connection with actual account
+        this.networkManager.connectWithAccount(this.accountManager.getAccountId());
+        this.socket = this.networkManager.socket;
+        // Setup game scene
+        this.setupGame();
     };
     Game.prototype.setupGame = function () {
         // Set initial camera position for game
@@ -3519,8 +3548,74 @@ var Game = /** @class */ (function () {
         rarityTintingContainer.appendChild(rarityTintingLabel);
         rarityTintingContainer.appendChild(rarityTintingToggle);
         settingsContainer.appendChild(rarityTintingContainer);
+        // Add logout button
+        var logoutButton = document.createElement('button');
+        logoutButton.textContent = 'Logout';
+        logoutButton.style.cssText = "\n            padding: 8px 16px;\n            background-color: #dc3545;\n            color: white;\n            border: none;\n            border-radius: 5px;\n            cursor: pointer;\n            font-size: 14px;\n            margin-top: 10px;\n            transition: background-color 0.3s;\n        ";
+        logoutButton.addEventListener('mouseover', function () {
+            logoutButton.style.backgroundColor = '#c82333';
+        });
+        logoutButton.addEventListener('mouseout', function () {
+            logoutButton.style.backgroundColor = '#dc3545';
+        });
+        logoutButton.addEventListener('click', function () {
+            _this.handleLogout();
+        });
+        settingsContainer.appendChild(logoutButton);
         menu.appendChild(settingsContainer);
         document.body.appendChild(menu);
+    };
+    Game.prototype.handleLogout = function () {
+        var _this = this;
+        // Close settings menu
+        this.isSettingsOpen = false;
+        if (this.settingsMenu) {
+            this.settingsMenu.style.display = 'none';
+        }
+        // Logout from account manager
+        this.accountManager.logout();
+        // Disconnect from server
+        if (this.socket) {
+            this.socket.disconnect();
+        }
+        // Reset game state
+        this.isGameStarted = false;
+        // Clear the scene
+        this.players.forEach(function (player, id) {
+            _this.scene.remove(player);
+        });
+        this.players.clear();
+        this.enemies.forEach(function (enemy) {
+            enemy.remove();
+        });
+        this.enemies.clear();
+        this.playerInventories.forEach(function (inventory) {
+            inventory.clear();
+        });
+        this.playerInventories.clear();
+        this.playerHealthBars.forEach(function (healthBar) {
+            healthBar.remove();
+        });
+        this.playerHealthBars.clear();
+        this.items.forEach(function (item) {
+            item.remove();
+        });
+        this.items.clear();
+        // Hide wave UI
+        this.waveUI.hide();
+        // Reset camera position for title screen
+        this.camera.position.set(0, 15, 0);
+        this.camera.lookAt(0, 0, 0);
+        // Reinitialize spectator connection for title screen
+        this.networkManager.initializeSpectatorConnection();
+        this.socket = this.networkManager.socket;
+        // Recreate title screen
+        this.init();
+        // Update page title
+        var title = document.querySelector('title');
+        if (title) {
+            title.textContent = '3dflower.io';
+        }
     };
     Game.prototype.toggleSettingsMenu = function () {
         var _this = this;
@@ -5062,7 +5157,7 @@ var UIManager = /** @class */ (function () {
         });
         var loginButton = document.createElement('button');
         loginButton.style.cssText = "\n            position: fixed;\n            top: 60%;\n            left: 50%;\n            transform: translateX(-50%);\n            padding: 15px 30px;\n            font-size: 18px;\n            font-weight: bold;\n            background: linear-gradient(135deg, #00FF00 0%, #AAFF00 100%);\n            color: white;\n            border: none;\n            border-radius: 12px;\n            cursor: pointer;\n            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);\n            transition: all 0.3s ease;\n            z-index: 1000;\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n        ";
-        loginButton.textContent = 'Start';
+        loginButton.textContent = 'Play Game';
         loginButton.addEventListener('click', function () { return handleStartGame(); });
         loginButton.addEventListener('mouseover', function () {
             loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
@@ -5080,6 +5175,13 @@ var UIManager = /** @class */ (function () {
             accountStatus.innerHTML = "\n                <div>Welcome back, <strong>".concat(this.accountManager.getUsername(), "</strong>!</div>\n                <div style=\"margin-top: 5px; font-size: 12px; opacity: 0.8;\">Your progress will be saved automatically</div>\n            ");
             document.body.appendChild(accountStatus);
             window.titleAccountStatus = accountStatus;
+        }
+        else {
+            var loginPrompt = document.createElement('div');
+            loginPrompt.style.cssText = "\n                position: fixed;\n                top: 70%;\n                left: 50%;\n                transform: translateX(-50%);\n                text-align: center;\n                color: #ffffff;\n                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n                font-size: 14px;\n                background: rgba(0, 0, 0, 0.5);\n                padding: 10px 20px;\n                border-radius: 8px;\n                z-index: 1000;\n            ";
+            loginPrompt.innerHTML = "\n                <div><strong>Ready to play?</strong></div>\n                <div style=\"margin-top: 5px; font-size: 12px; opacity: 0.8;\">Login or play as guest to save your progress</div>\n            ";
+            document.body.appendChild(loginPrompt);
+            window.titleAccountStatus = loginPrompt;
         }
         this.onWindowResize();
         var animate = function () {

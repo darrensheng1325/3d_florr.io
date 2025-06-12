@@ -467,6 +467,27 @@ export class Game {
     private async handleStartGame(): Promise<void> {
         if (this.isGameStarted) return;
 
+        // Check if user has stored credentials
+        if (!this.accountManager.hasAccount()) {
+            // No stored credentials, show login screen
+            try {
+                const { accountId, username } = await this.accountManager.showLoginIfNeeded();
+                console.log(`Logged in as: ${username} (${accountId})`);
+                // After successful login, proceed with game start
+                this.startGameAfterLogin();
+            } catch (error) {
+                console.error('Login failed:', error);
+                return;
+            }
+        } else {
+            // User has stored credentials, start game directly
+            this.startGameAfterLogin();
+        }
+    }
+
+    private startGameAfterLogin(): void {
+        if (this.isGameStarted) return;
+
         this.isGameStarted = true;
         
         this.uiManager.clearTitleScreen();
@@ -2231,8 +2252,98 @@ export class Game {
         rarityTintingContainer.appendChild(rarityTintingToggle);
         settingsContainer.appendChild(rarityTintingContainer);
 
+        // Add logout button
+        const logoutButton = document.createElement('button');
+        logoutButton.textContent = 'Logout';
+        logoutButton.style.cssText = `
+            padding: 8px 16px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        `;
+        logoutButton.addEventListener('mouseover', () => {
+            logoutButton.style.backgroundColor = '#c82333';
+        });
+        logoutButton.addEventListener('mouseout', () => {
+            logoutButton.style.backgroundColor = '#dc3545';
+        });
+        logoutButton.addEventListener('click', () => {
+            this.handleLogout();
+        });
+        settingsContainer.appendChild(logoutButton);
+
         menu.appendChild(settingsContainer);
         document.body.appendChild(menu);
+    }
+
+    private handleLogout(): void {
+        // Close settings menu
+        this.isSettingsOpen = false;
+        if (this.settingsMenu) {
+            this.settingsMenu.style.display = 'none';
+        }
+
+        // Logout from account manager
+        this.accountManager.logout();
+
+        // Disconnect from server
+        if (this.socket) {
+            this.socket.disconnect();
+        }
+
+        // Reset game state
+        this.isGameStarted = false;
+
+        // Clear the scene
+        this.players.forEach((player, id) => {
+            this.scene.remove(player);
+        });
+        this.players.clear();
+
+        this.enemies.forEach((enemy) => {
+            enemy.remove();
+        });
+        this.enemies.clear();
+
+        this.playerInventories.forEach((inventory) => {
+            inventory.clear();
+        });
+        this.playerInventories.clear();
+
+        this.playerHealthBars.forEach((healthBar) => {
+            healthBar.remove();
+        });
+        this.playerHealthBars.clear();
+
+        this.items.forEach(item => {
+            item.remove();
+        });
+        this.items.clear();
+
+        // Hide wave UI
+        this.waveUI.hide();
+
+        // Reset camera position for title screen
+        this.camera.position.set(0, 15, 0);
+        this.camera.lookAt(0, 0, 0);
+
+        // Reinitialize spectator connection for title screen
+        this.networkManager.initializeSpectatorConnection();
+        this.socket = this.networkManager.socket;
+
+        // Recreate title screen
+        this.init();
+
+        // Update page title
+        const title = document.querySelector('title');
+        if (title) {
+            title.textContent = '3dflower.io';
+        }
     }
 
     private toggleSettingsMenu(): void {

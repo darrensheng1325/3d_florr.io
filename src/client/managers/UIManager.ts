@@ -64,7 +64,7 @@ export class UIManager {
             z-index: 1000;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         `;
-        loginButton.textContent = 'Start';
+        loginButton.textContent = 'Play Game';
         loginButton.addEventListener('click', () => handleStartGame());
         loginButton.addEventListener('mouseover', () => {
             loginButton.style.transform = 'translateX(-50%) translateY(-2px)';
@@ -100,6 +100,28 @@ export class UIManager {
             `;
             document.body.appendChild(accountStatus);
             (window as any).titleAccountStatus = accountStatus;
+        } else {
+            const loginPrompt = document.createElement('div');
+            loginPrompt.style.cssText = `
+                position: fixed;
+                top: 70%;
+                left: 50%;
+                transform: translateX(-50%);
+                text-align: center;
+                color: #ffffff;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 14px;
+                background: rgba(0, 0, 0, 0.5);
+                padding: 10px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+            `;
+            loginPrompt.innerHTML = `
+                <div><strong>Ready to play?</strong></div>
+                <div style="margin-top: 5px; font-size: 12px; opacity: 0.8;">Login or play as guest to save your progress</div>
+            `;
+            document.body.appendChild(loginPrompt);
+            (window as any).titleAccountStatus = loginPrompt;
         }
 
         this.onWindowResize();
