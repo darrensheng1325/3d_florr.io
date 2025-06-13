@@ -13,23 +13,26 @@ export class NetworkManager extends EventEmitter<any> {
     }
 
     public initializeSpectatorConnection(): void {
+        console.log('[DEBUG] NetworkManager: Initializing spectator connection');
         let accountId = 'spectator_' + Math.random().toString(36).substr(2, 9);
         
         if (this.accountManager.hasAccount()) {
             accountId = this.accountManager.getAccountId();
         }
 
+        console.log('[DEBUG] NetworkManager: Connecting with accountId:', accountId);
         this.socket = io('/', {
             query: {
                 accountId: accountId
             }
         });
-        this.setupSpectatorEvents();
         this.setupCommonEvents();
     }
 
     public connectWithAccount(accountId: string): void {
+        console.log('[DEBUG] NetworkManager: Connecting with account:', accountId);
         if (this.socket) {
+            console.log('[DEBUG] NetworkManager: Disconnecting existing socket');
             this.socket.disconnect();
         }
         this.socket = io('/', {
@@ -42,47 +45,54 @@ export class NetworkManager extends EventEmitter<any> {
     }
     
     public emit(event: string, data?: any) {
+        console.log('[DEBUG] NetworkManager: Emitting event:', event, data);
         this.socket?.emit(event, data);
     }
 
     private setupCommonEvents(): void {
         if (!this.socket) return;
         
+        console.log('[DEBUG] NetworkManager: Setting up common events');
+        
         this.socket.on('disconnect', (reason) => {
+            console.log('[DEBUG] NetworkManager: Socket disconnected:', reason);
             super.emit('disconnect', reason);
         });
 
         this.socket.on('connect_error', (error) => {
+            console.log('[DEBUG] NetworkManager: Connection error:', error);
             super.emit('connect_error', error);
         });
 
         this.socket.on('connect', () => {
+            console.log('[DEBUG] NetworkManager: Socket connected, ID:', this.socket?.id);
             super.emit('connect');
         });
 
-        this.setupEnemyEvents();
-    }
-
-    private setupSpectatorEvents(): void {
-        if (!this.socket) return;
-
         this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number } }) => {
+            console.log('[DEBUG] NetworkManager: playerJoined received:', data);
             super.emit('playerJoined', data);
         });
 
         this.socket.on('playerLeft', (playerId: string) => {
+            console.log('[DEBUG] NetworkManager: playerLeft received:', playerId);
             super.emit('playerLeft', playerId);
         });
 
         this.socket.on('playerMoved', (data: { id: string, position: { x: number, y: number, z: number } }) => {
             super.emit('playerMoved', data);
         });
+
+        this.setupEnemyEvents();
     }
 
     private setupGameEvents(): void {
         if (!this.socket) return;
 
+        console.log('[DEBUG] NetworkManager: Setting up game events');
+
         this.socket.on('connect', () => {
+            console.log('[DEBUG] NetworkManager: Game socket connected, ID:', this.socket?.id);
             if (this.socket?.id) {
                 super.emit('gameConnect', { id: this.socket.id });
                 this.socket.emit('requestLightingConfig');

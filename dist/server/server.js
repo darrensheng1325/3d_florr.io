@@ -1007,6 +1007,9 @@ io.on('connection', (socket) => {
     });
     // Send a single, complete sync event
     socket.emit('accountSync', fullAccountData);
+    socket.on('previewing', () => {
+        players.delete(socket.id);
+    });
     // Handle inventory request (for manual refresh)
     socket.on('requestInventory', () => {
         const player = players.get(socket.id);

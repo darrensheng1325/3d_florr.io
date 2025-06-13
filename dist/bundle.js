@@ -1691,6 +1691,7 @@ var Game = /** @class */ (function () {
         this.totalXP = 0;
         this.ENEMIES_PER_WAVE = 20;
         this.XP_PER_WAVE = 1000;
+        this.playersBeingCreated = new Set(); // Track players being created
         this.cameraRotation = 0;
         this.playerInventories = new Map();
         this.enemies = new Map();
@@ -1833,15 +1834,29 @@ var Game = /** @class */ (function () {
     Game.prototype.setupNetworkListeners = function () {
         var _this = this;
         this.networkManager.on('playerJoined', function (data) {
-            if (!_this.isGameStarted) {
+            var _a, _b;
+            console.log('[DEBUG] playerJoined event received:', data);
+            console.log('[DEBUG] Current socket ID:', (_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id);
+            console.log('[DEBUG] Is game started:', _this.isGameStarted);
+            console.log('[DEBUG] Current players count:', _this.players.size);
+            if (!_this.isGameStarted && data.id !== ((_b = _this.socket) === null || _b === void 0 ? void 0 : _b.id)) {
+                console.log('[DEBUG] Creating player for spectator mode:', data.id);
                 _this.createPlayer(data.id);
+            }
+            else {
+                console.log('[DEBUG] Skipping player creation - game started or same socket ID');
             }
         });
         this.networkManager.on('playerLeft', function (playerId) {
+            console.log('[DEBUG] playerLeft event received:', playerId);
             var player = _this.players.get(playerId);
             if (player) {
+                console.log('[DEBUG] Removing player from scene:', playerId);
                 _this.scene.remove(player);
                 _this.players.delete(playerId);
+            }
+            else {
+                console.log('[DEBUG] Player not found for removal:', playerId);
             }
         });
         this.networkManager.on('playerMoved', function (data) {
@@ -1851,7 +1866,10 @@ var Game = /** @class */ (function () {
             }
         });
         this.networkManager.on('gameConnect', function (data) {
+            console.log('[DEBUG] gameConnect event received:', data);
+            console.log('[DEBUG] Current players before gameConnect:', Array.from(_this.players.keys()));
             if (data.id) {
+                console.log('[DEBUG] Creating player for game mode:', data.id);
                 _this.createPlayer(data.id);
                 _this.playerVelocities.set(data.id, new THREE.Vector3());
             }
@@ -1906,10 +1924,15 @@ var Game = /** @class */ (function () {
                     item.remove();
                 });
                 _this.items.clear();
-                _this.players.forEach(function (player) {
+                // Clear the scene of all spectator elements
+                console.log('[DEBUG] Clearing spectator players...');
+                _this.players.forEach(function (player, id) {
+                    console.log('[DEBUG] Removing spectator player:', id);
                     _this.scene.remove(player);
                 });
-                _this.players.delete(data.id);
+                _this.players.clear();
+                _this.playersBeingCreated.clear(); // Also clear players being created
+                console.log('[DEBUG] Players after cleanup:', _this.players.size);
                 _this.playerInventories.forEach(function (inventory) {
                     inventory.clear();
                 });
@@ -2060,8 +2083,12 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.startGameAfterLogin = function () {
         var _this = this;
+        var _a;
         if (this.isGameStarted)
             return;
+        console.log('[DEBUG] Starting game after login');
+        console.log('[DEBUG] Players before cleanup:', Array.from(this.players.keys()));
+        console.log('[DEBUG] Players count before cleanup:', this.players.size);
         this.isGameStarted = true;
         this.uiManager.clearTitleScreen();
         // Remove title from document head
@@ -2076,10 +2103,14 @@ var Game = /** @class */ (function () {
         // Show wave UI
         this.waveUI.show();
         // Clear the scene of all spectator elements
+        console.log('[DEBUG] Clearing spectator players...');
         this.players.forEach(function (player, id) {
+            console.log('[DEBUG] Removing spectator player:', id);
             _this.scene.remove(player);
         });
         this.players.clear();
+        this.playersBeingCreated.clear(); // Also clear players being created
+        console.log('[DEBUG] Players after cleanup:', this.players.size);
         this.enemies.forEach(function (enemy) {
             enemy.remove();
         });
@@ -2093,14 +2124,17 @@ var Game = /** @class */ (function () {
             healthBar.remove();
         });
         this.playerHealthBars.clear();
-        // Clear the renderer
-        this.renderer.clear();
         // Clear items
         this.items.forEach(function (item) {
             item.remove();
         });
         this.items.clear();
+        console.log('[DEBUG] Disconnecting spectator socket...');
+        (_a = this.socket) === null || _a === void 0 ? void 0 : _a.disconnect();
+        // Clear the renderer
+        this.renderer.clear();
         // Reconnect to server to get a fresh connection with actual account
+        console.log('[DEBUG] Connecting with account:', this.accountManager.getAccountId());
         this.networkManager.connectWithAccount(this.accountManager.getAccountId());
         this.socket = this.networkManager.socket;
         // Setup game scene
@@ -2360,11 +2394,28 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.createPlayer = function (playerId) {
         var _this = this;
+        var _a;
+        console.log('[DEBUG] createPlayer called for:', playerId);
+        console.log('[DEBUG] Current socket ID:', (_a = this.socket) === null || _a === void 0 ? void 0 : _a.id);
+        console.log('[DEBUG] Player already exists:', this.players.has(playerId));
+        console.log('[DEBUG] Player being created:', this.playersBeingCreated.has(playerId));
+        if (this.players.has(playerId) || this.playersBeingCreated.has(playerId)) {
+            console.log('[DEBUG] Player already exists or is being created, skipping creation');
+            return;
+        }
+        // Mark this player as being created
+        this.playersBeingCreated.add(playerId);
         // Create a sphere for the player
         var geometry = new THREE.SphereGeometry(0.5, 32, 32);
         // Load the SVG texture
         this.textureLoader.load(player_svg_1.default, function (texture) {
             var _a;
+            console.log('[DEBUG] Texture loaded for player:', playerId);
+            // Check if player was removed while texture was loading
+            if (!_this.playersBeingCreated.has(playerId)) {
+                console.log('[DEBUG] Player was removed while texture was loading, aborting creation');
+                return;
+            }
             // Configure texture to prevent stretching
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -2395,8 +2446,12 @@ var Game = /** @class */ (function () {
             player.position.y = 0.5;
             // Rotate the sphere 90 degrees to the right around the Y axis
             player.rotateY(Math.PI / 2);
+            console.log('[DEBUG] Adding player to scene:', playerId);
             _this.scene.add(player);
             _this.players.set(playerId, player);
+            // Remove from being created set
+            _this.playersBeingCreated.delete(playerId);
+            console.log('[DEBUG] Total players after creation:', _this.players.size);
             // Add health bar with camera reference
             var healthBar = new health_1.HealthBar(_this.camera, player);
             _this.playerHealthBars.set(playerId, healthBar);
@@ -2408,6 +2463,7 @@ var Game = /** @class */ (function () {
             _this.playerInventories.set(playerId, inventory);
             // Initialize crafting system if this is the local player
             if (playerId === ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id)) {
+                console.log('[DEBUG] Creating crafting system for local player');
                 _this.craftingSystem = new crafting_1.CraftingSystem(_this.scene, player, _this);
             }
         });
@@ -2462,8 +2518,11 @@ var Game = /** @class */ (function () {
         if (!this.socket)
             return;
         this.socket.on('connect', function () {
-            var _a;
-            if ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) {
+            var _a, _b;
+            console.log('[DEBUG] Socket connected in game mode');
+            console.log('[DEBUG] Socket ID:', (_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id);
+            if ((_b = _this.socket) === null || _b === void 0 ? void 0 : _b.id) {
+                console.log('[DEBUG] Creating player on game connect:', _this.socket.id);
                 _this.createPlayer(_this.socket.id);
                 _this.playerVelocities.set(_this.socket.id, new THREE.Vector3());
                 // Request lighting configuration from server
@@ -2495,11 +2554,23 @@ var Game = /** @class */ (function () {
             }
         });
         this.socket.on('playerJoined', function (data) {
-            _this.createPlayer(data.id);
+            var _a;
+            console.log('[DEBUG] playerJoined in setupSocketEvents:', data);
+            console.log('[DEBUG] Is game started:', _this.isGameStarted);
+            console.log('[DEBUG] Current socket ID:', (_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id);
+            if (_this.isGameStarted) {
+                console.log('[DEBUG] Creating player in game mode:', data.id);
+                _this.createPlayer(data.id);
+            }
+            else {
+                console.log('[DEBUG] Skipping player creation - game not started');
+            }
         });
         this.socket.on('playerLeft', function (playerId) {
+            console.log('[DEBUG] playerLeft in setupSocketEvents:', playerId);
             var player = _this.players.get(playerId);
             if (player) {
+                console.log('[DEBUG] Removing player from game mode:', playerId);
                 _this.scene.remove(player);
                 _this.players.delete(playerId);
                 // Remove petals
@@ -3111,10 +3182,15 @@ var Game = /** @class */ (function () {
             item.remove();
         });
         this.items.clear();
-        this.players.forEach(function (player) {
+        // Clear the scene of all spectator elements
+        console.log('[DEBUG] Clearing spectator players...');
+        this.players.forEach(function (player, id) {
+            console.log('[DEBUG] Removing spectator player:', id);
             _this.scene.remove(player);
         });
         this.players.clear();
+        this.playersBeingCreated.clear(); // Also clear players being created
+        console.log('[DEBUG] Players after cleanup:', this.players.size);
         this.playerInventories.forEach(function (inventory) {
             inventory.clear();
         });
@@ -4870,20 +4946,23 @@ var NetworkManager = /** @class */ (function (_super) {
         return _this;
     }
     NetworkManager.prototype.initializeSpectatorConnection = function () {
+        console.log('[DEBUG] NetworkManager: Initializing spectator connection');
         var accountId = 'spectator_' + Math.random().toString(36).substr(2, 9);
         if (this.accountManager.hasAccount()) {
             accountId = this.accountManager.getAccountId();
         }
+        console.log('[DEBUG] NetworkManager: Connecting with accountId:', accountId);
         this.socket = (0, socket_io_client_1.io)('/', {
             query: {
                 accountId: accountId
             }
         });
-        this.setupSpectatorEvents();
         this.setupCommonEvents();
     };
     NetworkManager.prototype.connectWithAccount = function (accountId) {
+        console.log('[DEBUG] NetworkManager: Connecting with account:', accountId);
         if (this.socket) {
+            console.log('[DEBUG] NetworkManager: Disconnecting existing socket');
             this.socket.disconnect();
         }
         this.socket = (0, socket_io_client_1.io)('/', {
@@ -4896,44 +4975,49 @@ var NetworkManager = /** @class */ (function (_super) {
     };
     NetworkManager.prototype.emit = function (event, data) {
         var _a;
+        console.log('[DEBUG] NetworkManager: Emitting event:', event, data);
         (_a = this.socket) === null || _a === void 0 ? void 0 : _a.emit(event, data);
     };
     NetworkManager.prototype.setupCommonEvents = function () {
         var _this = this;
         if (!this.socket)
             return;
+        console.log('[DEBUG] NetworkManager: Setting up common events');
         this.socket.on('disconnect', function (reason) {
+            console.log('[DEBUG] NetworkManager: Socket disconnected:', reason);
             _super.prototype.emit.call(_this, 'disconnect', reason);
         });
         this.socket.on('connect_error', function (error) {
+            console.log('[DEBUG] NetworkManager: Connection error:', error);
             _super.prototype.emit.call(_this, 'connect_error', error);
         });
         this.socket.on('connect', function () {
+            var _a;
+            console.log('[DEBUG] NetworkManager: Socket connected, ID:', (_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id);
             _super.prototype.emit.call(_this, 'connect');
         });
-        this.setupEnemyEvents();
-    };
-    NetworkManager.prototype.setupSpectatorEvents = function () {
-        var _this = this;
-        if (!this.socket)
-            return;
         this.socket.on('playerJoined', function (data) {
+            console.log('[DEBUG] NetworkManager: playerJoined received:', data);
             _super.prototype.emit.call(_this, 'playerJoined', data);
         });
         this.socket.on('playerLeft', function (playerId) {
+            console.log('[DEBUG] NetworkManager: playerLeft received:', playerId);
             _super.prototype.emit.call(_this, 'playerLeft', playerId);
         });
         this.socket.on('playerMoved', function (data) {
             _super.prototype.emit.call(_this, 'playerMoved', data);
         });
+        this.setupEnemyEvents();
     };
     NetworkManager.prototype.setupGameEvents = function () {
         var _this = this;
         if (!this.socket)
             return;
+        console.log('[DEBUG] NetworkManager: Setting up game events');
         this.socket.on('connect', function () {
-            var _a;
-            if ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) {
+            var _a, _b;
+            console.log('[DEBUG] NetworkManager: Game socket connected, ID:', (_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id);
+            if ((_b = _this.socket) === null || _b === void 0 ? void 0 : _b.id) {
                 _super.prototype.emit.call(_this, 'gameConnect', { id: _this.socket.id });
                 _this.socket.emit('requestLightingConfig');
             }

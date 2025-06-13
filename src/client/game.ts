@@ -38,6 +38,7 @@ export class Game {
     private readonly ENEMIES_PER_WAVE = 20;
     private readonly XP_PER_WAVE = 1000;
     public players: Map<string, THREE.Mesh>;
+    private playersBeingCreated: Set<string> = new Set(); // Track players being created
     private cameraRotation: number = 0;
     private ground: THREE.Mesh;
     private gridHelper: THREE.GridHelper;
@@ -220,16 +221,28 @@ export class Game {
 
     private setupNetworkListeners(): void {
         this.networkManager.on('playerJoined', (data) => {
-            if (!this.isGameStarted) {
+            console.log('[DEBUG] playerJoined event received:', data);
+            console.log('[DEBUG] Current socket ID:', this.socket?.id);
+            console.log('[DEBUG] Is game started:', this.isGameStarted);
+            console.log('[DEBUG] Current players count:', this.players.size);
+            
+            if (!this.isGameStarted && data.id !== this.socket?.id) {
+                console.log('[DEBUG] Creating player for spectator mode:', data.id);
                 this.createPlayer(data.id);
+            } else {
+                console.log('[DEBUG] Skipping player creation - game started or same socket ID');
             }
         });
         
         this.networkManager.on('playerLeft', (playerId) => {
+            console.log('[DEBUG] playerLeft event received:', playerId);
             const player = this.players.get(playerId);
             if (player) {
+                console.log('[DEBUG] Removing player from scene:', playerId);
                 this.scene.remove(player);
                 this.players.delete(playerId);
+            } else {
+                console.log('[DEBUG] Player not found for removal:', playerId);
             }
         });
 
@@ -241,7 +254,11 @@ export class Game {
         });
         
         this.networkManager.on('gameConnect', (data) => {
+            console.log('[DEBUG] gameConnect event received:', data);
+            console.log('[DEBUG] Current players before gameConnect:', Array.from(this.players.keys()));
+            
             if (data.id) {
+                console.log('[DEBUG] Creating player for game mode:', data.id);
                 this.createPlayer(data.id);
                 this.playerVelocities.set(data.id, new THREE.Vector3());
             }
@@ -310,10 +327,15 @@ export class Game {
                 });
                 this.items.clear();
                 
-                this.players.forEach(player => {
+                // Clear the scene of all spectator elements
+                console.log('[DEBUG] Clearing spectator players...');
+                this.players.forEach((player, id) => {
+                    console.log('[DEBUG] Removing spectator player:', id);
                     this.scene.remove(player);
                 });
-                this.players.delete(data.id);
+                this.players.clear();
+                this.playersBeingCreated.clear(); // Also clear players being created
+                console.log('[DEBUG] Players after cleanup:', this.players.size);
                 
                 this.playerInventories.forEach(inventory => {
                     inventory.clear();
@@ -488,6 +510,10 @@ export class Game {
     private startGameAfterLogin(): void {
         if (this.isGameStarted) return;
 
+        console.log('[DEBUG] Starting game after login');
+        console.log('[DEBUG] Players before cleanup:', Array.from(this.players.keys()));
+        console.log('[DEBUG] Players count before cleanup:', this.players.size);
+
         this.isGameStarted = true;
         
         this.uiManager.clearTitleScreen();
@@ -507,37 +533,45 @@ export class Game {
         this.waveUI.show();
 
         // Clear the scene of all spectator elements
+        console.log('[DEBUG] Clearing spectator players...');
         this.players.forEach((player, id) => {
+            console.log('[DEBUG] Removing spectator player:', id);
             this.scene.remove(player);
         });
         this.players.clear();
-
+        this.playersBeingCreated.clear(); // Also clear players being created
+        console.log('[DEBUG] Players after cleanup:', this.players.size);
+        
         this.enemies.forEach((enemy) => {
             enemy.remove();
         });
         this.enemies.clear();
-
+        
         // Properly clear all inventories and their petals
         this.playerInventories.forEach((inventory) => {
             inventory.clear();
         });
         this.playerInventories.clear();
-
+        
         this.playerHealthBars.forEach((healthBar) => {
             healthBar.remove();
         });
         this.playerHealthBars.clear();
-
-        // Clear the renderer
-        this.renderer.clear();
-
+        
         // Clear items
         this.items.forEach(item => {
             item.remove();
         });
         this.items.clear();
-
+        
+        console.log('[DEBUG] Disconnecting spectator socket...');
+        this.socket?.disconnect();
+        
+        // Clear the renderer
+        this.renderer.clear();
+        
         // Reconnect to server to get a fresh connection with actual account
+        console.log('[DEBUG] Connecting with account:', this.accountManager.getAccountId());
         this.networkManager.connectWithAccount(this.accountManager.getAccountId());
         this.socket = this.networkManager.socket;
 
@@ -620,11 +654,11 @@ export class Game {
             return;
         } else {
             material = new THREE.MeshPhongMaterial({
-                color: 0x808080,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.5
-            });
+            color: 0x808080,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.5
+        });
         }
         
         const plane = new THREE.Mesh(geometry, material);
@@ -675,8 +709,8 @@ export class Game {
     
     private checkSinglePlaneCollision(plane: THREE.Mesh, position: THREE.Vector3, radius: number): { collided: boolean; normal?: THREE.Vector3 } {
         // Get plane's world transform
-        const planePosition = new THREE.Vector3();
-        plane.getWorldPosition(planePosition);
+            const planePosition = new THREE.Vector3();
+            plane.getWorldPosition(planePosition);
         const worldQuaternion = new THREE.Quaternion();
         plane.getWorldQuaternion(worldQuaternion);
 
@@ -684,12 +718,12 @@ export class Game {
         const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(worldQuaternion);
 
         // Calculate distance from sphere center to the infinite plane
-        const distance = planeNormal.dot(position.clone().sub(planePosition));
+            const distance = planeNormal.dot(position.clone().sub(planePosition));
 
         // If the sphere is too far from the plane, no collision
-        if (Math.abs(distance) > radius) {
+            if (Math.abs(distance) > radius) {
             return { collided: false };
-        }
+            }
 
         // Project sphere center onto the plane to find the closest point on the infinite plane
         const projectedPoint = position.clone().sub(planeNormal.clone().multiplyScalar(distance));
@@ -698,13 +732,13 @@ export class Game {
         const localPoint = plane.worldToLocal(projectedPoint.clone());
 
         // Get plane dimensions. PlaneGeometry is in the XY plane in local space.
-        const planeWidth = (plane.geometry as THREE.PlaneGeometry).parameters.width;
-        const planeHeight = (plane.geometry as THREE.PlaneGeometry).parameters.height;
-        const halfWidth = planeWidth / 2;
-        const halfHeight = planeHeight / 2;
+            const planeWidth = (plane.geometry as THREE.PlaneGeometry).parameters.width;
+            const planeHeight = (plane.geometry as THREE.PlaneGeometry).parameters.height;
+            const halfWidth = planeWidth / 2;
+            const halfHeight = planeHeight / 2;
 
         // Find the closest point on the plane's rectangle to the local projected point
-        const closestX = Math.max(-halfWidth, Math.min(halfWidth, localPoint.x));
+            const closestX = Math.max(-halfWidth, Math.min(halfWidth, localPoint.x));
         const closestY = Math.max(-halfHeight, Math.min(halfHeight, localPoint.y));
         const closestPointLocal = new THREE.Vector3(closestX, closestY, 0);
 
@@ -715,7 +749,7 @@ export class Game {
         const distanceToClosest = position.distanceTo(closestPointWorld);
 
         // If the distance is less than the sphere's radius, there is a collision.
-        if (distanceToClosest <= radius) {
+            if (distanceToClosest <= radius) {
             // The collision normal is the vector from the closest point on the rectangle to the sphere's center.
             const normal = position.clone().sub(closestPointWorld).normalize();
             return { collided: true, normal };
@@ -846,11 +880,32 @@ export class Game {
     }
 
     private createPlayer(playerId: string): void {
+        console.log('[DEBUG] createPlayer called for:', playerId);
+        console.log('[DEBUG] Current socket ID:', this.socket?.id);
+        console.log('[DEBUG] Player already exists:', this.players.has(playerId));
+        console.log('[DEBUG] Player being created:', this.playersBeingCreated.has(playerId));
+        
+        if (this.players.has(playerId) || this.playersBeingCreated.has(playerId)) {
+            console.log('[DEBUG] Player already exists or is being created, skipping creation');
+            return;
+        }
+
+        // Mark this player as being created
+        this.playersBeingCreated.add(playerId);
+
         // Create a sphere for the player
         const geometry = new THREE.SphereGeometry(0.5, 32, 32);
         
         // Load the SVG texture
         this.textureLoader.load(playerSvg, (texture) => {
+            console.log('[DEBUG] Texture loaded for player:', playerId);
+            
+            // Check if player was removed while texture was loading
+            if (!this.playersBeingCreated.has(playerId)) {
+                console.log('[DEBUG] Player was removed while texture was loading, aborting creation');
+                return;
+            }
+            
             // Configure texture to prevent stretching
             texture.wrapS = THREE.ClampToEdgeWrapping;
             texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -910,8 +965,14 @@ export class Game {
             // Rotate the sphere 90 degrees to the right around the Y axis
             player.rotateY(Math.PI / 2);
             
+            console.log('[DEBUG] Adding player to scene:', playerId);
             this.scene.add(player);
             this.players.set(playerId, player);
+            
+            // Remove from being created set
+            this.playersBeingCreated.delete(playerId);
+            
+            console.log('[DEBUG] Total players after creation:', this.players.size);
 
             // Add health bar with camera reference
             const healthBar = new HealthBar(this.camera, player);
@@ -926,6 +987,7 @@ export class Game {
 
             // Initialize crafting system if this is the local player
             if (playerId === this.socket?.id) {
+                console.log('[DEBUG] Creating crafting system for local player');
                 this.craftingSystem = new CraftingSystem(this.scene, player, this);
             }
         });
@@ -984,7 +1046,11 @@ export class Game {
         if (!this.socket) return;
 
         this.socket.on('connect', () => {
+            console.log('[DEBUG] Socket connected in game mode');
+            console.log('[DEBUG] Socket ID:', this.socket?.id);
+            
             if (this.socket?.id) {
+                console.log('[DEBUG] Creating player on game connect:', this.socket.id);
                 this.createPlayer(this.socket.id);
                 this.playerVelocities.set(this.socket.id, new THREE.Vector3());
 
@@ -1038,12 +1104,23 @@ export class Game {
         });
 
         this.socket.on('playerJoined', (data: { id: string, position: { x: number, y: number, z: number }, xp: number }) => {
-            this.createPlayer(data.id);
+            console.log('[DEBUG] playerJoined in setupSocketEvents:', data);
+            console.log('[DEBUG] Is game started:', this.isGameStarted);
+            console.log('[DEBUG] Current socket ID:', this.socket?.id);
+            
+            if (this.isGameStarted) {
+                console.log('[DEBUG] Creating player in game mode:', data.id);
+                this.createPlayer(data.id);
+            } else {
+                console.log('[DEBUG] Skipping player creation - game not started');
+            }
         });
 
         this.socket.on('playerLeft', (playerId: string) => {
+            console.log('[DEBUG] playerLeft in setupSocketEvents:', playerId);
             const player = this.players.get(playerId);
             if (player) {
+                console.log('[DEBUG] Removing player from game mode:', playerId);
                 this.scene.remove(player);
                 this.players.delete(playerId);
                 
@@ -1388,7 +1465,7 @@ export class Game {
                         if (terrainCheck.collided && terrainCheck.type === 'terrain' && terrainCheck.terrainHeight !== undefined) {
                             player.position.y = terrainCheck.terrainHeight;
                         } else {
-                            player.position.y = 0.5;
+            player.position.y = 0.5;
                         }
                     }
                 } else {
@@ -1424,18 +1501,18 @@ export class Game {
             }
         }
 
-        // Update player rotation based on movement direction
-        if (isMoving) {
-            const angle = Math.atan2(movement.x, movement.z);
-            player.rotation.y = angle - Math.PI/2;
-        }
+            // Update player rotation based on movement direction
+            if (isMoving) {
+                const angle = Math.atan2(movement.x, movement.z);
+                player.rotation.y = angle - Math.PI/2;
+            }
 
-        // Emit position to server
-        this.socket.emit('move', {
-            x: player.position.x,
-            y: player.position.y,
-            z: player.position.z
-        });
+            // Emit position to server
+            this.socket.emit('move', {
+                x: player.position.x,
+                y: player.position.y,
+                z: player.position.z
+            });
     }
 
     private onWindowResize(): void {
@@ -1756,21 +1833,26 @@ export class Game {
         });
         this.items.clear();
         
-        this.players.forEach(player => {
+        // Clear the scene of all spectator elements
+        console.log('[DEBUG] Clearing spectator players...');
+        this.players.forEach((player, id) => {
+            console.log('[DEBUG] Removing spectator player:', id);
             this.scene.remove(player);
         });
         this.players.clear();
+        this.playersBeingCreated.clear(); // Also clear players being created
+        console.log('[DEBUG] Players after cleanup:', this.players.size);
         
         this.playerInventories.forEach(inventory => {
             inventory.clear();
         });
         this.playerInventories.clear();
-        
+
         this.playerHealthBars.forEach(healthBar => {
             healthBar.remove();
         });
         this.playerHealthBars.clear();
-        
+
         this.uiManager.hideDeathScreen();
 
         // Stop the game
