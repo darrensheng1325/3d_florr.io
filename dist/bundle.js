@@ -1822,7 +1822,7 @@ var Game = /** @class */ (function () {
             slotContainer.style.height = '80px';
             slotContainer.style.position = 'relative';
             slotContainer.style.border = '2px solid black';
-            slotContainer.style.borderRadius = '10px';
+            slotContainer.style.borderRadius = '5px';
             inventoryContainer.appendChild(slotContainer);
             this.inventorySlotContainers.push(slotContainer);
             // Create scene
@@ -3432,7 +3432,7 @@ var Game = /** @class */ (function () {
             var slot = document.createElement('div');
             slot.style.backgroundColor = 'rgba(119, 234, 101, 1)';
             slot.style.padding = '5px';
-            slot.style.borderRadius = '5px';
+            slot.style.borderRadius = '3px';
             slot.style.cursor = 'pointer';
             slot.style.position = 'relative';
             slot.style.height = '50px';

@@ -1,7 +1,7 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1751320989709,
+    "lastSeen": 1751321061253,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
@@ -20,10 +20,10 @@
         {
           "baseType": "pea",
           "rarities": {
-            "COMMON": 161,
-            "UNCOMMON": 145,
-            "RARE": 18,
-            "EPIC": 16,
+            "COMMON": 209,
+            "UNCOMMON": 185,
+            "RARE": 21,
+            "EPIC": 19,
             "LEGENDARY": 0,
             "MYTHIC": 0
           }
@@ -31,19 +31,19 @@
         {
           "baseType": "tetrahedron",
           "rarities": {
-            "COMMON": 74,
-            "UNCOMMON": 53,
+            "COMMON": 93,
+            "UNCOMMON": 65,
             "RARE": 0,
-            "EPIC": 0,
-            "LEGENDARY": 1300,
-            "MYTHIC": 100
+            "EPIC": 4,
+            "LEGENDARY": 1604,
+            "MYTHIC": 108
           }
         },
         {
           "baseType": "cube",
           "rarities": {
-            "COMMON": 25,
-            "UNCOMMON": 32,
+            "COMMON": 31,
+            "UNCOMMON": 38,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -53,19 +53,19 @@
         {
           "baseType": "stinger",
           "rarities": {
-            "COMMON": 76,
-            "UNCOMMON": 76,
+            "COMMON": 97,
+            "UNCOMMON": 98,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
-            "MYTHIC": 1400
+            "MYTHIC": 1700
           }
         },
         {
           "baseType": "leaf",
           "rarities": {
-            "COMMON": 34,
-            "UNCOMMON": 47,
+            "COMMON": 40,
+            "UNCOMMON": 56,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -76,15 +76,15 @@
       "collectedItems": [
         {
           "type": "pea_uncommon",
-          "amount": 12
+          "amount": 13
         },
         {
           "type": "tetrahedron",
-          "amount": 5
+          "amount": 6
         },
         {
           "type": "stinger_uncommon",
-          "amount": 6
+          "amount": 7
         },
         {
           "type": "leaf",
@@ -124,18 +124,26 @@
         },
         {
           "type": "pea",
-          "amount": 12
+          "amount": 15
         },
         {
           "type": "tetrahedron_legendary",
-          "amount": 100
+          "amount": 101
+        },
+        {
+          "type": "tetrahedron_mythic",
+          "amount": 2
+        },
+        {
+          "type": "tetrahedron_epic",
+          "amount": 1
         }
       ]
     },
     "stats": {
-      "totalKills": 7,
+      "totalKills": 6,
       "totalDeaths": 1,
-      "totalPlayTime": 319454,
+      "totalPlayTime": 81666,
       "bestXP": 13150
     }
   }
