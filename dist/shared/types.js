@@ -17,7 +17,7 @@ exports.RARITY_COLORS = {
     [Rarity.UNCOMMON]: 0xffe55e, // Yellow
     [Rarity.RARE]: 0x4f51e2, // Blue
     [Rarity.EPIC]: 0x861ee0, // Purple
-    [Rarity.LEGENDARY]: 0xff0000, // Red
+    [Rarity.LEGENDARY]: 0xce1629, // Red
     [Rarity.MYTHIC]: 0x3fffc9 // Cyan
 };
 exports.RARITY_MULTIPLIERS = {

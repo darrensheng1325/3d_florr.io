@@ -6706,7 +6706,7 @@ exports.RARITY_COLORS = (_a = {},
     _a[Rarity.UNCOMMON] = 0xffe55e,
     _a[Rarity.RARE] = 0x4f51e2,
     _a[Rarity.EPIC] = 0x861ee0,
-    _a[Rarity.LEGENDARY] = 0xff0000,
+    _a[Rarity.LEGENDARY] = 0xce1629,
     _a[Rarity.MYTHIC] = 0x3fffc9 // Cyan
 ,
     _a);
