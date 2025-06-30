@@ -60,7 +60,6 @@ export class Game {
     private inventoryPreviews: Map<string, { 
         scene: THREE.Scene, 
         camera: THREE.PerspectiveCamera, 
-        renderer: THREE.WebGLRenderer,
         mesh: THREE.Mesh | THREE.Group 
     }> = new Map();
     private isSettingsOpen: boolean = false;
@@ -86,6 +85,7 @@ export class Game {
     private directionalLight: THREE.DirectionalLight;
     private hemisphereLight: THREE.HemisphereLight;
     private collisionManager: CollisionManager;
+    private uiPreviewRenderer: THREE.WebGLRenderer;
 
     constructor() {
         this.accountManager = new AccountManager();
@@ -141,6 +141,17 @@ export class Game {
         inventoryContainer.style.justifyContent = 'center';
         document.body.appendChild(inventoryContainer);
 
+        // Create UI preview renderer
+        this.uiPreviewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        this.uiPreviewRenderer.setClearColor(0x000000, 0);
+        this.uiPreviewRenderer.setSize(window.innerWidth, window.innerHeight);
+        this.uiPreviewRenderer.domElement.style.position = 'fixed';
+        this.uiPreviewRenderer.domElement.style.top = '0';
+        this.uiPreviewRenderer.domElement.style.left = '0';
+        this.uiPreviewRenderer.domElement.style.pointerEvents = 'none';
+        this.uiPreviewRenderer.domElement.style.zIndex = '1001';
+        document.body.appendChild(this.uiPreviewRenderer.domElement);
+
         // Create inventory slots
         for (let i = 0; i < 5; i++) {
             // Create container for this slot
@@ -152,13 +163,6 @@ export class Game {
             slotContainer.style.borderRadius = '10px';
             inventoryContainer.appendChild(slotContainer);
             this.inventorySlotContainers.push(slotContainer);
-
-            // Create renderer
-            const renderer = new THREE.WebGLRenderer({ alpha: true });
-            renderer.setSize(80, 80);
-            renderer.setClearColor(0x000000, 0);
-            slotContainer.appendChild(renderer.domElement);
-            this.inventorySlotRenderers.push(renderer);
 
             // Create scene
             const scene = new THREE.Scene();
@@ -798,6 +802,7 @@ export class Game {
 
             // Render inventory UI
             this.renderInventoryUI();
+            this.renderUIPreviews();
 
             // Render game scene
             this.renderer.render(this.scene, this.camera);
@@ -1521,6 +1526,7 @@ export class Game {
             this.titleCanvas.width = window.innerWidth;
             this.titleCanvas.height = window.innerHeight;
         }
+        this.uiPreviewRenderer.setSize(window.innerWidth, window.innerHeight);
     }
 
     private checkPetalCollisions(): void {
@@ -1629,11 +1635,10 @@ export class Game {
         const slots = inventory.getSlots();
         
         slots.forEach((slot, index) => {
-            if (index >= this.inventorySlotRenderers.length) return;
+            if (index >= this.inventorySlotContainers.length) return;
 
             const scene = this.inventorySlotScenes[index];
             const camera = this.inventorySlotCameras[index];
-            const renderer = this.inventorySlotRenderers[index];
             const container = this.inventorySlotContainers[index];
 
             // Update container style based on active state
@@ -1741,9 +1746,6 @@ export class Game {
                 petalMesh.rotation.x = time * 0.5;
                 petalMesh.rotation.y = time;
             }
-
-            // Render the slot
-            renderer.render(scene, camera);
         });
     }
 
@@ -1910,10 +1912,6 @@ export class Game {
 
         // Create preview renderers for each petal type
         Object.values(PetalType).forEach(type => {
-            const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            renderer.setSize(50, 50);
-            renderer.setClearColor(0x000000, 0);
-
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
             camera.position.set(0, 0, 3);
@@ -1937,7 +1935,6 @@ export class Game {
                     
                     // Store renderer, scene, camera, and mesh for updates
                     this.inventoryPreviews.set(type, {
-                        renderer,
                         scene,
                         camera,
                         mesh: leafMesh
@@ -1983,7 +1980,6 @@ export class Game {
                             
                             // Store renderer, scene, camera, and mesh for updates
                             this.inventoryPreviews.set(type, {
-                                renderer,
                                 scene,
                                 camera,
                                 mesh: peaMesh
@@ -2008,7 +2004,6 @@ export class Game {
 
             // Store renderer, scene, camera, and mesh for updates
             this.inventoryPreviews.set(type, {
-                renderer,
                 scene,
                 camera,
                 mesh
@@ -2068,6 +2063,7 @@ export class Game {
             slot.style.border = '2px solid #5fbb50';
             slot.draggable = true;
             slot.setAttribute('data-type', petalType);
+            const baseType = petalType.split('_')[0];
 
             // Set background color based on petal rarity
             const rarity = PETAL_STATS[petalType]?.rarity || Rarity.COMMON;
@@ -2111,20 +2107,9 @@ export class Game {
             slot.appendChild(rarityLabel);
 
             // Get the preview renderer for this type
-            const preview = this.inventoryPreviews.get(petalType);
+            const preview = this.inventoryPreviews.get(baseType);
             if (preview) {
-                const { renderer, scene, camera, mesh } = preview;
-                canvasContainer.appendChild(renderer.domElement);
-
-                // Start rendering the preview
-                const animate = () => {
-                    if (!this.isInventoryOpen) return;
-                    mesh.rotation.x += 0.02;
-                    mesh.rotation.y += 0.02;
-                    renderer.render(scene, camera);
-                    requestAnimationFrame(animate);
-                };
-                animate();
+                // The rendering is now handled by renderUIPreviews
             }
 
             // Add click event listener
@@ -2169,9 +2154,9 @@ export class Game {
             inventory.getSlots().forEach((slot, index) => {
                 // Show current petal if exists
                 if (slot.petal) {
-                    const preview = this.inventoryPreviews.get(slot.petal.getType());
+                    const preview = this.inventoryPreviews.get(slot.petal.getBaseType());
                     if (preview) {
-                        const { renderer } = preview;
+                        // const { renderer } = preview;
                     }
                 }
             });
@@ -2715,11 +2700,11 @@ export class Game {
 
             const preview = this.inventoryPreviews.get(petalType);
             if (preview) {
-                const { renderer } = preview;
+                // const { renderer } = preview;
                 const container = slot.querySelector('div');
                 if (container) {
                     container.innerHTML = '';
-                    container.appendChild(renderer.domElement.cloneNode(true));
+                    // container.appendChild(renderer.domElement.cloneNode(true));
                 }
             }
 
@@ -2747,6 +2732,77 @@ export class Game {
                 plane.material.needsUpdate = true;
             }
         });
+    }
+
+    private renderUIPreviews(): void {
+        this.uiPreviewRenderer.setScissorTest(true);
+
+        // Render hotbar
+        if (this.isGameStarted) {
+            this.inventorySlotContainers.forEach((container, index) => {
+                const rect = container.getBoundingClientRect();
+                if (rect.bottom < 0 || rect.top > this.uiPreviewRenderer.domElement.clientHeight ||
+                    rect.right < 0 || rect.left > this.uiPreviewRenderer.domElement.clientWidth) {
+                    return; // It's off-screen
+                }
+
+                const scene = this.inventorySlotScenes[index];
+                const camera = this.inventorySlotCameras[index];
+
+                // Rotate meshes in the scene
+                scene.traverse(obj => {
+                    if (obj instanceof THREE.Mesh) {
+                        const time = Date.now() * 0.0005;
+                        obj.rotation.x = time * 0.5;
+                        obj.rotation.y = time;
+                    }
+                });
+
+                const width = rect.right - rect.left;
+                const height = rect.bottom - rect.top;
+                const left = rect.left;
+                const bottom = this.uiPreviewRenderer.domElement.clientHeight - rect.bottom;
+
+                this.uiPreviewRenderer.setViewport(left, bottom, width, height);
+                this.uiPreviewRenderer.setScissor(left, bottom, width, height);
+                this.uiPreviewRenderer.render(scene, camera);
+            });
+        }
+
+        // Render inventory menu previews
+        if (this.isInventoryOpen && this.inventoryMenu) {
+            const inventorySlots = this.inventoryMenu.querySelectorAll('[data-type]');
+            inventorySlots.forEach(slotElement => {
+                const petalType = slotElement.getAttribute('data-type');
+                if (!petalType) return;
+
+                const baseType = petalType.split('_')[0];
+                const previewData = this.inventoryPreviews.get(baseType);
+                if (!previewData) return;
+
+                const { scene, camera, mesh } = previewData;
+
+                const rect = slotElement.getBoundingClientRect();
+                if (rect.bottom < 0 || rect.top > this.uiPreviewRenderer.domElement.clientHeight ||
+                    rect.right < 0 || rect.left > this.uiPreviewRenderer.domElement.clientWidth) {
+                    return; // It's off-screen
+                }
+
+                mesh.rotation.x += 0.01;
+                mesh.rotation.y += 0.01;
+
+                const width = rect.right - rect.left;
+                const height = rect.bottom - rect.top;
+                const left = rect.left;
+                const bottom = this.uiPreviewRenderer.domElement.clientHeight - rect.bottom;
+
+                this.uiPreviewRenderer.setViewport(left, bottom, width, height);
+                this.uiPreviewRenderer.setScissor(left, bottom, width, height);
+                this.uiPreviewRenderer.render(scene, camera);
+            });
+        }
+
+        this.uiPreviewRenderer.setScissorTest(false);
     }
 }
 

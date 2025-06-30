@@ -1804,6 +1804,16 @@ var Game = /** @class */ (function () {
         inventoryContainer.style.gap = '10px';
         inventoryContainer.style.justifyContent = 'center';
         document.body.appendChild(inventoryContainer);
+        // Create UI preview renderer
+        this.uiPreviewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        this.uiPreviewRenderer.setClearColor(0x000000, 0);
+        this.uiPreviewRenderer.setSize(window.innerWidth, window.innerHeight);
+        this.uiPreviewRenderer.domElement.style.position = 'fixed';
+        this.uiPreviewRenderer.domElement.style.top = '0';
+        this.uiPreviewRenderer.domElement.style.left = '0';
+        this.uiPreviewRenderer.domElement.style.pointerEvents = 'none';
+        this.uiPreviewRenderer.domElement.style.zIndex = '1001';
+        document.body.appendChild(this.uiPreviewRenderer.domElement);
         // Create inventory slots
         for (var i = 0; i < 5; i++) {
             // Create container for this slot
@@ -1815,12 +1825,6 @@ var Game = /** @class */ (function () {
             slotContainer.style.borderRadius = '10px';
             inventoryContainer.appendChild(slotContainer);
             this.inventorySlotContainers.push(slotContainer);
-            // Create renderer
-            var renderer = new THREE.WebGLRenderer({ alpha: true });
-            renderer.setSize(80, 80);
-            renderer.setClearColor(0x000000, 0);
-            slotContainer.appendChild(renderer.domElement);
-            this.inventorySlotRenderers.push(renderer);
             // Create scene
             var scene = new THREE.Scene();
             scene.background = null;
@@ -2356,6 +2360,7 @@ var Game = /** @class */ (function () {
             this.updateCameraPosition();
             // Render inventory UI
             this.renderInventoryUI();
+            this.renderUIPreviews();
             // Render game scene
             this.renderer.render(this.scene, this.camera);
         }
@@ -2940,6 +2945,7 @@ var Game = /** @class */ (function () {
             this.titleCanvas.width = window.innerWidth;
             this.titleCanvas.height = window.innerHeight;
         }
+        this.uiPreviewRenderer.setSize(window.innerWidth, window.innerHeight);
     };
     Game.prototype.checkPetalCollisions = function () {
         var _this = this;
@@ -3045,11 +3051,10 @@ var Game = /** @class */ (function () {
             return;
         var slots = inventory.getSlots();
         slots.forEach(function (slot, index) {
-            if (index >= _this.inventorySlotRenderers.length)
+            if (index >= _this.inventorySlotContainers.length)
                 return;
             var scene = _this.inventorySlotScenes[index];
             var camera = _this.inventorySlotCameras[index];
-            var renderer = _this.inventorySlotRenderers[index];
             var container = _this.inventorySlotContainers[index];
             // Update container style based on active state
             container.style.backgroundColor = slot.isActive ? 'rgba(255, 107, 107, 0.2)' : 'rgba(255, 255, 255, 0.2)';
@@ -3147,8 +3152,6 @@ var Game = /** @class */ (function () {
                 petalMesh.rotation.x = time * 0.5;
                 petalMesh.rotation.y = time;
             }
-            // Render the slot
-            renderer.render(scene, camera);
         });
     };
     Game.prototype.setupWaveEvents = function () {
@@ -3295,9 +3298,6 @@ var Game = /** @class */ (function () {
         menu.appendChild(grid);
         // Create preview renderers for each petal type
         Object.values(types_1.PetalType).forEach(function (type) {
-            var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-            renderer.setSize(50, 50);
-            renderer.setClearColor(0x000000, 0);
             var scene = new THREE.Scene();
             var camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
             camera.position.set(0, 0, 3);
@@ -3318,7 +3318,6 @@ var Game = /** @class */ (function () {
                     scene.add(leafMesh);
                     // Store renderer, scene, camera, and mesh for updates
                     _this.inventoryPreviews.set(type, {
-                        renderer: renderer,
                         scene: scene,
                         camera: camera,
                         mesh: leafMesh
@@ -3361,7 +3360,6 @@ var Game = /** @class */ (function () {
                             scene.add(peaMesh);
                             // Store renderer, scene, camera, and mesh for updates
                             _this.inventoryPreviews.set(type, {
-                                renderer: renderer,
                                 scene: scene,
                                 camera: camera,
                                 mesh: peaMesh
@@ -3384,7 +3382,6 @@ var Game = /** @class */ (function () {
                 scene.add(mesh);
                 // Store renderer, scene, camera, and mesh for updates
                 _this.inventoryPreviews.set(type, {
-                    renderer: renderer,
                     scene: scene,
                     camera: camera,
                     mesh: mesh
@@ -3440,6 +3437,7 @@ var Game = /** @class */ (function () {
             slot.style.border = '2px solid #5fbb50';
             slot.draggable = true;
             slot.setAttribute('data-type', petalType);
+            var baseType = petalType.split('_')[0];
             // Set background color based on petal rarity
             var rarity = ((_a = petal_1.PETAL_STATS[petalType]) === null || _a === void 0 ? void 0 : _a.rarity) || types_1.Rarity.COMMON;
             var rarityColor = _this.settings.rarityTinting ?
@@ -3478,20 +3476,9 @@ var Game = /** @class */ (function () {
             rarityLabel.style.fontWeight = 'bold';
             slot.appendChild(rarityLabel);
             // Get the preview renderer for this type
-            var preview = _this.inventoryPreviews.get(petalType);
+            var preview = _this.inventoryPreviews.get(baseType);
             if (preview) {
-                var renderer_1 = preview.renderer, scene_1 = preview.scene, camera_1 = preview.camera, mesh_1 = preview.mesh;
-                canvasContainer.appendChild(renderer_1.domElement);
-                // Start rendering the preview
-                var animate_1 = function () {
-                    if (!_this.isInventoryOpen)
-                        return;
-                    mesh_1.rotation.x += 0.02;
-                    mesh_1.rotation.y += 0.02;
-                    renderer_1.render(scene_1, camera_1);
-                    requestAnimationFrame(animate_1);
-                };
-                animate_1();
+                // The rendering is now handled by renderUIPreviews
             }
             // Add click event listener
             slot.addEventListener('click', function () {
@@ -3531,9 +3518,9 @@ var Game = /** @class */ (function () {
             inventory.getSlots().forEach(function (slot, index) {
                 // Show current petal if exists
                 if (slot.petal) {
-                    var preview = _this.inventoryPreviews.get(slot.petal.getType());
+                    var preview = _this.inventoryPreviews.get(slot.petal.getBaseType());
                     if (preview) {
-                        var renderer = preview.renderer;
+                        // const { renderer } = preview;
                     }
                 }
             });
@@ -4011,11 +3998,11 @@ var Game = /** @class */ (function () {
                 return;
             var preview = this.inventoryPreviews.get(petalType);
             if (preview) {
-                var renderer = preview.renderer;
+                // const { renderer } = preview;
                 var container = slot.querySelector('div');
                 if (container) {
                     container.innerHTML = '';
-                    container.appendChild(renderer.domElement.cloneNode(true));
+                    // container.appendChild(renderer.domElement.cloneNode(true));
                 }
             }
             // Store the petal type in the slot's data
@@ -4039,6 +4026,66 @@ var Game = /** @class */ (function () {
                 plane.material.needsUpdate = true;
             }
         });
+    };
+    Game.prototype.renderUIPreviews = function () {
+        var _this = this;
+        this.uiPreviewRenderer.setScissorTest(true);
+        // Render hotbar
+        if (this.isGameStarted) {
+            this.inventorySlotContainers.forEach(function (container, index) {
+                var rect = container.getBoundingClientRect();
+                if (rect.bottom < 0 || rect.top > _this.uiPreviewRenderer.domElement.clientHeight ||
+                    rect.right < 0 || rect.left > _this.uiPreviewRenderer.domElement.clientWidth) {
+                    return; // It's off-screen
+                }
+                var scene = _this.inventorySlotScenes[index];
+                var camera = _this.inventorySlotCameras[index];
+                // Rotate meshes in the scene
+                scene.traverse(function (obj) {
+                    if (obj instanceof THREE.Mesh) {
+                        var time = Date.now() * 0.0005;
+                        obj.rotation.x = time * 0.5;
+                        obj.rotation.y = time;
+                    }
+                });
+                var width = rect.right - rect.left;
+                var height = rect.bottom - rect.top;
+                var left = rect.left;
+                var bottom = _this.uiPreviewRenderer.domElement.clientHeight - rect.bottom;
+                _this.uiPreviewRenderer.setViewport(left, bottom, width, height);
+                _this.uiPreviewRenderer.setScissor(left, bottom, width, height);
+                _this.uiPreviewRenderer.render(scene, camera);
+            });
+        }
+        // Render inventory menu previews
+        if (this.isInventoryOpen && this.inventoryMenu) {
+            var inventorySlots = this.inventoryMenu.querySelectorAll('[data-type]');
+            inventorySlots.forEach(function (slotElement) {
+                var petalType = slotElement.getAttribute('data-type');
+                if (!petalType)
+                    return;
+                var baseType = petalType.split('_')[0];
+                var previewData = _this.inventoryPreviews.get(baseType);
+                if (!previewData)
+                    return;
+                var scene = previewData.scene, camera = previewData.camera, mesh = previewData.mesh;
+                var rect = slotElement.getBoundingClientRect();
+                if (rect.bottom < 0 || rect.top > _this.uiPreviewRenderer.domElement.clientHeight ||
+                    rect.right < 0 || rect.left > _this.uiPreviewRenderer.domElement.clientWidth) {
+                    return; // It's off-screen
+                }
+                mesh.rotation.x += 0.01;
+                mesh.rotation.y += 0.01;
+                var width = rect.right - rect.left;
+                var height = rect.bottom - rect.top;
+                var left = rect.left;
+                var bottom = _this.uiPreviewRenderer.domElement.clientHeight - rect.bottom;
+                _this.uiPreviewRenderer.setViewport(left, bottom, width, height);
+                _this.uiPreviewRenderer.setScissor(left, bottom, width, height);
+                _this.uiPreviewRenderer.render(scene, camera);
+            });
+        }
+        this.uiPreviewRenderer.setScissorTest(false);
     };
     return Game;
 }());
