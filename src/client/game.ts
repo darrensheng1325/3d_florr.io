@@ -1643,13 +1643,13 @@ export class Game {
             const scene = this.inventorySlotScenes[index];
             const camera = this.inventorySlotCameras[index];
             const container = this.inventorySlotContainers[index];
-            const rarity = PETAL_STATS[slot.petal?.getBaseType() as unknown as PetalType]?.rarity || Rarity.COMMON;
+            const rarity = PETAL_STATS[slot.petal?.getType() as unknown as PetalType]?.rarity || Rarity.COMMON;
             const rarityColor = this.settings.rarityTinting ? 
                 '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0') : 
                 'rgba(255, 255, 255, 0.2)';
 
             // Update container style based on active state
-            container.style.backgroundColor = slot.isActive ? rarityColor : 'rgba(255, 255, 255, 0.2)';
+            container.style.backgroundColor = rarityColor;
             container.style.cursor = 'pointer';  // Add cursor pointer
 
             // Add click handler to the container

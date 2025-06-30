@@ -3059,12 +3059,12 @@ var Game = /** @class */ (function () {
             var scene = _this.inventorySlotScenes[index];
             var camera = _this.inventorySlotCameras[index];
             var container = _this.inventorySlotContainers[index];
-            var rarity = ((_b = petal_1.PETAL_STATS[(_a = slot.petal) === null || _a === void 0 ? void 0 : _a.getBaseType()]) === null || _b === void 0 ? void 0 : _b.rarity) || types_1.Rarity.COMMON;
+            var rarity = ((_b = petal_1.PETAL_STATS[(_a = slot.petal) === null || _a === void 0 ? void 0 : _a.getType()]) === null || _b === void 0 ? void 0 : _b.rarity) || types_1.Rarity.COMMON;
             var rarityColor = _this.settings.rarityTinting ?
                 '#' + types_1.RARITY_COLORS[rarity].toString(16).padStart(6, '0') :
                 'rgba(255, 255, 255, 0.2)';
             // Update container style based on active state
-            container.style.backgroundColor = slot.isActive ? rarityColor : 'rgba(255, 255, 255, 0.2)';
+            container.style.backgroundColor = rarityColor;
             container.style.cursor = 'pointer'; // Add cursor pointer
             // Add click handler to the container
             container.onclick = function () {

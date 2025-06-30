@@ -20,10 +20,10 @@
         {
           "baseType": "pea",
           "rarities": {
-            "COMMON": 247,
-            "UNCOMMON": 215,
-            "RARE": 23,
-            "EPIC": 21,
+            "COMMON": 266,
+            "UNCOMMON": 230,
+            "RARE": 24,
+            "EPIC": 22,
             "LEGENDARY": 0,
             "MYTHIC": 0
           }
@@ -31,19 +31,19 @@
         {
           "baseType": "tetrahedron",
           "rarities": {
-            "COMMON": 105,
-            "UNCOMMON": 73,
+            "COMMON": 111,
+            "UNCOMMON": 77,
             "RARE": 0,
-            "EPIC": 6,
-            "LEGENDARY": 1806,
-            "MYTHIC": 112
+            "EPIC": 7,
+            "LEGENDARY": 1907,
+            "MYTHIC": 114
           }
         },
         {
           "baseType": "cube",
           "rarities": {
-            "COMMON": 37,
-            "UNCOMMON": 42,
+            "COMMON": 40,
+            "UNCOMMON": 44,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -53,19 +53,19 @@
         {
           "baseType": "stinger",
           "rarities": {
-            "COMMON": 113,
-            "UNCOMMON": 112,
+            "COMMON": 121,
+            "UNCOMMON": 119,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
-            "MYTHIC": 1900
+            "MYTHIC": 2000
           }
         },
         {
           "baseType": "leaf",
           "rarities": {
-            "COMMON": 46,
-            "UNCOMMON": 62,
+            "COMMON": 49,
+            "UNCOMMON": 65,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
