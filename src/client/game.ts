@@ -390,12 +390,19 @@ export class Game {
                     const itemId = `item_${data.enemyId}`;
                     
                     // Extract base type from server's item type (handles rarity variations)
-                    // Server sends things like 'STINGER' or 'stinger_uncommon'
+                    console.log('Server sent item type:', data.itemType);
                     let baseType = data.itemType;
                     if (data.itemType.includes('_')) {
                         // Has rarity suffix, extract base type
                         baseType = data.itemType.split('_')[0].toUpperCase();
+                        console.log('Extracted base type from rarity variation:', baseType);
+                    } else {
+                        // No rarity suffix, convert to uppercase to match enum
+                        baseType = data.itemType.toUpperCase();
+                        console.log('Converted base type to uppercase:', baseType);
                     }
+                    
+                    console.log('Creating item with type:', baseType, 'ItemType enum values:', Object.values(ItemType));
                     
                     const item = new Item(
                         this.scene,

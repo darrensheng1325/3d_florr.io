@@ -2008,12 +2008,19 @@ var Game = /** @class */ (function () {
                 if (data.itemType) {
                     var itemId = "item_".concat(data.enemyId);
                     // Extract base type from server's item type (handles rarity variations)
-                    // Server sends things like 'STINGER' or 'stinger_uncommon'
+                    console.log('Server sent item type:', data.itemType);
                     var baseType = data.itemType;
                     if (data.itemType.includes('_')) {
                         // Has rarity suffix, extract base type
                         baseType = data.itemType.split('_')[0].toUpperCase();
+                        console.log('Extracted base type from rarity variation:', baseType);
                     }
+                    else {
+                        // No rarity suffix, convert to uppercase to match enum
+                        baseType = data.itemType.toUpperCase();
+                        console.log('Converted base type to uppercase:', baseType);
+                    }
+                    console.log('Creating item with type:', baseType, 'ItemType enum values:', Object.values(item_1.ItemType));
                     var item = new item_1.Item(_this.scene, new THREE.Vector3(data.position.x, data.position.y, data.position.z), baseType, itemId);
                     _this.items.set(itemId, item);
                 }
@@ -4371,11 +4378,12 @@ var THREE = __importStar(__webpack_require__(7186));
 var GLTFLoader_1 = __webpack_require__(3211);
 var ItemType;
 (function (ItemType) {
-    ItemType["TETRAHEDRON"] = "tetrahedron";
-    ItemType["CUBE"] = "cube";
-    ItemType["LEAF"] = "leaf";
-    ItemType["STINGER"] = "stinger";
-    ItemType["PEA"] = "pea";
+    ItemType["BASIC"] = "BASIC";
+    ItemType["TETRAHEDRON"] = "TETRAHEDRON";
+    ItemType["CUBE"] = "CUBE";
+    ItemType["LEAF"] = "LEAF";
+    ItemType["STINGER"] = "STINGER";
+    ItemType["PEA"] = "PEA";
 })(ItemType || (exports.ItemType = ItemType = {}));
 var Item = /** @class */ (function () {
     function Item(scene, position, type, id) {
@@ -4413,14 +4421,20 @@ var Item = /** @class */ (function () {
         else {
             // Create geometry based on type
             var geometry = void 0;
-            if (type === ItemType.TETRAHEDRON) {
+            if (type === ItemType.BASIC) {
+                geometry = new THREE.SphereGeometry(0.225, 32, 32); // Sphere for basic
+            }
+            else if (type === ItemType.TETRAHEDRON) {
                 geometry = new THREE.TetrahedronGeometry(0.3);
             }
             else if (type === ItemType.STINGER) {
                 geometry = new THREE.ConeGeometry(0.15, 0.4, 16); // Cone shape for stinger
             }
+            else if (type === ItemType.CUBE) {
+                geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3); // Cube geometry
+            }
             else {
-                geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3); // Default to cube
             }
             // Create material based on type
             var material = new THREE.MeshPhongMaterial({
@@ -4435,6 +4449,8 @@ var Item = /** @class */ (function () {
     }
     Item.prototype.getItemColor = function () {
         switch (this.type) {
+            case ItemType.BASIC:
+                return 0xffffff; // White for basic
             case ItemType.TETRAHEDRON:
                 return 0xff0000; // Red
             case ItemType.CUBE:
@@ -6644,7 +6660,7 @@ exports.RARITY_COLORS = (_a = {},
     _a[Rarity.RARE] = 0x4f51e2,
     _a[Rarity.EPIC] = 0x861ee0,
     _a[Rarity.LEGENDARY] = 0xff0000,
-    _a[Rarity.MYTHIC] = 0xff00ff // Pink
+    _a[Rarity.MYTHIC] = 0x3fffc9 // Cyan
 ,
     _a);
 exports.RARITY_MULTIPLIERS = (_b = {},

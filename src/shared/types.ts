@@ -13,7 +13,7 @@ export const RARITY_COLORS = {
     [Rarity.RARE]: 0x4f51e2,       // Blue
     [Rarity.EPIC]: 0x861ee0,       // Purple
     [Rarity.LEGENDARY]: 0xff0000,   // Red
-    [Rarity.MYTHIC]: 0xff00ff       // Pink
+    [Rarity.MYTHIC]: 0x3fffc9     // Cyan
 };
 
 export const RARITY_MULTIPLIERS = {

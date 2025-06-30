@@ -1,7 +1,7 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1751252271059,
+    "lastSeen": 1751253275658,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
@@ -20,10 +20,10 @@
         {
           "baseType": "pea",
           "rarities": {
-            "COMMON": 17,
-            "UNCOMMON": 6,
-            "RARE": 2,
-            "EPIC": 0,
+            "COMMON": 59,
+            "UNCOMMON": 39,
+            "RARE": 7,
+            "EPIC": 5,
             "LEGENDARY": 0,
             "MYTHIC": 0
           }
@@ -31,19 +31,19 @@
         {
           "baseType": "tetrahedron",
           "rarities": {
-            "COMMON": 2,
-            "UNCOMMON": 0,
+            "COMMON": 21,
+            "UNCOMMON": 11,
             "RARE": 0,
             "EPIC": 0,
-            "LEGENDARY": 0,
-            "MYTHIC": 0
+            "LEGENDARY": 200,
+            "MYTHIC": 100
           }
         },
         {
           "baseType": "cube",
           "rarities": {
-            "COMMON": 4,
-            "UNCOMMON": 0,
+            "COMMON": 7,
+            "UNCOMMON": 10,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -53,19 +53,19 @@
         {
           "baseType": "stinger",
           "rarities": {
-            "COMMON": 3,
-            "UNCOMMON": 2,
+            "COMMON": 15,
+            "UNCOMMON": 20,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
-            "MYTHIC": 0
+            "MYTHIC": 300
           }
         },
         {
           "baseType": "leaf",
           "rarities": {
-            "COMMON": 1,
-            "UNCOMMON": 1,
+            "COMMON": 12,
+            "UNCOMMON": 14,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -75,48 +75,68 @@
       ],
       "collectedItems": [
         {
-          "type": "pea",
-          "amount": 4
-        },
-        {
           "type": "pea_uncommon",
-          "amount": 3
+          "amount": 7
         },
         {
           "type": "tetrahedron",
-          "amount": 1
+          "amount": 4
         },
         {
-          "type": "cube",
+          "type": "stinger_uncommon",
+          "amount": 4
+        },
+        {
+          "type": "leaf",
+          "amount": 2
+        },
+        {
+          "type": "leaf_uncommon",
           "amount": 3
         },
         {
-          "type": "pea_rare",
+          "type": "tetrahedron_uncommon",
+          "amount": 3
+        },
+        {
+          "type": "pea_epic",
+          "amount": 1
+        },
+        {
+          "type": "cube_uncommon",
           "amount": 2
+        },
+        {
+          "type": "pea_rare",
+          "amount": 1
         },
         {
           "type": "stinger",
           "amount": 3
         },
         {
-          "type": "stinger_uncommon",
-          "amount": 2
+          "type": "stinger_mythic",
+          "amount": 100
         },
         {
-          "type": "leaf",
+          "type": "cube",
           "amount": 1
         },
         {
-          "type": "leaf_uncommon",
-          "amount": 1
+          "type": "pea",
+          "amount": 6
+        },
+        {
+          "type": "tetrahedron_legendary",
+          "amount": 100
         }
       ]
     },
     "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
+      "totalKills": 7,
+      "totalDeaths": 1,
+      "totalPlayTime": 319454,
+      "bestXP": 13150
     }
   }
 }
