@@ -1231,19 +1231,19 @@ io.on('connection', (socket) => {
             
             // Map item types to base petal types
             switch (itemType) {
-                case 'tetrahedron':
+                case 'TETRAHEDRON':
                     baseType = BasePetalType.TETRAHEDRON;
                     break;
-                case 'leaf':
+                case 'LEAF':
                     baseType = BasePetalType.LEAF;
                     break;
-                case 'stinger':
+                case 'STINGER':
                     baseType = BasePetalType.STINGER;
                     break;
-                case 'pea':
+                case 'PEA':
                     baseType = BasePetalType.PEA;
                     break;
-                case 'cube':
+                case 'CUBE':
                     baseType = BasePetalType.CUBE;
                     break;
                 default:
@@ -1792,16 +1792,16 @@ process.stdin.on('data', (data: string) => {
         case 'spawnitem':
             if (args.length === 0) {
                 console.log('Usage: spawnitem <type> [count]');
-                console.log('Available types: tetrahedron, cube, leaf, stinger');
-                console.log('Example: spawnitem tetrahedron 3');
+                console.log('Available types: TETRAHEDRON, CUBE, LEAF, STINGER');
+                console.log('Example: spawnitem TETRAHEDRON 3');
                 return;
             }
 
             const itemType = args[0].toLowerCase();
             const itemCount = parseInt(args[1]) || 1;
 
-            if (!['tetrahedron', 'cube', 'leaf', 'stinger'].includes(itemType)) {
-                console.log('Invalid item type. Available types: tetrahedron, cube, leaf, stinger');
+            if (!['TETRAHEDRON', 'CUBE', 'LEAF', 'STINGER'].includes(itemType)) {
+                console.log('Invalid item type. Available types: TETRAHEDRON, CUBE, LEAF, STINGER');
                 return;
             }
 

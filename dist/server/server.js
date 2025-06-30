@@ -1047,19 +1047,19 @@ io.on('connection', (socket) => {
             let rarity = types_1.Rarity.COMMON;
             // Map item types to base petal types
             switch (itemType) {
-                case 'tetrahedron':
+                case 'TETRAHEDRON':
                     baseType = types_2.BasePetalType.TETRAHEDRON;
                     break;
-                case 'leaf':
+                case 'LEAF':
                     baseType = types_2.BasePetalType.LEAF;
                     break;
-                case 'stinger':
+                case 'STINGER':
                     baseType = types_2.BasePetalType.STINGER;
                     break;
-                case 'pea':
+                case 'PEA':
                     baseType = types_2.BasePetalType.PEA;
                     break;
-                case 'cube':
+                case 'CUBE':
                     baseType = types_2.BasePetalType.CUBE;
                     break;
                 default:
@@ -1560,14 +1560,14 @@ process.stdin.on('data', (data) => {
         case 'spawnitem':
             if (args.length === 0) {
                 console.log('Usage: spawnitem <type> [count]');
-                console.log('Available types: tetrahedron, cube, leaf, stinger');
-                console.log('Example: spawnitem tetrahedron 3');
+                console.log('Available types: TETRAHEDRON, CUBE, LEAF, STINGER');
+                console.log('Example: spawnitem TETRAHEDRON 3');
                 return;
             }
             const itemType = args[0].toLowerCase();
             const itemCount = parseInt(args[1]) || 1;
-            if (!['tetrahedron', 'cube', 'leaf', 'stinger'].includes(itemType)) {
-                console.log('Invalid item type. Available types: tetrahedron, cube, leaf, stinger');
+            if (!['TETRAHEDRON', 'CUBE', 'LEAF', 'STINGER'].includes(itemType)) {
+                console.log('Invalid item type. Available types: TETRAHEDRON, CUBE, LEAF, STINGER');
                 return;
             }
             console.log(`Spawning ${itemCount} ${itemType}(s) at center of map...`);

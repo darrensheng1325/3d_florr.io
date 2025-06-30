@@ -155,26 +155,26 @@ export interface LightingConfig {
 }
 
 export enum ItemType {
-    TETRAHEDRON = 'TETRAHEDRON',
-    LEAF = 'LEAF',
-    STINGER = 'STINGER',
-    PEA = 'PEA',
-    CUBE = 'CUBE'
+    TETRAHEDRON = 'tetrahedron',
+    LEAF = 'leaf',
+    STINGER = 'stinger',
+    PEA = 'pea',
+    CUBE = 'cube'
 }
 
 // Base petal types (without rarity suffixes)
 export enum BasePetalType {
-    BASIC = 'BASIC',
-    TETRAHEDRON = 'TETRAHEDRON',
-    CUBE = 'CUBE',
-    LEAF = 'LEAF',
-    STINGER = 'STINGER',
-    PEA = 'PEA'
+    BASIC = 'basic',
+    TETRAHEDRON = 'tetrahedron',
+    CUBE = 'cube',
+    LEAF = 'leaf',
+    STINGER = 'stinger',
+    PEA = 'pea'
 }
 
 // Full petal types (including rarity variations) - keeping for backward compatibility
 export enum PetalType {
-    BASIC = 'BASIC',
+    BASIC = 'basic',
     BASIC_UNCOMMON = 'basic_uncommon',
     BASIC_RARE = 'basic_rare',
     TETRAHEDRON = 'tetrahedron',
@@ -200,12 +200,12 @@ export function parsePetalType(petalType: string): { baseType: BasePetalType; ra
     if (parts.length === 1) {
         // Common rarity, no suffix
         return {
-            baseType: parts[0].toUpperCase() as BasePetalType,
+            baseType: parts[0].toLowerCase() as BasePetalType,
             rarity: Rarity.COMMON
         };
     } else {
         // Has rarity suffix
-        const baseType = parts[0].toUpperCase() as BasePetalType;
+        const baseType = parts[0].toLowerCase() as BasePetalType;
         const rarityStr = parts.slice(1).join('_').toUpperCase() as Rarity;
         return { baseType, rarity: rarityStr };
     }

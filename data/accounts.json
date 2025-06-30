@@ -1,13 +1,46 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1751250727255,
+    "lastSeen": 1751252271059,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
       "petals": [
         {
-          "baseType": "TETRAHEDRON",
+          "baseType": "basic",
+          "rarities": {
+            "COMMON": 5,
+            "UNCOMMON": 0,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        },
+        {
+          "baseType": "pea",
+          "rarities": {
+            "COMMON": 17,
+            "UNCOMMON": 6,
+            "RARE": 2,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        },
+        {
+          "baseType": "tetrahedron",
+          "rarities": {
+            "COMMON": 2,
+            "UNCOMMON": 0,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        },
+        {
+          "baseType": "cube",
           "rarities": {
             "COMMON": 4,
             "UNCOMMON": 0,
@@ -18,10 +51,10 @@
           }
         },
         {
-          "baseType": "STINGER",
+          "baseType": "stinger",
           "rarities": {
             "COMMON": 3,
-            "UNCOMMON": 5,
+            "UNCOMMON": 2,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -29,32 +62,10 @@
           }
         },
         {
-          "baseType": "PEA",
-          "rarities": {
-            "COMMON": 28,
-            "UNCOMMON": 32,
-            "RARE": 0,
-            "EPIC": 0,
-            "LEGENDARY": 0,
-            "MYTHIC": 0
-          }
-        },
-        {
-          "baseType": "LEAF",
-          "rarities": {
-            "COMMON": 2,
-            "UNCOMMON": 1,
-            "RARE": 0,
-            "EPIC": 0,
-            "LEGENDARY": 0,
-            "MYTHIC": 0
-          }
-        },
-        {
-          "baseType": "CUBE",
+          "baseType": "leaf",
           "rarities": {
             "COMMON": 1,
-            "UNCOMMON": 0,
+            "UNCOMMON": 1,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -64,36 +75,40 @@
       ],
       "collectedItems": [
         {
-          "type": "TETRAHEDRON",
+          "type": "pea",
           "amount": 4
+        },
+        {
+          "type": "pea_uncommon",
+          "amount": 3
+        },
+        {
+          "type": "tetrahedron",
+          "amount": 1
+        },
+        {
+          "type": "cube",
+          "amount": 3
+        },
+        {
+          "type": "pea_rare",
+          "amount": 2
+        },
+        {
+          "type": "stinger",
+          "amount": 3
         },
         {
           "type": "stinger_uncommon",
           "amount": 2
         },
         {
-          "type": "STINGER",
-          "amount": 3
-        },
-        {
-          "type": "PEA",
-          "amount": 28
-        },
-        {
-          "type": "pea_uncommon",
-          "amount": 14
+          "type": "leaf",
+          "amount": 1
         },
         {
           "type": "leaf_uncommon",
           "amount": 1
-        },
-        {
-          "type": "CUBE",
-          "amount": 1
-        },
-        {
-          "type": "LEAF",
-          "amount": 2
         }
       ]
     },

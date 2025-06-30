@@ -105,8 +105,8 @@ class DatabaseManager {
                 // Check if we need to migrate from collectedItems to new petal format
                 // This happens when collectedItems has petal types that need to be migrated
                 const petalItemsInCollected = account.inventory.collectedItems.filter(item => 
-                    item.type === 'pea' || item.type === 'leaf' || item.type === 'stinger' || 
-                    item.type === 'cube' || item.type === 'tetrahedron' || 
+                    item.type === 'PEA' || item.type === 'LEAF' || item.type === 'STINGER' || 
+                    item.type === 'CUBE' || item.type === 'TETRAHEDRON' || 
                     item.type.includes('_') // rarity variants like pea_uncommon
                 );
                 
@@ -211,6 +211,10 @@ class DatabaseManager {
         };
 
         this.data[accountId] = newAccount;
+        
+        // Give new accounts 5 common basic petals to start with
+        this.addPetal(accountId, BasePetalType.BASIC, Rarity.COMMON, 5);
+        
         this.saveData();
         return newAccount;
     }

@@ -58,26 +58,26 @@ exports.MODEL_BASE_SIZES = {
 };
 var ItemType;
 (function (ItemType) {
-    ItemType["TETRAHEDRON"] = "TETRAHEDRON";
-    ItemType["LEAF"] = "LEAF";
-    ItemType["STINGER"] = "STINGER";
-    ItemType["PEA"] = "PEA";
-    ItemType["CUBE"] = "CUBE";
+    ItemType["TETRAHEDRON"] = "tetrahedron";
+    ItemType["LEAF"] = "leaf";
+    ItemType["STINGER"] = "stinger";
+    ItemType["PEA"] = "pea";
+    ItemType["CUBE"] = "cube";
 })(ItemType || (exports.ItemType = ItemType = {}));
 // Base petal types (without rarity suffixes)
 var BasePetalType;
 (function (BasePetalType) {
-    BasePetalType["BASIC"] = "BASIC";
-    BasePetalType["TETRAHEDRON"] = "TETRAHEDRON";
-    BasePetalType["CUBE"] = "CUBE";
-    BasePetalType["LEAF"] = "LEAF";
-    BasePetalType["STINGER"] = "STINGER";
-    BasePetalType["PEA"] = "PEA";
+    BasePetalType["BASIC"] = "basic";
+    BasePetalType["TETRAHEDRON"] = "tetrahedron";
+    BasePetalType["CUBE"] = "cube";
+    BasePetalType["LEAF"] = "leaf";
+    BasePetalType["STINGER"] = "stinger";
+    BasePetalType["PEA"] = "pea";
 })(BasePetalType || (exports.BasePetalType = BasePetalType = {}));
 // Full petal types (including rarity variations) - keeping for backward compatibility
 var PetalType;
 (function (PetalType) {
-    PetalType["BASIC"] = "BASIC";
+    PetalType["BASIC"] = "basic";
     PetalType["BASIC_UNCOMMON"] = "basic_uncommon";
     PetalType["BASIC_RARE"] = "basic_rare";
     PetalType["TETRAHEDRON"] = "tetrahedron";
@@ -101,13 +101,13 @@ function parsePetalType(petalType) {
     if (parts.length === 1) {
         // Common rarity, no suffix
         return {
-            baseType: parts[0].toUpperCase(),
+            baseType: parts[0].toLowerCase(),
             rarity: Rarity.COMMON
         };
     }
     else {
         // Has rarity suffix
-        const baseType = parts[0].toUpperCase();
+        const baseType = parts[0].toLowerCase();
         const rarityStr = parts.slice(1).join('_').toUpperCase();
         return { baseType, rarity: rarityStr };
     }
