@@ -1998,34 +1998,23 @@ var Game = /** @class */ (function () {
             }
         });
         this.networkManager.on('enemyDied', function (data) {
-            var _a;
             var enemy = _this.enemies.get(data.enemyId);
             if (enemy) {
                 enemy.remove();
                 _this.enemies.delete(data.enemyId);
                 _this.enemiesKilled++;
                 _this.waveUI.update(_this.currentWave, _this.enemiesKilled, _this.totalXP, undefined, undefined);
-                if (data.enemyType !== 'worker_ant') {
-                    var dropResult = _this.determinePetalDrop(data.enemyRarity);
-                    if (dropResult.shouldDrop) {
-                        var inventory = _this.playerInventories.get(((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) || '');
-                        if (inventory) {
-                            var slots = inventory.getSlots();
-                            var emptySlotIndex = slots.findIndex(function (slot) { return slot.petal === null; });
-                            if (emptySlotIndex !== -1) {
-                                inventory.addPetal(dropResult.petalType, emptySlotIndex);
-                            }
-                        }
+                // Use server's item type determination instead of client-side calculation
+                if (data.itemType) {
+                    var itemId = "item_".concat(data.enemyId);
+                    // Extract base type from server's item type (handles rarity variations)
+                    // Server sends things like 'STINGER' or 'stinger_uncommon'
+                    var baseType = data.itemType;
+                    if (data.itemType.includes('_')) {
+                        // Has rarity suffix, extract base type
+                        baseType = data.itemType.split('_')[0].toUpperCase();
                     }
-                }
-                if (data.enemyType === 'worker_ant') {
-                    var itemId = "item_".concat(data.enemyId);
-                    var item = new item_1.Item(_this.scene, new THREE.Vector3(data.position.x, data.position.y, data.position.z), item_1.ItemType.LEAF, itemId);
-                    _this.items.set(itemId, item);
-                }
-                else if (data.itemType) {
-                    var itemId = "item_".concat(data.enemyId);
-                    var item = new item_1.Item(_this.scene, new THREE.Vector3(data.position.x, data.position.y, data.position.z), data.itemType, itemId);
+                    var item = new item_1.Item(_this.scene, new THREE.Vector3(data.position.x, data.position.y, data.position.z), baseType, itemId);
                     _this.items.set(itemId, item);
                 }
             }
@@ -2044,42 +2033,6 @@ var Game = /** @class */ (function () {
             console.log('Connected to server');
             _this.reconnectAttempts = 0;
         });
-    };
-    Game.prototype.determinePetalDrop = function (enemyRarity) {
-        // 50% chance to drop a petal
-        if (Math.random() > 0.5) {
-            return { shouldDrop: false, dropRarity: types_1.Rarity.COMMON, petalType: types_1.PetalType.BASIC };
-        }
-        var dropRarity;
-        if (enemyRarity === types_1.Rarity.COMMON) {
-            // Common mobs have 30% chance to drop uncommon
-            dropRarity = Math.random() < 0.3 ? types_1.Rarity.UNCOMMON : types_1.Rarity.COMMON;
-        }
-        else {
-            // For other rarities: 30% chance to drop same rarity, 70% chance to drop one rarity below
-            var dropSameRarity = Math.random() < 0.3;
-            dropRarity = dropSameRarity ? enemyRarity : Object.values(types_1.Rarity)[Object.values(types_1.Rarity).indexOf(enemyRarity) - 1];
-        }
-        // Determine petal type based on rarity
-        var possibleTypes = [];
-        switch (dropRarity) {
-            case types_1.Rarity.LEGENDARY:
-                possibleTypes = [types_1.PetalType.CUBE_LEGENDARY];
-                break;
-            case types_1.Rarity.EPIC:
-                possibleTypes = [types_1.PetalType.TETRAHEDRON_EPIC];
-                break;
-            case types_1.Rarity.RARE:
-                possibleTypes = [types_1.PetalType.BASIC_RARE];
-                break;
-            case types_1.Rarity.UNCOMMON:
-                possibleTypes = [types_1.PetalType.BASIC_UNCOMMON];
-                break;
-            default:
-                possibleTypes = [types_1.PetalType.BASIC, types_1.PetalType.TETRAHEDRON, types_1.PetalType.CUBE];
-        }
-        var randomType = possibleTypes[Math.floor(Math.random() * possibleTypes.length)];
-        return { shouldDrop: true, dropRarity: dropRarity, petalType: randomType };
     };
     Game.prototype.setupEnemyEvents = function () {
         // This is now handled by the network manager listeners
@@ -4418,11 +4371,11 @@ var THREE = __importStar(__webpack_require__(7186));
 var GLTFLoader_1 = __webpack_require__(3211);
 var ItemType;
 (function (ItemType) {
-    ItemType["TETRAHEDRON"] = "tetrahedron";
-    ItemType["CUBE"] = "cube";
-    ItemType["LEAF"] = "leaf";
-    ItemType["STINGER"] = "stinger";
-    ItemType["PEA"] = "pea";
+    ItemType["TETRAHEDRON"] = "TETRAHEDRON";
+    ItemType["CUBE"] = "CUBE";
+    ItemType["LEAF"] = "LEAF";
+    ItemType["STINGER"] = "STINGER";
+    ItemType["PEA"] = "PEA";
 })(ItemType || (exports.ItemType = ItemType = {}));
 var Item = /** @class */ (function () {
     function Item(scene, position, type, id) {

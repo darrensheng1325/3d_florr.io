@@ -385,35 +385,22 @@ export class Game {
                 this.enemiesKilled++;
                 this.waveUI.update(this.currentWave, this.enemiesKilled, this.totalXP, undefined, undefined);
 
-                if (data.enemyType !== 'worker_ant') {
-                    const dropResult = this.determinePetalDrop(data.enemyRarity);
-                    if (dropResult.shouldDrop) {
-                        const inventory = this.playerInventories.get(this.socket?.id || '');
-                        if (inventory) {
-                            const slots = inventory.getSlots();
-                            const emptySlotIndex = slots.findIndex(slot => slot.petal === null);
-                            if (emptySlotIndex !== -1) {
-                                inventory.addPetal(dropResult.petalType, emptySlotIndex);
-                            }
-                        }
+                // Use server's item type determination instead of client-side calculation
+                if (data.itemType) {
+                    const itemId = `item_${data.enemyId}`;
+                    
+                    // Extract base type from server's item type (handles rarity variations)
+                    // Server sends things like 'STINGER' or 'stinger_uncommon'
+                    let baseType = data.itemType;
+                    if (data.itemType.includes('_')) {
+                        // Has rarity suffix, extract base type
+                        baseType = data.itemType.split('_')[0].toUpperCase();
                     }
-                }
-
-                if (data.enemyType === 'worker_ant') {
-                    const itemId = `item_${data.enemyId}`;
+                    
                     const item = new Item(
                         this.scene,
                         new THREE.Vector3(data.position.x, data.position.y, data.position.z),
-                        ItemType.LEAF,
-                        itemId
-                    );
-                    this.items.set(itemId, item);
-                } else if (data.itemType) {
-                    const itemId = `item_${data.enemyId}`;
-                    const item = new Item(
-                        this.scene,
-                        new THREE.Vector3(data.position.x, data.position.y, data.position.z),
-                        data.itemType as ItemType,
+                        baseType as ItemType,
                         itemId
                     );
                     this.items.set(itemId, item);
@@ -439,44 +426,7 @@ export class Game {
         });
     }
     
-    private determinePetalDrop(enemyRarity: Rarity): { shouldDrop: boolean; dropRarity: Rarity; petalType: PetalType } {
-        // 50% chance to drop a petal
-        if (Math.random() > 0.5) {
-            return { shouldDrop: false, dropRarity: Rarity.COMMON, petalType: PetalType.BASIC };
-        }
 
-        let dropRarity: Rarity;
-        if (enemyRarity === Rarity.COMMON) {
-            // Common mobs have 30% chance to drop uncommon
-            dropRarity = Math.random() < 0.3 ? Rarity.UNCOMMON : Rarity.COMMON;
-        } else {
-            // For other rarities: 30% chance to drop same rarity, 70% chance to drop one rarity below
-            const dropSameRarity = Math.random() < 0.3;
-            dropRarity = dropSameRarity ? enemyRarity : Object.values(Rarity)[Object.values(Rarity).indexOf(enemyRarity) - 1];
-        }
-
-        // Determine petal type based on rarity
-        let possibleTypes: PetalType[] = [];
-        switch (dropRarity) {
-            case Rarity.LEGENDARY:
-                possibleTypes = [PetalType.CUBE_LEGENDARY];
-                break;
-            case Rarity.EPIC:
-                possibleTypes = [PetalType.TETRAHEDRON_EPIC];
-                break;
-            case Rarity.RARE:
-                possibleTypes = [PetalType.BASIC_RARE];
-                break;
-            case Rarity.UNCOMMON:
-                possibleTypes = [PetalType.BASIC_UNCOMMON];
-                break;
-            default:
-                possibleTypes = [PetalType.BASIC, PetalType.TETRAHEDRON, PetalType.CUBE];
-        }
-
-        const randomType = possibleTypes[Math.floor(Math.random() * possibleTypes.length)];
-        return { shouldDrop: true, dropRarity, petalType: randomType };
-    }
 
     private setupEnemyEvents(): void {
         // This is now handled by the network manager listeners

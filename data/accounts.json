@@ -1,7 +1,7 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1751250325110,
+    "lastSeen": 1751250727255,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
@@ -9,7 +9,7 @@
         {
           "baseType": "TETRAHEDRON",
           "rarities": {
-            "COMMON": 2,
+            "COMMON": 4,
             "UNCOMMON": 0,
             "RARE": 0,
             "EPIC": 0,
@@ -20,8 +20,8 @@
         {
           "baseType": "STINGER",
           "rarities": {
-            "COMMON": 2,
-            "UNCOMMON": 4,
+            "COMMON": 3,
+            "UNCOMMON": 5,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -31,8 +31,30 @@
         {
           "baseType": "PEA",
           "rarities": {
-            "COMMON": 21,
-            "UNCOMMON": 27,
+            "COMMON": 28,
+            "UNCOMMON": 32,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        },
+        {
+          "baseType": "LEAF",
+          "rarities": {
+            "COMMON": 2,
+            "UNCOMMON": 1,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        },
+        {
+          "baseType": "CUBE",
+          "rarities": {
+            "COMMON": 1,
+            "UNCOMMON": 0,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -43,23 +65,35 @@
       "collectedItems": [
         {
           "type": "TETRAHEDRON",
-          "amount": 2
+          "amount": 4
         },
         {
           "type": "stinger_uncommon",
-          "amount": 1
-        },
-        {
-          "type": "STINGER",
           "amount": 2
         },
         {
+          "type": "STINGER",
+          "amount": 3
+        },
+        {
           "type": "PEA",
-          "amount": 21
+          "amount": 28
         },
         {
           "type": "pea_uncommon",
-          "amount": 9
+          "amount": 14
+        },
+        {
+          "type": "leaf_uncommon",
+          "amount": 1
+        },
+        {
+          "type": "CUBE",
+          "amount": 1
+        },
+        {
+          "type": "LEAF",
+          "amount": 2
         }
       ]
     },

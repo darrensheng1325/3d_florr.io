@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 export enum ItemType {
-    TETRAHEDRON = 'tetrahedron',
-    CUBE = 'cube',
-    LEAF = 'leaf',
-    STINGER = 'stinger',
-    PEA = 'pea'
+    TETRAHEDRON = 'TETRAHEDRON',
+    CUBE = 'CUBE',
+    LEAF = 'LEAF',
+    STINGER = 'STINGER',
+    PEA = 'PEA'
 }
 
 export class Item {
