@@ -25,6 +25,16 @@ export const RARITY_MULTIPLIERS = {
     [Rarity.MYTHIC]: 7.5
 };
 
+// Damage multiplier for each rarity level (1.2x scaling)
+export const RARITY_DAMAGE_MULTIPLIERS = {
+    [Rarity.COMMON]: 1,
+    [Rarity.UNCOMMON]: 1.2,
+    [Rarity.RARE]: 1.44,      // 1.2^2
+    [Rarity.EPIC]: 1.728,     // 1.2^3
+    [Rarity.LEGENDARY]: 2.074, // 1.2^4
+    [Rarity.MYTHIC]: 2.488     // 1.2^5
+};
+
 // Base sizes for each enemy type
 export const BASE_SIZES = {
     ladybug: 0.5,
@@ -58,13 +68,31 @@ export interface EnemyStats {
     rarity: Rarity;
 }
 
-export interface PetalStats {
+// Base petal stats (before rarity multipliers)
+export interface BasePetalStats {
     maxHealth: number;
     cooldownTime: number;
-    rarity: Rarity;
     damage: number;
     health: number;
     speed: number;
+}
+
+// Final petal stats (after applying rarity)
+export interface PetalStats extends BasePetalStats {
+    rarity: Rarity;
+}
+
+// Database petal storage - stores counts by rarity for each base type
+export interface PetalInventoryEntry {
+    baseType: BasePetalType;
+    rarities: {
+        [Rarity.COMMON]: number;
+        [Rarity.UNCOMMON]: number;
+        [Rarity.RARE]: number;
+        [Rarity.EPIC]: number;
+        [Rarity.LEGENDARY]: number;
+        [Rarity.MYTHIC]: number;
+    };
 }
 
 export interface CollisionPlaneConfig {
@@ -134,6 +162,17 @@ export enum ItemType {
     CUBE = 'CUBE'
 }
 
+// Base petal types (without rarity suffixes)
+export enum BasePetalType {
+    BASIC = 'BASIC',
+    TETRAHEDRON = 'TETRAHEDRON',
+    CUBE = 'CUBE',
+    LEAF = 'LEAF',
+    STINGER = 'STINGER',
+    PEA = 'PEA'
+}
+
+// Full petal types (including rarity variations) - keeping for backward compatibility
 export enum PetalType {
     BASIC = 'BASIC',
     BASIC_UNCOMMON = 'basic_uncommon',
@@ -145,6 +184,31 @@ export enum PetalType {
     LEAF = 'leaf',
     STINGER = 'stinger',
     PEA = 'pea'
+}
+
+// Helper function to get petal type from base type and rarity
+export function getPetalType(baseType: BasePetalType, rarity: Rarity): string {
+    if (rarity === Rarity.COMMON) {
+        return baseType;
+    }
+    return `${baseType.toLowerCase()}_${rarity.toLowerCase()}`;
+}
+
+// Helper function to extract base type and rarity from petal type
+export function parsePetalType(petalType: string): { baseType: BasePetalType; rarity: Rarity } {
+    const parts = petalType.split('_');
+    if (parts.length === 1) {
+        // Common rarity, no suffix
+        return {
+            baseType: parts[0].toUpperCase() as BasePetalType,
+            rarity: Rarity.COMMON
+        };
+    } else {
+        // Has rarity suffix
+        const baseType = parts[0].toUpperCase() as BasePetalType;
+        const rarityStr = parts.slice(1).join('_').toUpperCase() as Rarity;
+        return { baseType, rarity: rarityStr };
+    }
 }
 
 export interface WaveStartData {

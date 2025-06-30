@@ -1,247 +1,67 @@
 {
-  "21531027375": {
-    "id": "21531027375",
-    "lastSeen": 1749591372607,
-    "totalXP": 450,
-    "highestWave": 1,
-    "inventory": {
-      "petals": [],
-      "collectedItems": [
-        {
-          "type": "cube",
-          "amount": 3
-        },
-        {
-          "type": "tetrahedron",
-          "amount": 22
-        },
-        {
-          "type": "stinger",
-          "amount": 5
-        },
-        {
-          "type": "pea",
-          "amount": 23
-        },
-        {
-          "type": "leaf",
-          "amount": 1
-        }
-      ]
-    },
-    "stats": {
-      "totalKills": 6,
-      "totalDeaths": 3,
-      "totalPlayTime": 88574,
-      "bestXP": 150
-    }
-  },
-  "spectator_cvdw1q3ac": {
-    "id": "spectator_cvdw1q3ac",
-    "lastSeen": 1749591630581,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1749854187511,
-    "totalXP": 2175062050,
-    "highestWave": 46,
+    "lastSeen": 1751250325110,
+    "totalXP": 0,
+    "highestWave": 0,
     "inventory": {
-      "petals": [],
+      "petals": [
+        {
+          "baseType": "TETRAHEDRON",
+          "rarities": {
+            "COMMON": 2,
+            "UNCOMMON": 0,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        },
+        {
+          "baseType": "STINGER",
+          "rarities": {
+            "COMMON": 2,
+            "UNCOMMON": 4,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        },
+        {
+          "baseType": "PEA",
+          "rarities": {
+            "COMMON": 21,
+            "UNCOMMON": 27,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        }
+      ],
       "collectedItems": [
         {
-          "type": "cube",
-          "amount": 8
+          "type": "TETRAHEDRON",
+          "amount": 2
         },
         {
-          "type": "tetrahedron",
-          "amount": 14
+          "type": "stinger_uncommon",
+          "amount": 1
         },
         {
-          "type": "stinger",
+          "type": "STINGER",
+          "amount": 2
+        },
+        {
+          "type": "PEA",
+          "amount": 21
+        },
+        {
+          "type": "pea_uncommon",
           "amount": 9
-        },
-        {
-          "type": "pea",
-          "amount": 59
-        },
-        {
-          "type": "leaf",
-          "amount": 2
         }
       ]
-    },
-    "stats": {
-      "totalKills": 16,
-      "totalDeaths": 44,
-      "totalPlayTime": 1291953,
-      "bestXP": 1087531050
-    }
-  },
-  "spectator_tvn7oximk": {
-    "id": "spectator_tvn7oximk",
-    "lastSeen": 1749591770141,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "spectator_n2gnmmik7": {
-    "id": "spectator_n2gnmmik7",
-    "lastSeen": 1749591919308,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "spectator_3vzhvd5y3": {
-    "id": "spectator_3vzhvd5y3",
-    "lastSeen": 1749690698286,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "": {
-    "id": "",
-    "lastSeen": 1749690759041,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": [
-        {
-          "type": "pea",
-          "amount": 6
-        },
-        {
-          "type": "stinger",
-          "amount": 1
-        },
-        {
-          "type": "cube",
-          "amount": 2
-        },
-        {
-          "type": "tetrahedron",
-          "amount": 1
-        }
-      ]
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "spectator_fmfzxyjzh": {
-    "id": "spectator_fmfzxyjzh",
-    "lastSeen": 1749690712240,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "spectator_tnjhvtqtv": {
-    "id": "spectator_tnjhvtqtv",
-    "lastSeen": 1749690770877,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "spectator_ogn54ohcn": {
-    "id": "spectator_ogn54ohcn",
-    "lastSeen": 1749690818488,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "spectator_18134a6f6": {
-    "id": "spectator_18134a6f6",
-    "lastSeen": 1749691107847,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
-    },
-    "stats": {
-      "totalKills": 0,
-      "totalDeaths": 0,
-      "totalPlayTime": 0,
-      "bestXP": 0
-    }
-  },
-  "spectator_9vun37t0m": {
-    "id": "spectator_9vun37t0m",
-    "lastSeen": 1749691189028,
-    "totalXP": 0,
-    "highestWave": 0,
-    "inventory": {
-      "petals": [],
-      "collectedItems": []
     },
     "stats": {
       "totalKills": 0,

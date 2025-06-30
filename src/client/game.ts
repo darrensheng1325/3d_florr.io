@@ -7,7 +7,7 @@ import { Enemy } from './enemy';
 import { Inventory, PetalSlot } from './inventory';
 import { WaveUI } from './waves';
 import { Item, ItemType } from './item';
-import { PetalType, Rarity, RARITY_COLORS, EnemyType, LightingConfig, CollisionPlaneConfig, WaveStartData } from '../shared/types';
+import { PetalType, Rarity, RARITY_COLORS, EnemyType, LightingConfig, CollisionPlaneConfig, WaveStartData, BasePetalType } from '../shared/types';
 import { CraftingSystem } from './crafting';
 import { ServerConfig } from '../server/server_config';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -52,12 +52,12 @@ export class Game {
     private titleCtx: CanvasRenderingContext2D;
     private accountManager: AccountManager;
     private isInventoryOpen: boolean = false;
-    private collectedPetals: PetalType[] = [];
+    private collectedPetals: string[] = [];
     private craftingSystem: CraftingSystem | null = null;
     private items: Map<string, Item> = new Map();
     private pressedKeys: Set<string> = new Set();
     private inventoryMenu: HTMLDivElement | null = null;
-    private inventoryPreviews: Map<PetalType, { 
+    private inventoryPreviews: Map<string, { 
         scene: THREE.Scene, 
         camera: THREE.PerspectiveCamera, 
         renderer: THREE.WebGLRenderer,
@@ -978,11 +978,34 @@ export class Game {
             const healthBar = new HealthBar(this.camera, player);
             this.playerHealthBars.set(playerId, healthBar);
 
-            // Create inventory with default petals
+            // Create inventory and load pending data if available
             const inventory = new Inventory(this.scene, player);
-            for (let i = 0; i < 5; i++) {
-                inventory.addPetal(PetalType.BASIC, i);
+            
+            // Check if this is the local player and if there's pending inventory data
+            if (playerId === this.socket?.id && (window as any).pendingInventoryData) {
+                const pendingData = (window as any).pendingInventoryData;
+                
+                // Load petals from pending data
+                let slotIndex = 0;
+                if (pendingData.petals) {
+                    pendingData.petals.forEach((petal: any) => {
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
+                            inventory.addPetal(petal.type, slotIndex);
+                            slotIndex++;
+                        }
+                    });
+                }
+                
+                // Clear pending data since we've used it
+                delete (window as any).pendingInventoryData;
+            } else {
+                // Create default petals for non-local players or if no pending data
+                for (let i = 0; i < 5; i++) {
+                    inventory.addPetal(PetalType.BASIC, i);
+                }
             }
+            
             this.playerInventories.set(playerId, inventory);
 
             // Initialize crafting system if this is the local player
@@ -1188,9 +1211,7 @@ export class Game {
             inventory: {
                 petals: Array<{
                     type: string;
-                    slotIndex: number;
-                    rarity: string;
-                    health: number;
+                    amount: number;
                 }>;
                 collectedItems: Array<{
                     type: string;
@@ -1205,25 +1226,37 @@ export class Game {
             
             // Load inventory data
             if (this.socket?.id) {
-                let inventory = this.playerInventories.get(this.socket.id);
-                if (!inventory) {
-                    inventory = new Inventory(this.scene, this.players.get(this.socket.id)!);
-                    this.playerInventories.set(this.socket.id, inventory);
-                }
-
-                // Load petals
-                data.inventory.petals.forEach(petal => {
-                    inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
-                });
-
-                // Store collected items - repeat each type by its amount
+                // Store collected items - this can be done immediately
                 this.collectedPetals = data.inventory.collectedItems.flatMap(item => 
                     Array(item.amount).fill(item.type as PetalType)
                 );
-                
-                // Update UI if inventory is open
-                if (this.isInventoryOpen) {
-                    this.updateInventoryDisplay();
+
+                // Check if player exists before creating inventory
+                const player = this.players.get(this.socket.id);
+                if (player) {
+                    let inventory = this.playerInventories.get(this.socket.id);
+                    if (!inventory) {
+                        inventory = new Inventory(this.scene, player);
+                        this.playerInventories.set(this.socket.id, inventory);
+                    }
+
+                    // Load petals - assign to available slots automatically
+                    let slotIndex = 0;
+                    data.inventory.petals.forEach((petal: any) => {
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
+                            inventory?.addPetal(petal.type, slotIndex);
+                            slotIndex++;
+                        }
+                    });
+                    
+                    // Update UI if inventory is open
+                    if (this.isInventoryOpen) {
+                        this.updateInventoryDisplay();
+                    }
+                } else {
+                    // Store inventory data to load later when player is created
+                    (window as any).pendingInventoryData = data.inventory;
                 }
             }
         });
@@ -1232,9 +1265,7 @@ export class Game {
         this.socket.on('inventorySync', (data: {
             petals: Array<{
                 type: string;
-                slotIndex: number;
-                rarity: string;
-                health: number;
+                amount: number;
             }>;
             collectedItems: Array<{
                 type: string;
@@ -1244,25 +1275,37 @@ export class Game {
             console.log('Received inventory sync:', data);
             
             if (this.socket?.id) {
-                let inventory = this.playerInventories.get(this.socket.id);
-                if (!inventory) {
-                    inventory = new Inventory(this.scene, this.players.get(this.socket.id)!);
-                    this.playerInventories.set(this.socket.id, inventory);
-                }
-
-                // Load petals
-                data.petals.forEach(petal => {
-                    inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
-                });
-
-                // Store collected items - repeat each type by its amount
+                // Store collected items - this can be done immediately
                 this.collectedPetals = data.collectedItems.flatMap(item => 
                     Array(item.amount).fill(item.type as PetalType)
                 );
-                
-                // Update UI if inventory is open
-                if (this.isInventoryOpen) {
-                    this.updateInventoryDisplay();
+
+                // Check if player exists before creating inventory
+                const player = this.players.get(this.socket.id);
+                if (player) {
+                    let inventory = this.playerInventories.get(this.socket.id);
+                    if (!inventory) {
+                        inventory = new Inventory(this.scene, player);
+                        this.playerInventories.set(this.socket.id, inventory);
+                    }
+
+                    // Load petals - assign to available slots automatically
+                    let slotIndex = 0;
+                    data.petals.forEach((petal: any) => {
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
+                            inventory?.addPetal(petal.type, slotIndex);
+                            slotIndex++;
+                        }
+                    });
+                    
+                    // Update UI if inventory is open
+                    if (this.isInventoryOpen) {
+                        this.updateInventoryDisplay();
+                    }
+                } else {
+                    // Store inventory data to load later when player is created
+                    (window as any).pendingInventoryData = { petals: data.petals, collectedItems: data.collectedItems };
                 }
             }
         });
@@ -1274,9 +1317,7 @@ export class Game {
             inventory: {
                 petals: Array<{
                     type: string;
-                    slotIndex: number;
-                    rarity: string;
-                    health: number;
+                    amount: number;
                 }>;
                 collectedItems: Array<{
                     type: string;
@@ -1303,9 +1344,7 @@ export class Game {
         this.socket.on('inventoryUpdateConfirmed', (data: {
             petals: Array<{
                 type: string;
-                slotIndex: number;
-                rarity: string;
-                health: number;
+                amount: number;
             }>;
             collectedItems: Array<{
                 type: string;
@@ -1317,10 +1356,15 @@ export class Game {
             if (this.socket?.id) {
                 let inventory = this.playerInventories.get(this.socket.id);
                 if (inventory) {
-                    // Update petals
+                    // Update petals - assign to available slots automatically
                     inventory.clear();
-                    data.petals.forEach(petal => {
-                        inventory?.addPetal(petal.type as PetalType, petal.slotIndex);
+                    let slotIndex = 0;
+                    data.petals.forEach((petal: any) => {
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
+                            inventory?.addPetal(petal.type, slotIndex);
+                            slotIndex++;
+                        }
                     });
 
                     // Update collected items - repeat each type by its amount
@@ -1544,10 +1588,12 @@ export class Game {
                         .subVectors(enemyPosition, petalPosition)
                         .normalize();
 
-                    // Calculate damage based on petal type
-                    let damage = 5; // Base damage
-                    if (petal.getType() === PetalType.STINGER) {
-                        damage *= 5; // Stinger does 5x damage
+                    // Calculate damage based on petal stats (using new system)
+                    let damage = petal.getDamage(); // Use the new getDamage method that accounts for rarity
+                    
+                    // Special case for stinger - applies additional multiplier
+                    if (petal.getBaseType() === BasePetalType.STINGER) {
+                        damage *= 2; // Stinger does 2x its base damage
                     }
 
                     // Send damage event to server
@@ -1649,8 +1695,8 @@ export class Game {
                 // Remove the petal from the slot
                 inventory.removePetal(index);
                 
-                // Add it back to collected petals
-                this.collectedPetals.push(petalType);
+                // Add it back to collected petals (convert to PetalType for backward compatibility)
+                this.collectedPetals.push(petalType as PetalType);
                 
                 // Update inventory display if open
                 if (this.isInventoryOpen) {
@@ -2051,7 +2097,7 @@ export class Game {
         const groupedPetals = this.collectedPetals.reduce((acc, type) => {
             acc.set(type, (acc.get(type) || 0) + 1);
             return acc;
-        }, new Map<PetalType, number>());
+        }, new Map<string, number>());
 
         // Add each group to the grid
         groupedPetals.forEach((count, petalType) => {
@@ -2067,7 +2113,7 @@ export class Game {
             slot.setAttribute('data-type', petalType);
 
             // Set background color based on petal rarity
-            const rarity = PETAL_STATS[petalType as PetalType].rarity;
+            const rarity = PETAL_STATS[petalType]?.rarity || Rarity.COMMON;
             const rarityColor = this.settings.rarityTinting ? 
                 '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0') : 
                 'rgba(255, 255, 255, 0.2)';
@@ -2135,7 +2181,7 @@ export class Game {
                 const emptySlotIndex = slots.findIndex(slot => !slot.petal);
                 
                 if (emptySlotIndex !== -1) {
-                    // Add petal to the empty slot
+                    // Add petal to the empty slot (petalType is already a string)
                     inventory.addPetal(petalType, emptySlotIndex);
                     
                     // Remove one from collected petals
@@ -2242,7 +2288,7 @@ export class Game {
         this.hemisphereLight.intensity = config.hemisphereLight.intensity;
     }
 
-    public getCollectedPetals(): PetalType[] {
+    public getCollectedPetals(): string[] {
         return this.collectedPetals;
     }
 

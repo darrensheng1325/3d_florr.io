@@ -28,7 +28,7 @@ export class Inventory {
         }
     }
 
-    public addPetal(type: PetalType, slotIndex: number): boolean {
+    public addPetal(type: string, slotIndex: number): boolean {
         if (slotIndex < 0 || slotIndex >= this.slots.length) {
             return false;
         }
@@ -193,7 +193,7 @@ export class Inventory {
         // Load petals from local storage
         const storedPetals = localStorage.getItem('loadout');
         if (storedPetals) {
-            const petalData: Array<{ type: PetalType; slotIndex: number }> = JSON.parse(storedPetals);
+            const petalData: Array<{ type: string; slotIndex: number }> = JSON.parse(storedPetals);
             petalData.forEach(({ type, slotIndex }) => {
                 this.addPetal(type, slotIndex);
             });

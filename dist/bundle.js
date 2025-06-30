@@ -1016,9 +1016,11 @@ var CraftingSystem = /** @class */ (function () {
                     slot.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
                     slot.style.zIndex = '1000';
                     // Set background color based on rarity
-                    var rarity = petal_1.PETAL_STATS[petalType].rarity;
-                    var color = '#' + types_1.RARITY_COLORS[rarity].toString(16).padStart(6, '0');
-                    slot.style.backgroundColor = color;
+                    if (petal_1.PETAL_STATS[petalType]) {
+                        var rarity = petal_1.PETAL_STATS[petalType].rarity;
+                        var color = '#' + types_1.RARITY_COLORS[rarity].toString(16).padStart(6, '0');
+                        slot.style.backgroundColor = color;
+                    }
                     // Create a container for the content to prevent click interference
                     var contentContainer = document.createElement('div');
                     contentContainer.style.pointerEvents = 'none';
@@ -1048,17 +1050,20 @@ var CraftingSystem = /** @class */ (function () {
                     typeLabel.style.fontSize = '10px';
                     typeLabel.style.pointerEvents = 'none';
                     contentContainer.appendChild(typeLabel);
-                    // Add rarity label
-                    var rarityLabel = document.createElement('div');
-                    rarityLabel.textContent = rarity;
-                    rarityLabel.style.position = 'absolute';
-                    rarityLabel.style.top = '50%';
-                    rarityLabel.style.left = '50%';
-                    rarityLabel.style.transform = 'translate(-50%, -50%)';
-                    rarityLabel.style.color = 'white';
-                    rarityLabel.style.fontSize = '10px';
-                    rarityLabel.style.pointerEvents = 'none';
-                    contentContainer.appendChild(rarityLabel);
+                    // Add rarity label if PETAL_STATS exists
+                    if (petal_1.PETAL_STATS[petalType]) {
+                        var rarity = petal_1.PETAL_STATS[petalType].rarity;
+                        var rarityLabel = document.createElement('div');
+                        rarityLabel.textContent = rarity;
+                        rarityLabel.style.position = 'absolute';
+                        rarityLabel.style.top = '50%';
+                        rarityLabel.style.left = '50%';
+                        rarityLabel.style.transform = 'translate(-50%, -50%)';
+                        rarityLabel.style.color = 'white';
+                        rarityLabel.style.fontSize = '10px';
+                        rarityLabel.style.pointerEvents = 'none';
+                        contentContainer.appendChild(rarityLabel);
+                    }
                     // Add the content container to the slot
                     slot.appendChild(contentContainer);
                     // Add both click and mousedown handlers for better responsiveness
@@ -1084,6 +1089,7 @@ var CraftingSystem = /** @class */ (function () {
         updateInventoryDisplay();
     };
     CraftingSystem.prototype.handleInventorySlotClick = function (petalType) {
+        var _a;
         console.log('=== handleInventorySlotClick ===');
         console.log('Petal type:', petalType);
         // Get collected petals
@@ -1107,7 +1113,9 @@ var CraftingSystem = /** @class */ (function () {
                 // Add to crafting slot
                 this.craftingSlots[i].petal = petalType;
                 // Update slot visuals
-                var rarity = petal_1.PETAL_STATS[petalType].rarity;
+                var rarity = (_a = petal_1.PETAL_STATS[petalType]) === null || _a === void 0 ? void 0 : _a.rarity;
+                if (!rarity)
+                    return; // Skip if petal stats not found
                 var color = this.game.isRarityTintingEnabled() ?
                     '#' + types_1.RARITY_COLORS[rarity].toString(16).padStart(6, '0') :
                     'rgba(255, 255, 255, 0.1)';
@@ -1139,6 +1147,8 @@ var CraftingSystem = /** @class */ (function () {
         console.log('Updated crafting slots:', this.craftingSlots);
     };
     CraftingSystem.prototype.craft = function () {
+        var _this = this;
+        var _a;
         // Verify all slots are filled
         var petals = this.craftingSlots.map(function (slot) { return slot.petal; });
         if (petals.some(function (p) { return p === null; })) {
@@ -1150,21 +1160,50 @@ var CraftingSystem = /** @class */ (function () {
             return;
         }
         // Get current rarity from PETAL_STATS
-        var currentRarity = petal_1.PETAL_STATS[firstPetal].rarity;
+        var currentRarity = (_a = petal_1.PETAL_STATS[firstPetal]) === null || _a === void 0 ? void 0 : _a.rarity;
+        if (!currentRarity)
+            return; // Skip if petal stats not found
         var nextRarity = this.getNextRarity(currentRarity);
         if (!nextRarity) {
             return;
         }
         // Get the next petal type with higher rarity
         var nextPetalType = this.getNextPetalType(firstPetal, nextRarity);
-        // Add the new petal to collected petals
-        this.game.getCollectedPetals().push(nextPetalType);
-        // Clear crafting slots
+        // Send crafting request to server instead of updating locally
+        var socket = this.game.socket; // Access socket from game instance
+        if (socket) {
+            console.log("Sending craft request: 5x ".concat(firstPetal, " -> 1x ").concat(nextPetalType));
+            socket.emit('craftPetals', {
+                inputType: firstPetal,
+                outputType: nextPetalType
+            });
+            // Listen for crafting response
+            socket.once('craftingSuccess', function (data) {
+                console.log('Crafting successful:', data);
+                // Update local collected petals array to match server state
+                var collectedPetals = _this.game.getCollectedPetals();
+                collectedPetals.length = 0; // Clear array
+                // Repopulate from server inventory data
+                data.inventory.collectedItems.forEach(function (item) {
+                    for (var i = 0; i < item.amount; i++) {
+                        collectedPetals.push(item.type);
+                    }
+                });
+                // Clear crafting slots
+                _this.clearSlots();
+                // Visual feedback
+                console.log('Crafting completed successfully!');
+            });
+            socket.once('craftingFailed', function (data) {
+                console.log('Crafting failed:', data.reason);
+                // Could show user feedback here
+            });
+        }
+        else {
+            console.error('No socket connection available for crafting');
+        }
+        // Clear crafting slots immediately for UI responsiveness
         this.clearSlots();
-        // Reset slot visuals
-        this.craftingSlots.forEach(function (slot) {
-            slot.element.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-        });
     };
     CraftingSystem.prototype.clearSlots = function () {
         this.craftingSlots.forEach(function (slot) {
@@ -2409,7 +2448,7 @@ var Game = /** @class */ (function () {
         var geometry = new THREE.SphereGeometry(0.5, 32, 32);
         // Load the SVG texture
         this.textureLoader.load(player_svg_1.default, function (texture) {
-            var _a;
+            var _a, _b;
             console.log('[DEBUG] Texture loaded for player:', playerId);
             // Check if player was removed while texture was loading
             if (!_this.playersBeingCreated.has(playerId)) {
@@ -2455,14 +2494,34 @@ var Game = /** @class */ (function () {
             // Add health bar with camera reference
             var healthBar = new health_1.HealthBar(_this.camera, player);
             _this.playerHealthBars.set(playerId, healthBar);
-            // Create inventory with default petals
+            // Create inventory and load pending data if available
             var inventory = new inventory_1.Inventory(_this.scene, player);
-            for (var i = 0; i < 5; i++) {
-                inventory.addPetal(types_1.PetalType.BASIC, i);
+            // Check if this is the local player and if there's pending inventory data
+            if (playerId === ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) && window.pendingInventoryData) {
+                var pendingData = window.pendingInventoryData;
+                // Load petals from pending data
+                var slotIndex_1 = 0;
+                if (pendingData.petals) {
+                    pendingData.petals.forEach(function (petal) {
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (var i = 0; i < petal.amount && slotIndex_1 < 8; i++) {
+                            inventory.addPetal(petal.type, slotIndex_1);
+                            slotIndex_1++;
+                        }
+                    });
+                }
+                // Clear pending data since we've used it
+                delete window.pendingInventoryData;
+            }
+            else {
+                // Create default petals for non-local players or if no pending data
+                for (var i = 0; i < 5; i++) {
+                    inventory.addPetal(types_1.PetalType.BASIC, i);
+                }
             }
             _this.playerInventories.set(playerId, inventory);
             // Initialize crafting system if this is the local player
-            if (playerId === ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id)) {
+            if (playerId === ((_b = _this.socket) === null || _b === void 0 ? void 0 : _b.id)) {
                 console.log('[DEBUG] Creating crafting system for local player');
                 _this.craftingSystem = new crafting_1.CraftingSystem(_this.scene, player, _this);
             }
@@ -2631,22 +2690,35 @@ var Game = /** @class */ (function () {
             _this.totalXP = data.totalXP;
             // Load inventory data
             if ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) {
-                var inventory_2 = _this.playerInventories.get(_this.socket.id);
-                if (!inventory_2) {
-                    inventory_2 = new inventory_1.Inventory(_this.scene, _this.players.get(_this.socket.id));
-                    _this.playerInventories.set(_this.socket.id, inventory_2);
-                }
-                // Load petals
-                data.inventory.petals.forEach(function (petal) {
-                    inventory_2 === null || inventory_2 === void 0 ? void 0 : inventory_2.addPetal(petal.type, petal.slotIndex);
-                });
-                // Store collected items - repeat each type by its amount
+                // Store collected items - this can be done immediately
                 _this.collectedPetals = data.inventory.collectedItems.flatMap(function (item) {
                     return Array(item.amount).fill(item.type);
                 });
-                // Update UI if inventory is open
-                if (_this.isInventoryOpen) {
-                    _this.updateInventoryDisplay();
+                // Check if player exists before creating inventory
+                var player = _this.players.get(_this.socket.id);
+                if (player) {
+                    var inventory_2 = _this.playerInventories.get(_this.socket.id);
+                    if (!inventory_2) {
+                        inventory_2 = new inventory_1.Inventory(_this.scene, player);
+                        _this.playerInventories.set(_this.socket.id, inventory_2);
+                    }
+                    // Load petals - assign to available slots automatically
+                    var slotIndex_2 = 0;
+                    data.inventory.petals.forEach(function (petal) {
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (var i = 0; i < petal.amount && slotIndex_2 < 8; i++) {
+                            inventory_2 === null || inventory_2 === void 0 ? void 0 : inventory_2.addPetal(petal.type, slotIndex_2);
+                            slotIndex_2++;
+                        }
+                    });
+                    // Update UI if inventory is open
+                    if (_this.isInventoryOpen) {
+                        _this.updateInventoryDisplay();
+                    }
+                }
+                else {
+                    // Store inventory data to load later when player is created
+                    window.pendingInventoryData = data.inventory;
                 }
             }
         });
@@ -2655,22 +2727,35 @@ var Game = /** @class */ (function () {
             var _a;
             console.log('Received inventory sync:', data);
             if ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) {
-                var inventory_3 = _this.playerInventories.get(_this.socket.id);
-                if (!inventory_3) {
-                    inventory_3 = new inventory_1.Inventory(_this.scene, _this.players.get(_this.socket.id));
-                    _this.playerInventories.set(_this.socket.id, inventory_3);
-                }
-                // Load petals
-                data.petals.forEach(function (petal) {
-                    inventory_3 === null || inventory_3 === void 0 ? void 0 : inventory_3.addPetal(petal.type, petal.slotIndex);
-                });
-                // Store collected items - repeat each type by its amount
+                // Store collected items - this can be done immediately
                 _this.collectedPetals = data.collectedItems.flatMap(function (item) {
                     return Array(item.amount).fill(item.type);
                 });
-                // Update UI if inventory is open
-                if (_this.isInventoryOpen) {
-                    _this.updateInventoryDisplay();
+                // Check if player exists before creating inventory
+                var player = _this.players.get(_this.socket.id);
+                if (player) {
+                    var inventory_3 = _this.playerInventories.get(_this.socket.id);
+                    if (!inventory_3) {
+                        inventory_3 = new inventory_1.Inventory(_this.scene, player);
+                        _this.playerInventories.set(_this.socket.id, inventory_3);
+                    }
+                    // Load petals - assign to available slots automatically
+                    var slotIndex_3 = 0;
+                    data.petals.forEach(function (petal) {
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (var i = 0; i < petal.amount && slotIndex_3 < 8; i++) {
+                            inventory_3 === null || inventory_3 === void 0 ? void 0 : inventory_3.addPetal(petal.type, slotIndex_3);
+                            slotIndex_3++;
+                        }
+                    });
+                    // Update UI if inventory is open
+                    if (_this.isInventoryOpen) {
+                        _this.updateInventoryDisplay();
+                    }
+                }
+                else {
+                    // Store inventory data to load later when player is created
+                    window.pendingInventoryData = { petals: data.petals, collectedItems: data.collectedItems };
                 }
             }
         });
@@ -2696,10 +2781,15 @@ var Game = /** @class */ (function () {
             if ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) {
                 var inventory_4 = _this.playerInventories.get(_this.socket.id);
                 if (inventory_4) {
-                    // Update petals
+                    // Update petals - assign to available slots automatically
                     inventory_4.clear();
+                    var slotIndex_4 = 0;
                     data.petals.forEach(function (petal) {
-                        inventory_4 === null || inventory_4 === void 0 ? void 0 : inventory_4.addPetal(petal.type, petal.slotIndex);
+                        // Each petal entry may have multiple counts, so add them one by one
+                        for (var i = 0; i < petal.amount && slotIndex_4 < 8; i++) {
+                            inventory_4 === null || inventory_4 === void 0 ? void 0 : inventory_4.addPetal(petal.type, slotIndex_4);
+                            slotIndex_4++;
+                        }
                     });
                     // Update collected items - repeat each type by its amount
                     _this.collectedPetals = data.collectedItems.flatMap(function (item) {
@@ -2914,10 +3004,11 @@ var Game = /** @class */ (function () {
                     var knockbackDir = new THREE.Vector3()
                         .subVectors(enemyPosition, petalPosition)
                         .normalize();
-                    // Calculate damage based on petal type
-                    var damage = 5; // Base damage
-                    if (petal.getType() === types_1.PetalType.STINGER) {
-                        damage *= 5; // Stinger does 5x damage
+                    // Calculate damage based on petal stats (using new system)
+                    var damage = petal.getDamage(); // Use the new getDamage method that accounts for rarity
+                    // Special case for stinger - applies additional multiplier
+                    if (petal.getBaseType() === types_1.BasePetalType.STINGER) {
+                        damage *= 2; // Stinger does 2x its base damage
                     }
                     // Send damage event to server
                     (_a = _this.socket) === null || _a === void 0 ? void 0 : _a.emit('enemyDamaged', {
@@ -3015,7 +3106,7 @@ var Game = /** @class */ (function () {
                 var petalType = slot.petal.getType();
                 // Remove the petal from the slot
                 inventory.removePetal(index);
-                // Add it back to collected petals
+                // Add it back to collected petals (convert to PetalType for backward compatibility)
                 _this.collectedPetals.push(petalType);
                 // Update inventory display if open
                 if (_this.isInventoryOpen) {
@@ -3378,6 +3469,7 @@ var Game = /** @class */ (function () {
         }, new Map());
         // Add each group to the grid
         groupedPetals.forEach(function (count, petalType) {
+            var _a;
             var slot = document.createElement('div');
             slot.style.backgroundColor = 'rgba(119, 234, 101, 1)';
             slot.style.padding = '5px';
@@ -3389,7 +3481,7 @@ var Game = /** @class */ (function () {
             slot.draggable = true;
             slot.setAttribute('data-type', petalType);
             // Set background color based on petal rarity
-            var rarity = petal_1.PETAL_STATS[petalType].rarity;
+            var rarity = ((_a = petal_1.PETAL_STATS[petalType]) === null || _a === void 0 ? void 0 : _a.rarity) || types_1.Rarity.COMMON;
             var rarityColor = _this.settings.rarityTinting ?
                 '#' + types_1.RARITY_COLORS[rarity].toString(16).padStart(6, '0') :
                 'rgba(255, 255, 255, 0.2)';
@@ -3453,7 +3545,7 @@ var Game = /** @class */ (function () {
                 var slots = inventory.getSlots();
                 var emptySlotIndex = slots.findIndex(function (slot) { return !slot.petal; });
                 if (emptySlotIndex !== -1) {
-                    // Add petal to the empty slot
+                    // Add petal to the empty slot (petalType is already a string)
                     inventory.addPetal(petalType, emptySlotIndex);
                     // Remove one from collected petals
                     var petalIndex = _this.collectedPetals.findIndex(function (p) { return p === petalType; });
@@ -5417,26 +5509,62 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 var _a;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.Petal = exports.PETAL_STATS = void 0;
+exports.Petal = exports.PETAL_STATS = exports.BASE_PETAL_STATS = void 0;
+exports.calculatePetalStats = calculatePetalStats;
 var THREE = __importStar(__webpack_require__(7186));
 var types_1 = __webpack_require__(4817);
 var GLTFLoader_1 = __webpack_require__(3211);
-// Stats for different petal types
-exports.PETAL_STATS = (_a = {},
-    _a[types_1.PetalType.BASIC] = { maxHealth: 100, cooldownTime: 1000, rarity: types_1.Rarity.COMMON, damage: 10, health: 100, speed: 1 },
-    _a[types_1.PetalType.BASIC_UNCOMMON] = { maxHealth: 150, cooldownTime: 800, rarity: types_1.Rarity.UNCOMMON, damage: 15, health: 150, speed: 1.2 },
-    _a[types_1.PetalType.BASIC_RARE] = { maxHealth: 225, cooldownTime: 600, rarity: types_1.Rarity.RARE, damage: 22, health: 225, speed: 1.4 },
-    _a[types_1.PetalType.TETRAHEDRON] = { maxHealth: 80, cooldownTime: 1200, rarity: types_1.Rarity.COMMON, damage: 15, health: 80, speed: 1.5 },
-    _a[types_1.PetalType.TETRAHEDRON_EPIC] = { maxHealth: 270, cooldownTime: 400, rarity: types_1.Rarity.EPIC, damage: 50, health: 270, speed: 2 },
-    _a[types_1.PetalType.CUBE] = { maxHealth: 120, cooldownTime: 800, rarity: types_1.Rarity.COMMON, damage: 12, health: 120, speed: 0.8 },
-    _a[types_1.PetalType.CUBE_LEGENDARY] = { maxHealth: 600, cooldownTime: 200, rarity: types_1.Rarity.LEGENDARY, damage: 60, health: 600, speed: 1 },
-    _a[types_1.PetalType.LEAF] = { maxHealth: 50, cooldownTime: 0, rarity: types_1.Rarity.COMMON, damage: 5, health: 50, speed: 2 },
-    _a[types_1.PetalType.STINGER] = { maxHealth: 20, cooldownTime: 1200, rarity: types_1.Rarity.COMMON, damage: 25, health: 20, speed: 2.5 },
-    _a[types_1.PetalType.PEA] = { maxHealth: 60, cooldownTime: 1500, rarity: types_1.Rarity.COMMON, damage: 8, health: 60, speed: 1.8 },
+// Base stats for different petal types (before rarity multipliers)
+exports.BASE_PETAL_STATS = (_a = {},
+    _a[types_1.BasePetalType.BASIC] = { maxHealth: 100, cooldownTime: 1000, damage: 10, health: 100, speed: 1 },
+    _a[types_1.BasePetalType.TETRAHEDRON] = { maxHealth: 80, cooldownTime: 1200, damage: 15, health: 80, speed: 1.5 },
+    _a[types_1.BasePetalType.CUBE] = { maxHealth: 120, cooldownTime: 800, damage: 12, health: 120, speed: 0.8 },
+    _a[types_1.BasePetalType.LEAF] = { maxHealth: 50, cooldownTime: 0, damage: 5, health: 50, speed: 2 },
+    _a[types_1.BasePetalType.STINGER] = { maxHealth: 20, cooldownTime: 1200, damage: 25, health: 20, speed: 2.5 },
+    _a[types_1.BasePetalType.PEA] = { maxHealth: 60, cooldownTime: 1500, damage: 8, health: 60, speed: 1.8 },
     _a);
+// Function to calculate final petal stats based on base type and rarity
+function calculatePetalStats(baseType, rarity) {
+    var baseStats = exports.BASE_PETAL_STATS[baseType];
+    var healthMultiplier = types_1.RARITY_MULTIPLIERS[rarity];
+    var damageMultiplier = types_1.RARITY_DAMAGE_MULTIPLIERS[rarity];
+    return {
+        maxHealth: Math.round(baseStats.maxHealth * healthMultiplier),
+        cooldownTime: Math.max(200, Math.round(baseStats.cooldownTime / Math.sqrt(healthMultiplier))), // Faster cooldown for higher rarities
+        damage: Math.round(baseStats.damage * damageMultiplier),
+        health: Math.round(baseStats.health * healthMultiplier),
+        speed: baseStats.speed * Math.sqrt(healthMultiplier), // Slightly faster for higher rarities
+        rarity: rarity
+    };
+}
+// Legacy PETAL_STATS for backward compatibility - dynamically generated
+exports.PETAL_STATS = {};
+// Initialize legacy PETAL_STATS
+function initializeLegacyPetalStats() {
+    // Add all base types at common rarity
+    Object.values(types_1.BasePetalType).forEach(function (baseType) {
+        Object.values(types_1.Rarity).forEach(function (rarity) {
+            var petalType = (0, types_1.getPetalType)(baseType, rarity);
+            exports.PETAL_STATS[petalType] = calculatePetalStats(baseType, rarity);
+        });
+    });
+    // Add backward compatibility entries for old enum values
+    exports.PETAL_STATS[types_1.PetalType.BASIC] = calculatePetalStats(types_1.BasePetalType.BASIC, types_1.Rarity.COMMON);
+    exports.PETAL_STATS[types_1.PetalType.BASIC_UNCOMMON] = calculatePetalStats(types_1.BasePetalType.BASIC, types_1.Rarity.UNCOMMON);
+    exports.PETAL_STATS[types_1.PetalType.BASIC_RARE] = calculatePetalStats(types_1.BasePetalType.BASIC, types_1.Rarity.RARE);
+    exports.PETAL_STATS[types_1.PetalType.TETRAHEDRON] = calculatePetalStats(types_1.BasePetalType.TETRAHEDRON, types_1.Rarity.COMMON);
+    exports.PETAL_STATS[types_1.PetalType.TETRAHEDRON_EPIC] = calculatePetalStats(types_1.BasePetalType.TETRAHEDRON, types_1.Rarity.EPIC);
+    exports.PETAL_STATS[types_1.PetalType.CUBE] = calculatePetalStats(types_1.BasePetalType.CUBE, types_1.Rarity.COMMON);
+    exports.PETAL_STATS[types_1.PetalType.CUBE_LEGENDARY] = calculatePetalStats(types_1.BasePetalType.CUBE, types_1.Rarity.LEGENDARY);
+    exports.PETAL_STATS[types_1.PetalType.LEAF] = calculatePetalStats(types_1.BasePetalType.LEAF, types_1.Rarity.COMMON);
+    exports.PETAL_STATS[types_1.PetalType.STINGER] = calculatePetalStats(types_1.BasePetalType.STINGER, types_1.Rarity.COMMON);
+    exports.PETAL_STATS[types_1.PetalType.PEA] = calculatePetalStats(types_1.BasePetalType.PEA, types_1.Rarity.COMMON);
+}
+// Initialize the legacy stats
+initializeLegacyPetalStats();
 var Petal = /** @class */ (function () {
     function Petal(scene, parent, index, totalPetals, type) {
-        if (type === void 0) { type = types_1.PetalType.BASIC; }
+        if (type === void 0) { type = types_1.BasePetalType.BASIC; }
         this.currentRadius = 1.5;
         this.baseRadius = 1.5;
         this.expandedRadius = 3.0;
@@ -5459,8 +5587,12 @@ var Petal = /** @class */ (function () {
         this.index = index;
         this.totalPetals = totalPetals;
         this.type = type;
-        // Initialize health and cooldown stats
-        var stats = exports.PETAL_STATS[type];
+        // Parse the type to get base type and rarity
+        var parsed = (0, types_1.parsePetalType)(type);
+        this.baseType = parsed.baseType;
+        this.rarity = parsed.rarity;
+        // Initialize health and cooldown stats using the new calculation system
+        var stats = calculatePetalStats(this.baseType, this.rarity);
         this.maxHealth = stats.maxHealth;
         this.health = this.maxHealth;
         this.cooldownTime = stats.cooldownTime;
@@ -5478,16 +5610,14 @@ var Petal = /** @class */ (function () {
     }
     Petal.prototype.createMesh = function () {
         var _this = this;
-        // Create geometry based on rarity
+        // Create geometry based on base type and apply rarity color
         var geometry;
-        var stats = exports.PETAL_STATS[this.type];
-        var rarity = stats.rarity;
         // Check if this is a pea type petal
-        if (this.type.startsWith('pea')) {
+        if (this.baseType === types_1.BasePetalType.PEA) {
             // Create a temporary sphere while the model loads
             geometry = new THREE.SphereGeometry(0.225, 32, 32);
             var material = new THREE.MeshPhongMaterial({
-                color: types_1.RARITY_COLORS[rarity],
+                color: types_1.RARITY_COLORS[this.rarity],
                 shininess: 30,
                 transparent: true,
                 opacity: 0.9,
@@ -5503,7 +5633,7 @@ var Petal = /** @class */ (function () {
                 peaMesh.traverse(function (child) {
                     if (child instanceof THREE.Mesh) {
                         child.material = new THREE.MeshPhongMaterial({
-                            color: types_1.RARITY_COLORS[rarity],
+                            color: types_1.RARITY_COLORS[_this.rarity],
                             shininess: 30,
                             transparent: true,
                             opacity: 0.9,
@@ -5515,36 +5645,19 @@ var Petal = /** @class */ (function () {
                 _this.scene.remove(_this.mesh);
                 _this.mesh = peaMesh;
                 _this.scene.add(_this.mesh);
-                // Add glow effect for higher rarities
-                // if (rarity !== Rarity.COMMON) {
-                //     const glowMaterial = new THREE.MeshBasicMaterial({
-                //         color: RARITY_COLORS[rarity],
-                //         transparent: true,
-                //         opacity: 0.3,
-                //         side: THREE.BackSide
-                //     });
-                //     peaMesh.traverse((child) => {
-                //         if (child instanceof THREE.Mesh) {
-                //             const glowMesh = new THREE.Mesh(child.geometry.clone(), glowMaterial);
-                //             glowMesh.scale.multiplyScalar(1.2);
-                //             child.add(glowMesh);
-                //         }
-                //     });
-                // }
             });
         }
         else {
-            // Create geometry based on type
-            var geometry_1;
-            if (this.type === types_1.PetalType.TETRAHEDRON || this.type === types_1.PetalType.TETRAHEDRON_EPIC) {
-                geometry_1 = new THREE.TetrahedronGeometry(0.3);
+            // Create geometry based on base type
+            if (this.baseType === types_1.BasePetalType.TETRAHEDRON) {
+                geometry = new THREE.TetrahedronGeometry(0.3);
             }
-            else if (this.type === types_1.PetalType.STINGER) {
-                geometry_1 = new THREE.ConeGeometry(0.15, 0.4, 16); // Cone shape for stinger
+            else if (this.baseType === types_1.BasePetalType.STINGER) {
+                geometry = new THREE.ConeGeometry(0.15, 0.4, 16); // Cone shape for stinger
             }
-            else if (this.type === types_1.PetalType.LEAF) {
+            else if (this.baseType === types_1.BasePetalType.LEAF) {
                 // Create a custom leaf shape using a custom geometry
-                geometry_1 = new THREE.BufferGeometry();
+                geometry = new THREE.BufferGeometry();
                 // Define vertices for a simple leaf shape
                 var vertices = new Float32Array([
                     0, 0, 0, // base
@@ -5557,184 +5670,126 @@ var Petal = /** @class */ (function () {
                     0, 1, 2,
                     0, 2, 3
                 ]);
-                geometry_1.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                geometry_1.setIndex(new THREE.BufferAttribute(indices, 1));
-                geometry_1.computeVertexNormals();
+                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+                geometry.computeVertexNormals();
             }
-            else if (this.type === types_1.PetalType.BASIC || this.type === types_1.PetalType.BASIC_UNCOMMON || this.type === types_1.PetalType.BASIC_RARE) {
-                geometry_1 = new THREE.SphereGeometry(0.225, 32, 32);
+            else if (this.baseType === types_1.BasePetalType.BASIC) {
+                geometry = new THREE.SphereGeometry(0.225, 32, 32);
             }
             else {
-                geometry_1 = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+                geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
             }
             // Create material based on type and rarity
             var material = new THREE.MeshPhongMaterial({
                 color: this.getPetalColor(),
-                shininess: this.type === types_1.PetalType.LEAF ? 10 : 30,
+                shininess: this.baseType === types_1.BasePetalType.LEAF ? 10 : 30,
                 side: THREE.DoubleSide,
-                transparent: this.type === types_1.PetalType.BASIC ? false : true, // Basic petals are opaque
-                opacity: this.type === types_1.PetalType.BASIC ? 1.0 : 0.9
+                transparent: this.baseType === types_1.BasePetalType.BASIC ? false : true, // Basic petals are opaque
+                opacity: this.baseType === types_1.BasePetalType.BASIC ? 1.0 : 0.9
             });
-            this.mesh = new THREE.Mesh(geometry_1, material);
-            // Rotate leaf to be more visible
-            if (this.type === types_1.PetalType.LEAF) {
-                this.mesh.rotation.x = -Math.PI / 4;
-            }
+            this.mesh = new THREE.Mesh(geometry, material);
         }
-        this.scene.add(this.mesh);
-        this.updatePosition();
+        // Update color and positioning
+        this.updateMeshRotation();
     };
-    Petal.prototype.updateColor = function (color) {
-        if (this.mesh) {
-            if (this.mesh instanceof THREE.Group) {
-                // For models (like pea), update all mesh materials
-                this.mesh.traverse(function (child) {
-                    if (child instanceof THREE.Mesh && child.material) {
-                        if (Array.isArray(child.material)) {
-                            child.material.forEach(function (mat) {
-                                if (mat instanceof THREE.MeshPhongMaterial) {
-                                    mat.color.setHex(color);
-                                }
-                            });
-                        }
-                        else if (child.material instanceof THREE.MeshPhongMaterial) {
-                            child.material.color.setHex(color);
-                        }
-                    }
-                });
-            }
-            else if (this.mesh instanceof THREE.Mesh) {
-                // For basic meshes, update the material directly
-                if (Array.isArray(this.mesh.material)) {
-                    this.mesh.material.forEach(function (mat) {
-                        if (mat instanceof THREE.MeshPhongMaterial) {
-                            mat.color.setHex(color);
-                        }
-                    });
-                }
-                else if (this.mesh.material instanceof THREE.MeshPhongMaterial) {
-                    this.mesh.material.color.setHex(color);
-                }
-            }
+    Petal.prototype.updateMeshRotation = function () {
+        // Apply specific rotations based on petal type
+        if (this.baseType === types_1.BasePetalType.LEAF) {
+            this.mesh.rotation.z = Math.PI / 4; // 45 degree rotation for leaf
+        }
+        else if (this.baseType === types_1.BasePetalType.STINGER) {
+            this.mesh.rotation.x = Math.PI / 2; // Point the stinger outward
         }
     };
     Petal.prototype.getPetalColor = function () {
         // Only return rarity color if not a basic petal
-        if (this.type === types_1.PetalType.BASIC) {
+        if (this.baseType === types_1.BasePetalType.BASIC) {
             return 0xffffff; // White for basic petals
         }
-        else if (this.type === types_1.PetalType.PEA) {
+        else if (this.baseType === types_1.BasePetalType.PEA) {
             return 0x00ff00;
         }
-        else if (this.type === types_1.PetalType.LEAF) {
+        else if (this.baseType === types_1.BasePetalType.LEAF) {
             return 0x00ff00;
         }
-        else if (this.type === types_1.PetalType.STINGER) {
+        else if (this.baseType === types_1.BasePetalType.STINGER) {
             return 0x000000;
         }
-        else if (this.type === types_1.PetalType.CUBE) {
+        else if (this.baseType === types_1.BasePetalType.CUBE) {
             return 0xffff00;
         }
-        else if (this.type === types_1.PetalType.TETRAHEDRON) {
+        else if (this.baseType === types_1.BasePetalType.TETRAHEDRON) {
             return 0xff0000;
         }
-        else if (this.type === types_1.PetalType.TETRAHEDRON_EPIC) {
-            return 0xff0000;
-        }
-        // Use rarity color for other petals
-        var stats = exports.PETAL_STATS[this.type];
-        return types_1.RARITY_COLORS[stats.rarity];
+        // Use rarity color for higher rarities
+        return types_1.RARITY_COLORS[this.rarity];
     };
     Petal.prototype.getType = function () {
         return this.type;
     };
-    Petal.prototype.update = function () {
-        var _this = this;
-        // Check if broken petal should respawn
-        if (this.isBroken) {
-            if (Date.now() - this.breakTime >= this.cooldownTime) {
-                this.respawn();
-            }
-            else {
-                // Keep broken petal hidden
-                if (this.mesh)
-                    this.mesh.visible = false;
-                return;
-            }
-        }
-        this.angle += this.orbitSpeed;
-        // Smoothly transition between base and expanded radius
-        var targetRadius = this.isExpanded ? this.expandedRadius : this.baseRadius;
-        this.currentRadius += (targetRadius - this.currentRadius) * this.transitionSpeed;
-        this.updatePosition();
-        if (this.mesh)
-            this.mesh.visible = true;
-        if (this.type === types_1.PetalType.PEA && this.isExpanded && this.miniPeas.length > 0) {
-            // Update mini peas positions and make them move outward
-            this.miniPeas.forEach(function (pea, index) {
-                var angle = (index / 8) * Math.PI * 2 + _this.angle;
-                var radius = 0.5 + (Date.now() - _this.breakTime) * 0.001; // Increase radius over time
-                pea.position.x = _this.mesh.position.x + Math.cos(angle) * radius;
-                pea.position.z = _this.mesh.position.z + Math.sin(angle) * radius;
-                pea.position.y = _this.mesh.position.y;
-                // Remove peas that have traveled too far
-                if (radius > 5) {
-                    _this.scene.remove(pea);
-                    var index_1 = _this.miniPeas.indexOf(pea);
-                    if (index_1 > -1) {
-                        _this.miniPeas.splice(index_1, 1);
-                    }
-                }
-            });
-        }
+    Petal.prototype.getBaseType = function () {
+        return this.baseType;
     };
-    Petal.prototype.expand = function () {
-        if (!this.isBroken) {
-            this.isExpanded = true;
-            if (this.type === types_1.PetalType.PEA) {
-                // Break the pea and shoot out mini peas
-                this.break();
-                // Create and shoot out 8 mini peas in a circle
-                var radius = 0.5;
-                for (var i = 0; i < 8; i++) {
-                    var angle = (i / 8) * Math.PI * 2;
-                    var x = this.mesh.position.x + Math.cos(angle) * radius;
-                    var z = this.mesh.position.z + Math.sin(angle) * radius;
-                    var geometry = new THREE.SphereGeometry(0.1, 16, 16);
-                    var material = new THREE.MeshPhongMaterial({
-                        color: 0x90EE90,
-                        shininess: 30,
-                        transparent: false,
-                        side: THREE.DoubleSide
-                    });
-                    var miniPea = new THREE.Mesh(geometry, material);
-                    miniPea.position.set(x, this.mesh.position.y, z);
-                    this.scene.add(miniPea);
-                    this.miniPeas.push(miniPea);
-                }
-            }
-        }
+    Petal.prototype.getRarity = function () {
+        return this.rarity;
     };
-    Petal.prototype.contract = function () {
-        var _this = this;
-        this.isExpanded = false;
-        if (this.type === types_1.PetalType.PEA) {
-            // Remove all mini peas
-            this.miniPeas.forEach(function (pea) {
-                _this.scene.remove(pea);
-            });
-            this.miniPeas = [];
-        }
+    Petal.prototype.getDamage = function () {
+        var stats = calculatePetalStats(this.baseType, this.rarity);
+        return stats.damage;
     };
     Petal.prototype.updatePosition = function () {
         var x = this.parent.position.x + Math.cos(this.angle) * this.currentRadius;
         var z = this.parent.position.z + Math.sin(this.angle) * this.currentRadius;
-        var y = this.parent.position.y + this.height;
-        this.mesh.position.set(x, y, z);
+        this.mesh.position.set(x, this.parent.position.y + this.height, z);
+        // Rotate the petal around its own center
+        this.mesh.rotation.y += 0.02;
+        // Update angle for orbit
+        this.angle += this.orbitSpeed;
+        // Update radius transition
+        if (this.isExpanded && this.currentRadius < this.expandedRadius) {
+            this.currentRadius = Math.min(this.expandedRadius, this.currentRadius + this.transitionSpeed);
+        }
+        else if (!this.isExpanded && this.currentRadius > this.baseRadius) {
+            this.currentRadius = Math.max(this.baseRadius, this.currentRadius - this.transitionSpeed);
+        }
+    };
+    Petal.prototype.expand = function () {
+        this.isExpanded = true;
+    };
+    Petal.prototype.contract = function () {
+        this.isExpanded = false;
+    };
+    Petal.prototype.update = function () {
+        var _this = this;
+        this.updatePosition();
+        // Handle healing over time
+        if (!this.isBroken && this.health < this.maxHealth) {
+            var currentTime = Date.now();
+            // Start healing after delay
+            if (currentTime - this.lastDamageTime >= this.HEAL_DELAY) {
+                if (currentTime - this.lastHealTime >= this.HEAL_INTERVAL) {
+                    this.health = Math.min(this.maxHealth, this.health + (this.maxHealth * this.HEAL_RATE * this.HEAL_INTERVAL / 1000));
+                    this.lastHealTime = currentTime;
+                }
+            }
+        }
+        // Handle respawn
+        if (this.isBroken && Date.now() - this.breakTime >= this.cooldownTime) {
+            this.respawn();
+        }
+        // Update mini peas for pea petal
+        if (this.baseType === types_1.BasePetalType.PEA) {
+            this.miniPeas.forEach(function (pea, index) {
+                var peaAngle = (Date.now() * 0.01) + (index * Math.PI * 2 / 3);
+                var radius = 0.5;
+                pea.position.set(_this.mesh.position.x + Math.cos(peaAngle) * radius, _this.mesh.position.y, _this.mesh.position.z + Math.sin(peaAngle) * radius);
+            });
+        }
     };
     Petal.prototype.remove = function (scene) {
         scene.remove(this.mesh);
-        if (this.type === types_1.PetalType.PEA) {
+        if (this.baseType === types_1.BasePetalType.PEA) {
             this.miniPeas.forEach(function (pea) {
                 scene.remove(pea);
             });
@@ -5747,6 +5802,7 @@ var Petal = /** @class */ (function () {
         if (this.isBroken)
             return;
         this.health -= amount;
+        this.lastDamageTime = Date.now();
         if (this.health <= 0) {
             this.break();
         }
@@ -5775,6 +5831,11 @@ var Petal = /** @class */ (function () {
     };
     Petal.prototype.getHealthPercent = function () {
         return (this.health / this.maxHealth) * 100;
+    };
+    Petal.prototype.updateColor = function (color) {
+        if (this.mesh instanceof THREE.Mesh && this.mesh.material instanceof THREE.MeshPhongMaterial) {
+            this.mesh.material.color.setHex(color);
+        }
     };
     return Petal;
 }());
@@ -6610,9 +6671,11 @@ exports.ServerConfig = ServerConfig;
 
 "use strict";
 
-var _a, _b;
+var _a, _b, _c;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
+exports.PetalType = exports.BasePetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_DAMAGE_MULTIPLIERS = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
+exports.getPetalType = getPetalType;
+exports.parsePetalType = parsePetalType;
 var Rarity;
 (function (Rarity) {
     Rarity["COMMON"] = "COMMON";
@@ -6639,6 +6702,16 @@ exports.RARITY_MULTIPLIERS = (_b = {},
     _b[Rarity.LEGENDARY] = 5,
     _b[Rarity.MYTHIC] = 7.5,
     _b);
+// Damage multiplier for each rarity level (1.2x scaling)
+exports.RARITY_DAMAGE_MULTIPLIERS = (_c = {},
+    _c[Rarity.COMMON] = 1,
+    _c[Rarity.UNCOMMON] = 1.2,
+    _c[Rarity.RARE] = 1.44,
+    _c[Rarity.EPIC] = 1.728,
+    _c[Rarity.LEGENDARY] = 2.074,
+    _c[Rarity.MYTHIC] = 2.488 // 1.2^5
+,
+    _c);
 // Base sizes for each enemy type
 exports.BASE_SIZES = {
     ladybug: 0.5,
@@ -6666,6 +6739,17 @@ var ItemType;
     ItemType["PEA"] = "PEA";
     ItemType["CUBE"] = "CUBE";
 })(ItemType || (exports.ItemType = ItemType = {}));
+// Base petal types (without rarity suffixes)
+var BasePetalType;
+(function (BasePetalType) {
+    BasePetalType["BASIC"] = "BASIC";
+    BasePetalType["TETRAHEDRON"] = "TETRAHEDRON";
+    BasePetalType["CUBE"] = "CUBE";
+    BasePetalType["LEAF"] = "LEAF";
+    BasePetalType["STINGER"] = "STINGER";
+    BasePetalType["PEA"] = "PEA";
+})(BasePetalType || (exports.BasePetalType = BasePetalType = {}));
+// Full petal types (including rarity variations) - keeping for backward compatibility
 var PetalType;
 (function (PetalType) {
     PetalType["BASIC"] = "BASIC";
@@ -6679,6 +6763,30 @@ var PetalType;
     PetalType["STINGER"] = "stinger";
     PetalType["PEA"] = "pea";
 })(PetalType || (exports.PetalType = PetalType = {}));
+// Helper function to get petal type from base type and rarity
+function getPetalType(baseType, rarity) {
+    if (rarity === Rarity.COMMON) {
+        return baseType;
+    }
+    return "".concat(baseType.toLowerCase(), "_").concat(rarity.toLowerCase());
+}
+// Helper function to extract base type and rarity from petal type
+function parsePetalType(petalType) {
+    var parts = petalType.split('_');
+    if (parts.length === 1) {
+        // Common rarity, no suffix
+        return {
+            baseType: parts[0].toUpperCase(),
+            rarity: Rarity.COMMON
+        };
+    }
+    else {
+        // Has rarity suffix
+        var baseType = parts[0].toUpperCase();
+        var rarityStr = parts.slice(1).join('_').toUpperCase();
+        return { baseType: baseType, rarity: rarityStr };
+    }
+}
 
 
 /***/ }),

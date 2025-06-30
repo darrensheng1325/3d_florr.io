@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
+exports.PetalType = exports.BasePetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_DAMAGE_MULTIPLIERS = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
+exports.getPetalType = getPetalType;
+exports.parsePetalType = parsePetalType;
 var Rarity;
 (function (Rarity) {
     Rarity["COMMON"] = "COMMON";
@@ -25,6 +27,15 @@ exports.RARITY_MULTIPLIERS = {
     [Rarity.EPIC]: 3.375,
     [Rarity.LEGENDARY]: 5,
     [Rarity.MYTHIC]: 7.5
+};
+// Damage multiplier for each rarity level (1.2x scaling)
+exports.RARITY_DAMAGE_MULTIPLIERS = {
+    [Rarity.COMMON]: 1,
+    [Rarity.UNCOMMON]: 1.2,
+    [Rarity.RARE]: 1.44, // 1.2^2
+    [Rarity.EPIC]: 1.728, // 1.2^3
+    [Rarity.LEGENDARY]: 2.074, // 1.2^4
+    [Rarity.MYTHIC]: 2.488 // 1.2^5
 };
 // Base sizes for each enemy type
 exports.BASE_SIZES = {
@@ -53,6 +64,17 @@ var ItemType;
     ItemType["PEA"] = "PEA";
     ItemType["CUBE"] = "CUBE";
 })(ItemType || (exports.ItemType = ItemType = {}));
+// Base petal types (without rarity suffixes)
+var BasePetalType;
+(function (BasePetalType) {
+    BasePetalType["BASIC"] = "BASIC";
+    BasePetalType["TETRAHEDRON"] = "TETRAHEDRON";
+    BasePetalType["CUBE"] = "CUBE";
+    BasePetalType["LEAF"] = "LEAF";
+    BasePetalType["STINGER"] = "STINGER";
+    BasePetalType["PEA"] = "PEA";
+})(BasePetalType || (exports.BasePetalType = BasePetalType = {}));
+// Full petal types (including rarity variations) - keeping for backward compatibility
 var PetalType;
 (function (PetalType) {
     PetalType["BASIC"] = "BASIC";
@@ -66,4 +88,28 @@ var PetalType;
     PetalType["STINGER"] = "stinger";
     PetalType["PEA"] = "pea";
 })(PetalType || (exports.PetalType = PetalType = {}));
+// Helper function to get petal type from base type and rarity
+function getPetalType(baseType, rarity) {
+    if (rarity === Rarity.COMMON) {
+        return baseType;
+    }
+    return `${baseType.toLowerCase()}_${rarity.toLowerCase()}`;
+}
+// Helper function to extract base type and rarity from petal type
+function parsePetalType(petalType) {
+    const parts = petalType.split('_');
+    if (parts.length === 1) {
+        // Common rarity, no suffix
+        return {
+            baseType: parts[0].toUpperCase(),
+            rarity: Rarity.COMMON
+        };
+    }
+    else {
+        // Has rarity suffix
+        const baseType = parts[0].toUpperCase();
+        const rarityStr = parts.slice(1).join('_').toUpperCase();
+        return { baseType, rarity: rarityStr };
+    }
+}
 //# sourceMappingURL=types.js.map

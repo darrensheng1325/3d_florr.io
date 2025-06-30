@@ -1003,10 +1003,16 @@ io.on('connection', (socket) => {
     console.log('Sending initial account data:', {
         accountId,
         itemCount: fullAccountData.inventory.collectedItems.length,
-        petalTypes: fullAccountData.inventory.petals.map(p => `${p.type}(${p.amount})`)
+        petalTypes: database_1.dbManager.getPetalsLegacyFormat(accountId).map(p => `${p.type}(${p.amount})`)
     });
     // Send a single, complete sync event
-    socket.emit('accountSync', fullAccountData);
+    socket.emit('accountSync', {
+        ...fullAccountData,
+        inventory: {
+            petals: database_1.dbManager.getPetalsLegacyFormat(accountId),
+            collectedItems: fullAccountData.inventory.collectedItems
+        }
+    });
     socket.on('previewing', () => {
         players.delete(socket.id);
     });
@@ -1016,8 +1022,10 @@ io.on('connection', (socket) => {
         if (player) {
             const currentAccount = database_1.dbManager.getAccount(player.accountId);
             if (currentAccount) {
+                // Convert new format to legacy format for client compatibility
+                const legacyPetals = database_1.dbManager.getPetalsLegacyFormat(player.accountId);
                 const inventory = {
-                    petals: currentAccount.inventory.petals,
+                    petals: legacyPetals,
                     collectedItems: currentAccount.inventory.collectedItems
                 };
                 console.log('Sending inventory refresh:', {
@@ -1034,19 +1042,47 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (player) {
             console.log(`Player ${player.accountId} collecting item: ${itemType}`);
-            // Add to database as a petal if it's a petal type
-            if (Object.values(types_2.PetalType).includes(itemType)) {
-                database_1.dbManager.addPetal(player.accountId, itemType);
+            // Parse the item type to determine base type and rarity
+            let baseType;
+            let rarity = types_1.Rarity.COMMON;
+            // Map item types to base petal types
+            switch (itemType) {
+                case 'tetrahedron':
+                    baseType = types_2.BasePetalType.TETRAHEDRON;
+                    break;
+                case 'leaf':
+                    baseType = types_2.BasePetalType.LEAF;
+                    break;
+                case 'stinger':
+                    baseType = types_2.BasePetalType.STINGER;
+                    break;
+                case 'pea':
+                    baseType = types_2.BasePetalType.PEA;
+                    break;
+                case 'cube':
+                    baseType = types_2.BasePetalType.CUBE;
+                    break;
+                default:
+                    // Try to parse as a full petal type
+                    try {
+                        const parsed = (0, types_2.parsePetalType)(itemType);
+                        baseType = parsed.baseType;
+                        rarity = parsed.rarity;
+                    }
+                    catch (_a) {
+                        // Default to basic if parsing fails
+                        baseType = types_2.BasePetalType.BASIC;
+                    }
             }
-            else {
-                // Otherwise add as a collected item
-                database_1.dbManager.addCollectedItem(player.accountId, itemType);
-            }
+            // Add to database using new format
+            database_1.dbManager.addPetal(player.accountId, baseType, rarity);
             // Get updated inventory
             const updatedAccount = database_1.dbManager.getAccount(player.accountId);
             if (updatedAccount) {
+                // Convert to legacy format for client
+                const legacyPetals = database_1.dbManager.getPetalsLegacyFormat(player.accountId);
                 const inventory = {
-                    petals: updatedAccount.inventory.petals,
+                    petals: legacyPetals,
                     collectedItems: updatedAccount.inventory.collectedItems
                 };
                 console.log('Confirming item collection:', {
@@ -1068,20 +1104,102 @@ io.on('connection', (socket) => {
         const player = players.get(socket.id);
         if (player) {
             console.log(`Updating inventory for ${player.accountId}: ${action} ${type}`);
+            // Parse the petal type to get base type and rarity
+            const { baseType, rarity } = (0, types_2.parsePetalType)(type);
             // Update petal in database
             if (action === 'add') {
-                database_1.dbManager.addPetal(player.accountId, type);
+                database_1.dbManager.addPetal(player.accountId, baseType, rarity);
             }
             else {
-                database_1.dbManager.removePetal(player.accountId, type);
+                database_1.dbManager.removePetal(player.accountId, baseType, rarity);
             }
             // Get current account state
             const currentAccount = database_1.dbManager.getAccount(player.accountId);
             if (currentAccount) {
+                // Convert to legacy format for client
+                const legacyPetals = database_1.dbManager.getPetalsLegacyFormat(player.accountId);
                 // Send confirmation with complete inventory state
                 socket.emit('inventoryUpdateConfirmed', {
-                    petals: currentAccount.inventory.petals,
+                    petals: legacyPetals,
                     collectedItems: currentAccount.inventory.collectedItems
+                });
+            }
+        }
+    });
+    // Handle crafting requests
+    socket.on('craftPetals', ({ inputType, outputType }) => {
+        const player = players.get(socket.id);
+        if (player) {
+            console.log(`\n=== CRAFTING DEBUG START ===`);
+            console.log(`Crafting request from ${player.accountId}: 5x ${inputType} -> 1x ${outputType}`);
+            // Parse input and output types
+            const { baseType: inputBaseType, rarity: inputRarity } = (0, types_2.parsePetalType)(inputType);
+            const { baseType: outputBaseType, rarity: outputRarity } = (0, types_2.parsePetalType)(outputType);
+            console.log(`Parsed input: baseType=${inputBaseType}, rarity=${inputRarity}`);
+            console.log(`Parsed output: baseType=${outputBaseType}, rarity=${outputRarity}`);
+            // Get current account and show petal inventory
+            const account = database_1.dbManager.getAccount(player.accountId);
+            if (account) {
+                console.log(`Current petal inventory:`);
+                account.inventory.petals.forEach(petalEntry => {
+                    console.log(`  ${petalEntry.baseType}:`, petalEntry.rarities);
+                });
+                // Check specific petal type we're trying to craft
+                const targetEntry = account.inventory.petals.find(p => p.baseType === inputBaseType);
+                if (targetEntry) {
+                    console.log(`Target petal entry (${inputBaseType}):`, targetEntry.rarities);
+                    console.log(`Available ${inputRarity} rarity: ${targetEntry.rarities[inputRarity]}`);
+                }
+                else {
+                    console.log(`No entry found for base type: ${inputBaseType}`);
+                }
+            }
+            // Validate that it's the same base type with higher rarity
+            if (inputBaseType !== outputBaseType) {
+                console.log(`Invalid craft: base types don't match (${inputBaseType} != ${outputBaseType})`);
+                socket.emit('craftingFailed', { reason: 'Base types must match' });
+                return;
+            }
+            // Try to remove 5 input petals
+            let removedCount = 0;
+            for (let i = 0; i < 5; i++) {
+                console.log(`Attempting to remove petal ${i + 1}/5: ${inputBaseType} (${inputRarity})`);
+                if (database_1.dbManager.removePetal(player.accountId, inputBaseType, inputRarity)) {
+                    removedCount++;
+                    console.log(`Successfully removed petal ${i + 1}/5`);
+                }
+                else {
+                    console.log(`Failed to remove petal ${i + 1}/5 - not enough available`);
+                    // Not enough petals, restore what we removed
+                    for (let j = 0; j < removedCount; j++) {
+                        database_1.dbManager.addPetal(player.accountId, inputBaseType, inputRarity);
+                    }
+                    console.log(`Crafting failed: not enough ${inputType} petals (needed 5, could only find ${removedCount})`);
+                    console.log(`=== CRAFTING DEBUG END ===\n`);
+                    socket.emit('craftingFailed', { reason: 'Not enough input petals' });
+                    return;
+                }
+            }
+            // Add the output petal
+            database_1.dbManager.addPetal(player.accountId, outputBaseType, outputRarity);
+            // Also update legacy collected items
+            database_1.dbManager.addCollectedItem(player.accountId, outputType);
+            for (let i = 0; i < 5; i++) {
+                database_1.dbManager.removeCollectedItem(player.accountId, inputType);
+            }
+            console.log(`Crafting successful: ${removedCount}x ${inputType} -> 1x ${outputType}`);
+            console.log(`=== CRAFTING DEBUG END ===\n`);
+            // Get updated inventory and send confirmation
+            const currentAccount = database_1.dbManager.getAccount(player.accountId);
+            if (currentAccount) {
+                const legacyPetals = database_1.dbManager.getPetalsLegacyFormat(player.accountId);
+                socket.emit('craftingSuccess', {
+                    inputType,
+                    outputType,
+                    inventory: {
+                        petals: legacyPetals,
+                        collectedItems: currentAccount.inventory.collectedItems
+                    }
                 });
             }
         }
@@ -1176,23 +1294,49 @@ io.on('connection', (socket) => {
                 };
                 // Remove enemy first
                 enemies.delete(enemyId);
-                // Determine item drop
-                let itemType = '';
+                // Determine base petal type based on enemy type
+                let baseType = null;
+                let dropChance = 0.5; // Default 50% drop chance
                 if (enemy.type === 'worker_ant') {
-                    // Worker ants always drop leaves
-                    itemType = 'leaf';
+                    baseType = types_2.BasePetalType.LEAF;
+                    dropChance = 1.0; // Worker ants always drop
                 }
                 else if (enemy.type === 'bee') {
-                    // Bees always drop stingers
-                    itemType = 'stinger';
+                    baseType = types_2.BasePetalType.STINGER;
+                    dropChance = 1.0; // Bees always drop
                 }
                 else if (enemy.type === 'centipede' || enemy.type === 'centipede_segment') {
-                    // Centipedes and their segments always drop peas
-                    itemType = 'pea';
+                    baseType = types_2.BasePetalType.PEA;
+                    dropChance = 1.0; // Centipedes always drop
                 }
-                else if (Math.random() < 0.5) {
+                else if (Math.random() < dropChance) {
                     // Other enemies have 50% chance to drop tetrahedron or cube
-                    itemType = Math.random() < 0.7 ? 'tetrahedron' : 'cube';
+                    baseType = Math.random() < 0.7 ? types_2.BasePetalType.TETRAHEDRON : types_2.BasePetalType.CUBE;
+                }
+                // Determine drop rarity based on enemy rarity
+                let dropRarity = types_1.Rarity.COMMON;
+                if (baseType && Math.random() < dropChance) {
+                    if (enemy.rarity === types_1.Rarity.COMMON) {
+                        // Common enemies: 70% common, 30% uncommon
+                        dropRarity = Math.random() < 0.3 ? types_1.Rarity.UNCOMMON : types_1.Rarity.COMMON;
+                    }
+                    else {
+                        // Higher rarity enemies: 30% same rarity, 70% one tier below
+                        const rarityOrder = [types_1.Rarity.COMMON, types_1.Rarity.UNCOMMON, types_1.Rarity.RARE, types_1.Rarity.EPIC, types_1.Rarity.LEGENDARY, types_1.Rarity.MYTHIC];
+                        const enemyRarityIndex = rarityOrder.indexOf(enemy.rarity);
+                        const dropSameRarity = Math.random() < 0.3;
+                        if (dropSameRarity && enemyRarityIndex >= 0) {
+                            dropRarity = enemy.rarity;
+                        }
+                        else if (enemyRarityIndex > 0) {
+                            dropRarity = rarityOrder[enemyRarityIndex - 1];
+                        }
+                    }
+                }
+                // Create petal type string for legacy compatibility
+                let itemType = '';
+                if (baseType) {
+                    itemType = dropRarity === types_1.Rarity.COMMON ? baseType : `${baseType.toLowerCase()}_${dropRarity.toLowerCase()}`;
                 }
                 // Emit death with item drop info
                 io.emit('enemyDied', {
@@ -1209,10 +1353,13 @@ io.on('connection', (socket) => {
                 // Distribute XP and update wave progress
                 distributeXP(totalXP);
                 enemiesKilledInWave++;
-                // If item drops, save it to the database
-                if (itemType) {
+                // If petal drops, save it to the database with proper rarity
+                if (baseType) {
                     const player = players.get(socket.id);
                     if (player) {
+                        console.log(`Adding petal drop: ${baseType} (${dropRarity}) from ${enemy.type} (${enemy.rarity})`);
+                        database_1.dbManager.addPetal(player.accountId, baseType, dropRarity);
+                        // Also add to legacy collected items for backward compatibility
                         database_1.dbManager.addCollectedItem(player.accountId, itemType);
                     }
                 }
@@ -1285,7 +1432,12 @@ io.on('connection', (socket) => {
                     }
                 };
                 // Update database with game stats
-                database_1.dbManager.updateStats(player.accountId, deathStats.gameStats);
+                database_1.dbManager.updateStats(player.accountId, {
+                    totalPlayTime: deathStats.gameStats.timeAlive,
+                    totalDeaths: 1,
+                    totalKills: deathStats.gameStats.kills,
+                    bestXP: Math.max((account === null || account === void 0 ? void 0 : account.stats.bestXP) || 0, deathStats.gameStats.totalXP)
+                });
                 // Send death events to client
                 socket.emit('playerDied', deathStats);
                 // First, notify all clients to freeze the game state
@@ -1314,11 +1466,11 @@ io.on('connection', (socket) => {
             }
         }
     });
-    // Handle leaderboard requests
-    socket.on('requestLeaderboard', (sortBy) => {
-        const leaderboard = database_1.dbManager.getLeaderboard(sortBy);
-        socket.emit('leaderboardUpdate', leaderboard);
-    });
+    // Handle leaderboard requests (commented out until method is implemented)
+    // socket.on('requestLeaderboard', (sortBy: 'totalXP' | 'bestXP' | 'highestWave') => {
+    //     const leaderboard = dbManager.getTopPlayers(10);
+    //     socket.emit('leaderboardUpdate', leaderboard);
+    // });
     // Send initial configuration to new client
     socket.emit('configUpdate', serverConfig.getCurrentConfig());
     // Handle collision plane updates

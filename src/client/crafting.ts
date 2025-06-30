@@ -5,7 +5,7 @@ import { Inventory } from './inventory';
 import { Game } from './game';
 
 interface CraftingSlot {
-    petal: PetalType | null;
+    petal: string | null;
     element: HTMLDivElement;
     index: number;
 }
@@ -157,7 +157,7 @@ export class CraftingSystem {
 
                 // Group collected petals by type AND rarity
                 const collectedPetals = this.game.getCollectedPetals();
-                const groupedPetals = collectedPetals.reduce((acc: Map<string, number>, type: PetalType) => {
+                const groupedPetals = collectedPetals.reduce((acc: Map<string, number>, type: string) => {
                     // Use both type and rarity as the key to prevent stacking different rarities
                     acc.set(type, (acc.get(type) || 0) + 1);
                     return acc;
@@ -182,9 +182,11 @@ export class CraftingSystem {
                     slot.style.zIndex = '1000';
 
                     // Set background color based on rarity
-                    const rarity = PETAL_STATS[petalType as PetalType].rarity;
-                    const color = '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0');
-                    slot.style.backgroundColor = color;
+                    if (PETAL_STATS[petalType]) {
+                        const rarity = PETAL_STATS[petalType].rarity;
+                        const color = '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0');
+                        slot.style.backgroundColor = color;
+                    }
 
                     // Create a container for the content to prevent click interference
                     const contentContainer = document.createElement('div');
@@ -218,17 +220,20 @@ export class CraftingSystem {
                     typeLabel.style.pointerEvents = 'none';
                     contentContainer.appendChild(typeLabel);
 
-                    // Add rarity label
-                    const rarityLabel = document.createElement('div');
-                    rarityLabel.textContent = rarity;
-                    rarityLabel.style.position = 'absolute';
-                    rarityLabel.style.top = '50%';
-                    rarityLabel.style.left = '50%';
-                    rarityLabel.style.transform = 'translate(-50%, -50%)';
-                    rarityLabel.style.color = 'white';
-                    rarityLabel.style.fontSize = '10px';
-                    rarityLabel.style.pointerEvents = 'none';
-                    contentContainer.appendChild(rarityLabel);
+                    // Add rarity label if PETAL_STATS exists
+                    if (PETAL_STATS[petalType]) {
+                        const rarity = PETAL_STATS[petalType].rarity;
+                        const rarityLabel = document.createElement('div');
+                        rarityLabel.textContent = rarity;
+                        rarityLabel.style.position = 'absolute';
+                        rarityLabel.style.top = '50%';
+                        rarityLabel.style.left = '50%';
+                        rarityLabel.style.transform = 'translate(-50%, -50%)';
+                        rarityLabel.style.color = 'white';
+                        rarityLabel.style.fontSize = '10px';
+                        rarityLabel.style.pointerEvents = 'none';
+                        contentContainer.appendChild(rarityLabel);
+                    }
 
                     // Add the content container to the slot
                     slot.appendChild(contentContainer);
@@ -246,7 +251,7 @@ export class CraftingSystem {
                             slot.style.transform = 'scale(1)';
                         }, 100);
 
-                        this.handleInventorySlotClick(petalType as PetalType);
+                        this.handleInventorySlotClick(petalType);
                     };
 
                     slot.addEventListener('click', clickHandler);
@@ -260,7 +265,7 @@ export class CraftingSystem {
         updateInventoryDisplay();
     }
 
-    private handleInventorySlotClick(petalType: PetalType) {
+    private handleInventorySlotClick(petalType: string) {
         console.log('=== handleInventorySlotClick ===');
         console.log('Petal type:', petalType);
         
@@ -291,7 +296,9 @@ export class CraftingSystem {
                 this.craftingSlots[i].petal = petalType;
                 
                 // Update slot visuals
-                const rarity = PETAL_STATS[petalType].rarity;
+                const rarity = PETAL_STATS[petalType]?.rarity;
+                if (!rarity) return; // Skip if petal stats not found
+                
                 const color = this.game.isRarityTintingEnabled() ? 
                     '#' + RARITY_COLORS[rarity].toString(16).padStart(6, '0') : 
                     'rgba(255, 255, 255, 0.1)';
@@ -342,7 +349,9 @@ export class CraftingSystem {
         }
 
         // Get current rarity from PETAL_STATS
-        const currentRarity = PETAL_STATS[firstPetal].rarity;
+        const currentRarity = PETAL_STATS[firstPetal]?.rarity;
+        if (!currentRarity) return; // Skip if petal stats not found
+        
         const nextRarity = this.getNextRarity(currentRarity);
         if (!nextRarity) {
             return;
@@ -351,16 +360,47 @@ export class CraftingSystem {
         // Get the next petal type with higher rarity
         const nextPetalType = this.getNextPetalType(firstPetal, nextRarity);
 
-        // Add the new petal to collected petals
-        this.game.getCollectedPetals().push(nextPetalType);
+        // Send crafting request to server instead of updating locally
+        const socket = (this.game as any).socket; // Access socket from game instance
+        if (socket) {
+            console.log(`Sending craft request: 5x ${firstPetal} -> 1x ${nextPetalType}`);
+            socket.emit('craftPetals', {
+                inputType: firstPetal,
+                outputType: nextPetalType
+            });
 
-        // Clear crafting slots
+            // Listen for crafting response
+            socket.once('craftingSuccess', (data: { inputType: string, outputType: string, inventory: any }) => {
+                console.log('Crafting successful:', data);
+                
+                // Update local collected petals array to match server state
+                const collectedPetals = this.game.getCollectedPetals();
+                collectedPetals.length = 0; // Clear array
+                
+                // Repopulate from server inventory data
+                data.inventory.collectedItems.forEach((item: { type: string, amount: number }) => {
+                    for (let i = 0; i < item.amount; i++) {
+                        collectedPetals.push(item.type);
+                    }
+                });
+                
+                // Clear crafting slots
+                this.clearSlots();
+                
+                // Visual feedback
+                console.log('Crafting completed successfully!');
+            });
+
+            socket.once('craftingFailed', (data: { reason: string }) => {
+                console.log('Crafting failed:', data.reason);
+                // Could show user feedback here
+            });
+        } else {
+            console.error('No socket connection available for crafting');
+        }
+
+        // Clear crafting slots immediately for UI responsiveness
         this.clearSlots();
-
-        // Reset slot visuals
-        this.craftingSlots.forEach(slot => {
-            slot.element.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-        });
     }
 
     private clearSlots() {
@@ -431,10 +471,10 @@ export class CraftingSystem {
         return rarityOrder[currentIndex + 1];
     }
 
-    private getNextPetalType(currentType: PetalType, nextRarity: Rarity): PetalType {
+    private getNextPetalType(currentType: string, nextRarity: Rarity): string {
         // Find the next petal type of the same base type but higher rarity
         const baseName = currentType.split('_')[0];
-        const nextType = `${baseName}_${nextRarity.toLowerCase()}` as PetalType;
+        const nextType = `${baseName}_${nextRarity.toLowerCase()}`;
         
         // If the next type exists in PETAL_STATS, use it
         if (PETAL_STATS[nextType]) {
