@@ -150,8 +150,8 @@ export class Inventory {
 
     public updatePetalPositions(): void {
         this.slots.forEach(slot => {
+            this.slots[slot.index].position += PETAL_ROTATION_SPEED;
             if (slot.petal) {
-                this.slots[slot.index].position += PETAL_ROTATION_SPEED;
                 slot.petal.updatePosition();
             }
         });
