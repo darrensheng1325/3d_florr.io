@@ -779,6 +779,9 @@ export class Game {
                 inventory.getPetals().forEach(petal => petal.update());
             });
 
+            // Update all inventory positions
+            this.playerInventories.forEach(inventory => inventory.updatePetalPositions());
+
             // Update all items
             this.items.forEach(item => item.update());
 

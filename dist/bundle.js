@@ -2344,6 +2344,8 @@ var Game = /** @class */ (function () {
             this.playerInventories.forEach(function (inventory) {
                 inventory.getPetals().forEach(function (petal) { return petal.update(); });
             });
+            // Update all inventory positions
+            this.playerInventories.forEach(function (inventory) { return inventory.updatePetalPositions(); });
             // Update all items
             this.items.forEach(function (item) { return item.update(); });
             // Check petal collisions
@@ -4193,6 +4195,7 @@ exports.HealthBar = HealthBar;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Inventory = void 0;
 var petal_1 = __webpack_require__(4498);
+var types_1 = __webpack_require__(4817);
 var Inventory = /** @class */ (function () {
     function Inventory(scene, parent) {
         this.slots = [];
@@ -4204,10 +4207,21 @@ var Inventory = /** @class */ (function () {
             this.slots.push({
                 petal: null,
                 isActive: false,
-                index: i
+                index: i,
+                position: (Math.PI * 2 / this.maxSlots) * i
             });
         }
     }
+    Inventory.prototype.initializeSlots = function () {
+        for (var i = 0; i < this.maxSlots; i++) {
+            this.slots.push({
+                petal: null,
+                isActive: false,
+                index: i,
+                position: (Math.PI * 2 / this.maxSlots) * i
+            });
+        }
+    };
     Inventory.prototype.addPetal = function (type, slotIndex) {
         var _this = this;
         if (slotIndex < 0 || slotIndex >= this.slots.length) {
@@ -4218,7 +4232,8 @@ var Inventory = /** @class */ (function () {
             this.slots[slotIndex].petal.remove(this.scene);
         }
         // Create new petal
-        var petal = new petal_1.Petal(this.scene, this.parent, slotIndex, this.slots.length, type);
+        var petal = new petal_1.Petal(this.scene, this.parent, slotIndex, this.slots.length, type, this);
+        petal.angle = this.slots[slotIndex].position;
         // Set up respawn callback to reequip petal
         petal.setRespawnCallback(function () {
             // Remove the broken petal
@@ -4227,22 +4242,22 @@ var Inventory = /** @class */ (function () {
             _this.addPetal(type, slotIndex);
         });
         this.slots[slotIndex].petal = petal;
-        // Recalculate positions for all petals
-        this.slots.forEach(function (slot, index) {
-            if (slot.petal) {
-                // Remove and recreate each petal to update its position
-                var petalType_1 = slot.petal.getType();
-                slot.petal.remove(_this.scene);
-                slot.petal = new petal_1.Petal(_this.scene, _this.parent, index, _this.slots.length, petalType_1);
-                // Set up respawn callback for the new petal
-                slot.petal.setRespawnCallback(function () {
-                    // Remove the broken petal
-                    _this.removePetal(index);
-                    // Create and add a fresh petal of the same type
-                    _this.addPetal(petalType_1, index);
-                });
-            }
-        });
+        // // Recalculate positions for all petals
+        // this.slots.forEach((slot, index) => {
+        //     if (slot.petal) {
+        //         // Remove and recreate each petal to update its position
+        //         const petalType = slot.petal.getType();
+        //         slot.petal.remove(this.scene);
+        //         slot.petal = new Petal(this.scene, this.parent, index, this.slots.length, petalType);
+        //         // Set up respawn callback for the new petal
+        //         slot.petal.setRespawnCallback(() => {
+        //             // Remove the broken petal
+        //             this.removePetal(index);
+        //             // Create and add a fresh petal of the same type
+        //             this.addPetal(petalType, index);
+        //         });
+        //     }
+        // });
         this.savePetals();
         return true;
     };
@@ -4255,7 +4270,8 @@ var Inventory = /** @class */ (function () {
         this.slots.push({
             petal: null,
             isActive: false,
-            index: this.slots.length
+            index: this.slots.length,
+            position: (Math.PI * 2 / this.maxSlots) * this.slots.length
         });
         // Recreate all petals with new total count
         var tempPetals = this.slots.map(function (slot) { return slot.petal !== null; });
@@ -4269,7 +4285,7 @@ var Inventory = /** @class */ (function () {
         // Create new petals with updated positions
         tempPetals.forEach(function (hasPetal, index) {
             if (hasPetal) {
-                _this.slots[index].petal = new petal_1.Petal(_this.scene, _this.parent, index, _this.slots.length);
+                _this.slots[index].petal = new petal_1.Petal(_this.scene, _this.parent, index, _this.slots.length, _this.slots[index].petal.getType(), _this);
             }
         });
         return true;
@@ -4288,12 +4304,21 @@ var Inventory = /** @class */ (function () {
             toPetal.remove(this.scene);
         // Create new petals in swapped positions
         if (fromPetal) {
-            this.slots[toIndex].petal = new petal_1.Petal(this.scene, this.parent, toIndex, this.slots.length);
+            this.slots[toIndex].petal = new petal_1.Petal(this.scene, this.parent, toIndex, this.slots.length, fromPetal.getType(), this);
         }
         if (toPetal) {
-            this.slots[fromIndex].petal = new petal_1.Petal(this.scene, this.parent, fromIndex, this.slots.length);
+            this.slots[fromIndex].petal = new petal_1.Petal(this.scene, this.parent, fromIndex, this.slots.length, toPetal.getType(), this);
         }
         return true;
+    };
+    Inventory.prototype.updatePetalPositions = function () {
+        var _this = this;
+        this.slots.forEach(function (slot) {
+            if (slot.petal) {
+                _this.slots[slot.index].position += types_1.PETAL_ROTATION_SPEED;
+                slot.petal.updatePosition();
+            }
+        });
     };
     Inventory.prototype.expandPetals = function () {
         this.slots.forEach(function (slot) {
@@ -5579,7 +5604,7 @@ function initializeLegacyPetalStats() {
 // Initialize the legacy stats
 initializeLegacyPetalStats();
 var Petal = /** @class */ (function () {
-    function Petal(scene, parent, index, totalPetals, type) {
+    function Petal(scene, parent, index, totalPetals, type, inventory) {
         if (type === void 0) { type = types_1.BasePetalType.BASIC; }
         this.currentRadius = 1.5;
         this.baseRadius = 1.5;
@@ -5603,6 +5628,7 @@ var Petal = /** @class */ (function () {
         this.index = index;
         this.totalPetals = totalPetals;
         this.type = type;
+        this.inventory = inventory;
         // Parse the type to get base type and rarity
         var parsed = (0, types_1.parsePetalType)(type);
         this.baseType = parsed.baseType;
@@ -5761,7 +5787,7 @@ var Petal = /** @class */ (function () {
         // Rotate the petal around its own center
         this.mesh.rotation.y += 0.02;
         // Update angle for orbit
-        this.angle += this.orbitSpeed;
+        this.angle = this.inventory.slots[this.index].position;
         // Update radius transition
         if (this.isExpanded && this.currentRadius < this.expandedRadius) {
             this.currentRadius = Math.min(this.expandedRadius, this.currentRadius + this.transitionSpeed);
@@ -5780,16 +5806,16 @@ var Petal = /** @class */ (function () {
         var _this = this;
         this.updatePosition();
         // Handle healing over time
-        if (!this.isBroken && this.health < this.maxHealth) {
-            var currentTime = Date.now();
-            // Start healing after delay
-            if (currentTime - this.lastDamageTime >= this.HEAL_DELAY) {
-                if (currentTime - this.lastHealTime >= this.HEAL_INTERVAL) {
-                    this.health = Math.min(this.maxHealth, this.health + (this.maxHealth * this.HEAL_RATE * this.HEAL_INTERVAL / 1000));
-                    this.lastHealTime = currentTime;
-                }
-            }
-        }
+        // if (!this.isBroken && this.health < this.maxHealth) {
+        //     const currentTime = Date.now();
+        //     // Start healing after delay
+        //     if (currentTime - this.lastDamageTime >= this.HEAL_DELAY) {
+        //         if (currentTime - this.lastHealTime >= this.HEAL_INTERVAL) {
+        //             this.health = Math.min(this.maxHealth, this.health + (this.maxHealth * this.HEAL_RATE * this.HEAL_INTERVAL / 1000));
+        //             this.lastHealTime = currentTime;
+        //         }
+        //     }
+        // }
         // Handle respawn
         if (this.isBroken && Date.now() - this.breakTime >= this.cooldownTime) {
             this.respawn();
@@ -6689,7 +6715,7 @@ exports.ServerConfig = ServerConfig;
 
 var _a, _b, _c;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.PetalType = exports.BasePetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_DAMAGE_MULTIPLIERS = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
+exports.PETAL_ROTATION_SPEED = exports.PetalType = exports.BasePetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_DAMAGE_MULTIPLIERS = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
 exports.getPetalType = getPetalType;
 exports.parsePetalType = parsePetalType;
 var Rarity;
@@ -6803,6 +6829,7 @@ function parsePetalType(petalType) {
         return { baseType: baseType, rarity: rarityStr };
     }
 }
+exports.PETAL_ROTATION_SPEED = 0.01;
 
 
 /***/ }),

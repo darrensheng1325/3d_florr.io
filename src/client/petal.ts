@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Rarity, RARITY_COLORS, RARITY_MULTIPLIERS, BasePetalType, PetalType, PetalStats, BasePetalStats, RARITY_DAMAGE_MULTIPLIERS, parsePetalType, getPetalType } from '../shared/types';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { Inventory } from './inventory';
 
 // Base stats for different petal types (before rarity multipliers)
 export const BASE_PETAL_STATS: Record<BasePetalType, BasePetalStats> = {
@@ -63,12 +64,13 @@ export class Petal {
     private baseRadius: number = 1.5;
     private expandedRadius: number = 3.0;
     private orbitSpeed: number = 0.01;
-    private angle: number = 0;
+    public angle: number = 0;
     private height: number = 0.1;
     private isExpanded: boolean = false;
     private transitionSpeed: number = 0.1;
     private scene: THREE.Scene;
     private parent: THREE.Mesh;
+    private inventory: Inventory;
     private index: number;
     private totalPetals: number;
     private type: string;  // Changed to string to support new format
@@ -90,12 +92,13 @@ export class Petal {
 
     private miniPeas: THREE.Mesh[] = [];
 
-    constructor(scene: THREE.Scene, parent: THREE.Mesh, index: number, totalPetals: number, type: string = BasePetalType.BASIC) {
+    constructor(scene: THREE.Scene, parent: THREE.Mesh, index: number, totalPetals: number, type: string = BasePetalType.BASIC, inventory: Inventory) {
         this.scene = scene;
         this.parent = parent;
         this.index = index;
         this.totalPetals = totalPetals;
         this.type = type;
+        this.inventory = inventory;
 
         // Parse the type to get base type and rarity
         const parsed = parsePetalType(type);
@@ -274,7 +277,7 @@ export class Petal {
         this.mesh.rotation.y += 0.02;
         
         // Update angle for orbit
-        this.angle += this.orbitSpeed;
+        this.angle = this.inventory.slots[this.index].position;
         
         // Update radius transition
         if (this.isExpanded && this.currentRadius < this.expandedRadius) {
@@ -296,17 +299,17 @@ export class Petal {
         this.updatePosition();
         
         // Handle healing over time
-        if (!this.isBroken && this.health < this.maxHealth) {
-            const currentTime = Date.now();
+        // if (!this.isBroken && this.health < this.maxHealth) {
+        //     const currentTime = Date.now();
             
-            // Start healing after delay
-            if (currentTime - this.lastDamageTime >= this.HEAL_DELAY) {
-                if (currentTime - this.lastHealTime >= this.HEAL_INTERVAL) {
-                    this.health = Math.min(this.maxHealth, this.health + (this.maxHealth * this.HEAL_RATE * this.HEAL_INTERVAL / 1000));
-                    this.lastHealTime = currentTime;
-                }
-            }
-        }
+        //     // Start healing after delay
+        //     if (currentTime - this.lastDamageTime >= this.HEAL_DELAY) {
+        //         if (currentTime - this.lastHealTime >= this.HEAL_INTERVAL) {
+        //             this.health = Math.min(this.maxHealth, this.health + (this.maxHealth * this.HEAL_RATE * this.HEAL_INTERVAL / 1000));
+        //             this.lastHealTime = currentTime;
+        //         }
+        //     }
+        // }
         
         // Handle respawn
         if (this.isBroken && Date.now() - this.breakTime >= this.cooldownTime) {

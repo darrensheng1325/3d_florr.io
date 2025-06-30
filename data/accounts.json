@@ -1,7 +1,7 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1751315754978,
+    "lastSeen": 1751320989709,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
@@ -20,10 +20,10 @@
         {
           "baseType": "pea",
           "rarities": {
-            "COMMON": 94,
-            "UNCOMMON": 78,
-            "RARE": 12,
-            "EPIC": 10,
+            "COMMON": 161,
+            "UNCOMMON": 145,
+            "RARE": 18,
+            "EPIC": 16,
             "LEGENDARY": 0,
             "MYTHIC": 0
           }
@@ -31,19 +31,19 @@
         {
           "baseType": "tetrahedron",
           "rarities": {
-            "COMMON": 44,
-            "UNCOMMON": 29,
+            "COMMON": 74,
+            "UNCOMMON": 53,
             "RARE": 0,
             "EPIC": 0,
-            "LEGENDARY": 700,
+            "LEGENDARY": 1300,
             "MYTHIC": 100
           }
         },
         {
           "baseType": "cube",
           "rarities": {
-            "COMMON": 13,
-            "UNCOMMON": 20,
+            "COMMON": 25,
+            "UNCOMMON": 32,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -53,19 +53,19 @@
         {
           "baseType": "stinger",
           "rarities": {
-            "COMMON": 34,
-            "UNCOMMON": 43,
+            "COMMON": 76,
+            "UNCOMMON": 76,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
-            "MYTHIC": 800
+            "MYTHIC": 1400
           }
         },
         {
           "baseType": "leaf",
           "rarities": {
-            "COMMON": 22,
-            "UNCOMMON": 29,
+            "COMMON": 34,
+            "UNCOMMON": 47,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -76,7 +76,7 @@
       "collectedItems": [
         {
           "type": "pea_uncommon",
-          "amount": 11
+          "amount": 12
         },
         {
           "type": "tetrahedron",
@@ -84,7 +84,7 @@
         },
         {
           "type": "stinger_uncommon",
-          "amount": 5
+          "amount": 6
         },
         {
           "type": "leaf",
@@ -124,7 +124,7 @@
         },
         {
           "type": "pea",
-          "amount": 11
+          "amount": 12
         },
         {
           "type": "tetrahedron_legendary",

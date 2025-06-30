@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PetalType = exports.BasePetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_DAMAGE_MULTIPLIERS = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
+exports.PETAL_ROTATION_SPEED = exports.PetalType = exports.BasePetalType = exports.ItemType = exports.MODEL_BASE_SIZES = exports.BASE_SIZES = exports.RARITY_DAMAGE_MULTIPLIERS = exports.RARITY_MULTIPLIERS = exports.RARITY_COLORS = exports.Rarity = void 0;
 exports.getPetalType = getPetalType;
 exports.parsePetalType = parsePetalType;
 var Rarity;
@@ -112,4 +112,5 @@ function parsePetalType(petalType) {
         return { baseType, rarity: rarityStr };
     }
 }
+exports.PETAL_ROTATION_SPEED = 0.01;
 //# sourceMappingURL=types.js.map

@@ -216,3 +216,5 @@ export interface WaveStartData {
     minRarity: Rarity;
     isNight: boolean;
 } 
+
+export const PETAL_ROTATION_SPEED = 0.01;

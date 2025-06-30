@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { Petal } from './petal';
-import { PetalType } from '../shared/types';
+import { PETAL_ROTATION_SPEED, PetalType } from '../shared/types';
 
 export interface PetalSlot {
     petal: Petal | null;
     isActive: boolean;
     index: number;
+    position: number;
 }
 
 export class Inventory {
-    private slots: PetalSlot[] = [];
+    public slots: PetalSlot[] = [];
     private maxSlots: number = 5;  // Default max slots
     private scene: THREE.Scene;
     private parent: THREE.Mesh;
@@ -23,10 +24,23 @@ export class Inventory {
             this.slots.push({
                 petal: null,
                 isActive: false,
-                index: i
+                index: i,
+                position: (Math.PI * 2 / this.maxSlots) * i
             });
         }
     }
+
+    public initializeSlots(): void {
+        for (let i = 0; i < this.maxSlots; i++) {
+            this.slots.push({
+                petal: null,
+                isActive: false,
+                index: i,
+                position: (Math.PI * 2 / this.maxSlots) * i
+            });
+        }
+    }
+    
 
     public addPetal(type: string, slotIndex: number): boolean {
         if (slotIndex < 0 || slotIndex >= this.slots.length) {
@@ -39,7 +53,8 @@ export class Inventory {
         }
 
         // Create new petal
-        const petal = new Petal(this.scene, this.parent, slotIndex, this.slots.length, type);
+        const petal = new Petal(this.scene, this.parent, slotIndex, this.slots.length, type, this);
+        petal.angle = this.slots[slotIndex].position;
         
         // Set up respawn callback to reequip petal
         petal.setRespawnCallback(() => {
@@ -52,24 +67,24 @@ export class Inventory {
         
         this.slots[slotIndex].petal = petal;
 
-        // Recalculate positions for all petals
-        this.slots.forEach((slot, index) => {
-            if (slot.petal) {
-                // Remove and recreate each petal to update its position
-                const petalType = slot.petal.getType();
-                slot.petal.remove(this.scene);
-                slot.petal = new Petal(this.scene, this.parent, index, this.slots.length, petalType);
+        // // Recalculate positions for all petals
+        // this.slots.forEach((slot, index) => {
+        //     if (slot.petal) {
+        //         // Remove and recreate each petal to update its position
+        //         const petalType = slot.petal.getType();
+        //         slot.petal.remove(this.scene);
+        //         slot.petal = new Petal(this.scene, this.parent, index, this.slots.length, petalType);
                 
-                // Set up respawn callback for the new petal
-                slot.petal.setRespawnCallback(() => {
-                    // Remove the broken petal
-                    this.removePetal(index);
+        //         // Set up respawn callback for the new petal
+        //         slot.petal.setRespawnCallback(() => {
+        //             // Remove the broken petal
+        //             this.removePetal(index);
                     
-                    // Create and add a fresh petal of the same type
-                    this.addPetal(petalType, index);
-                });
-            }
-        });
+        //             // Create and add a fresh petal of the same type
+        //             this.addPetal(petalType, index);
+        //         });
+        //     }
+        // });
         this.savePetals();
 
         return true;
@@ -84,7 +99,8 @@ export class Inventory {
         this.slots.push({
             petal: null,
             isActive: false,
-            index: this.slots.length
+            index: this.slots.length,
+            position: (Math.PI * 2 / this.maxSlots) * this.slots.length
         });
 
         // Recreate all petals with new total count
@@ -101,7 +117,7 @@ export class Inventory {
         // Create new petals with updated positions
         tempPetals.forEach((hasPetal, index) => {
             if (hasPetal) {
-                this.slots[index].petal = new Petal(this.scene, this.parent, index, this.slots.length);
+                this.slots[index].petal = new Petal(this.scene, this.parent, index, this.slots.length, this.slots[index].petal!.getType(), this);
             }
         });
 
@@ -123,13 +139,22 @@ export class Inventory {
 
         // Create new petals in swapped positions
         if (fromPetal) {
-            this.slots[toIndex].petal = new Petal(this.scene, this.parent, toIndex, this.slots.length);
+            this.slots[toIndex].petal = new Petal(this.scene, this.parent, toIndex, this.slots.length, fromPetal.getType(), this);
         }
         if (toPetal) {
-            this.slots[fromIndex].petal = new Petal(this.scene, this.parent, fromIndex, this.slots.length);
+            this.slots[fromIndex].petal = new Petal(this.scene, this.parent, fromIndex, this.slots.length, toPetal.getType(), this);
         }
 
         return true;
+    }
+
+    public updatePetalPositions(): void {
+        this.slots.forEach(slot => {
+            if (slot.petal) {
+                this.slots[slot.index].position += PETAL_ROTATION_SPEED;
+                slot.petal.updatePosition();
+            }
+        });
     }
 
     public expandPetals(): void {
