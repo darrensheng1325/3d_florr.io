@@ -845,8 +845,8 @@ function updateEnemies() {
                     position: enemy.position,
                     rotation: wanderRotation
                 });
-            } else if (enemy.type === 'centipede_segment') {
-                // Segments are handled by the follow logic below
+            } else if (enemy.type === 'centipede_segment' && enemy.followsId) {
+                // Segments with leaders are handled by the follow logic below
             } else {
                 // Other enemy types (ladybug, bee, spider, etc.) wander normally
                 const speed = enemyStats.passiveSpeed;
@@ -935,6 +935,50 @@ function updateEnemies() {
                         rotation: Math.atan2(dx, dz) - Math.PI / 2
                     });
                 }
+            } else {
+                // Leader is dead/missing - convert this segment to an independent enemy
+                enemy.followsId = undefined;
+                enemy.centipedeId = undefined;
+                
+                // Initialize wander behavior if not already set
+                if (currentTime >= enemy.wanderTime) {
+                    enemy.wanderAngle = Math.random() * Math.PI * 2;
+                    enemy.wanderTime = currentTime + 2000 + Math.random() * 2000;
+                }
+                
+                // Move independently like other enemies
+                const speed = BASE_ENEMY_STATS.centipede_segment.passiveSpeed;
+                const baseX = Math.cos(enemy.wanderAngle) * speed;
+                const baseZ = Math.sin(enemy.wanderAngle) * speed;
+                
+                // Calculate avoidance
+                const avoidance = calculateAvoidanceVector(enemy);
+                
+                const newX = enemy.position.x + baseX + avoidance.x;
+                const newZ = enemy.position.z + baseZ + avoidance.z;
+
+                // Test movement with collision detection
+                const radius = BASE_ENEMY_STATS.centipede_segment.size;
+                const testPosition = { x: newX, y: enemy.position.y, z: newZ };
+                const collision = checkEnemyCollisionPlanes(testPosition, radius);
+                
+                if (collision.collided && collision.type === 'wall') {
+                    // Hit wall: change direction
+                    enemy.wanderAngle = Math.random() * Math.PI * 2;
+                    enemy.wanderTime = currentTime + 1000 + Math.random() * 1000;
+                } else {
+                    // Apply collision-aware movement
+                    const newPosition = applyEnemyMovement(enemy, newX, newZ);
+                    enemy.position = newPosition;
+                }
+
+                // Emit position update with rotation based on movement direction
+                const wanderRotation = getEnemyRotation(enemy, enemy.wanderAngle);
+                io.emit('enemyMoved', {
+                    id: enemyId,
+                    position: enemy.position,
+                    rotation: wanderRotation
+                });
             }
         }
 
