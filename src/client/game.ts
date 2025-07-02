@@ -946,26 +946,45 @@ export class Game {
             // Create inventory and load pending data if available
             const inventory = new Inventory(this.scene, player);
             
-            // Check if this is the local player and if there's pending inventory data
-            if (playerId === this.socket?.id && (window as any).pendingInventoryData) {
-                const pendingData = (window as any).pendingInventoryData;
+            if (playerId === this.socket?.id) {
+                // For local player, ALWAYS prioritize localStorage loadout over server data
+                console.log('Loading loadout from localStorage for local player');
+                inventory.loadPetals();
                 
-                // Load petals from pending data
-                let slotIndex = 0;
-                if (pendingData.petals) {
-                    pendingData.petals.forEach((petal: any) => {
-                        // Each petal entry may have multiple counts, so add them one by one
-                        for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
-                            inventory.addPetal(petal.type, slotIndex);
-                            slotIndex++;
-                        }
-                    });
+                // Check if localStorage had any petals
+                const hasLocalStorageLoadout = !inventory.getSlots().every(slot => !slot.petal);
+                
+                if (!hasLocalStorageLoadout && (window as any).pendingInventoryData) {
+                    // Only use pending server data if no localStorage loadout exists
+                    console.log('No localStorage loadout found, using server data');
+                    const pendingData = (window as any).pendingInventoryData;
+                    
+                    let slotIndex = 0;
+                    if (pendingData.petals) {
+                        pendingData.petals.forEach((petal: any) => {
+                            // Each petal entry may have multiple counts, so add them one by one
+                            for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
+                                inventory.addPetal(petal.type, slotIndex);
+                                slotIndex++;
+                            }
+                        });
+                    }
+                } else if (!hasLocalStorageLoadout) {
+                    // No localStorage and no server data, create default petals
+                    console.log('No saved loadout found, creating default petals');
+                    for (let i = 0; i < 5; i++) {
+                        inventory.addPetal(PetalType.BASIC, i);
+                    }
+                } else {
+                    console.log('Using localStorage loadout, ignoring server data');
                 }
                 
-                // Clear pending data since we've used it
-                delete (window as any).pendingInventoryData;
+                // Clear pending data since we've processed it
+                if ((window as any).pendingInventoryData) {
+                    delete (window as any).pendingInventoryData;
+                }
             } else {
-                // Create default petals for non-local players or if no pending data
+                // Create default petals for non-local players
                 for (let i = 0; i < 5; i++) {
                     inventory.addPetal(PetalType.BASIC, i);
                 }
@@ -1191,12 +1210,12 @@ export class Game {
             
             // Load inventory data
             if (this.socket?.id) {
-                // Store collected items - this can be done immediately
+                // Always update collected items - this doesn't override loadout
                 this.collectedPetals = data.inventory.collectedItems.flatMap(item => 
                     Array(item.amount).fill(item.type as PetalType)
                 );
 
-                // Check if player exists before creating inventory
+                // Check if player exists before handling loadout
                 const player = this.players.get(this.socket.id);
                 if (player) {
                     let inventory = this.playerInventories.get(this.socket.id);
@@ -1205,15 +1224,23 @@ export class Game {
                         this.playerInventories.set(this.socket.id, inventory);
                     }
 
-                    // Load petals - assign to available slots automatically
-                    let slotIndex = 0;
-                    data.inventory.petals.forEach((petal: any) => {
-                        // Each petal entry may have multiple counts, so add them one by one
-                        for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
-                            inventory?.addPetal(petal.type, slotIndex);
-                            slotIndex++;
-                        }
-                    });
+                    // Check if localStorage has a saved loadout
+                    const localStorageLoadout = localStorage.getItem('loadout');
+                    if (!localStorageLoadout) {
+                        // Only load server loadout if no localStorage loadout exists
+                        console.log('No localStorage loadout found, loading server loadout');
+                        inventory.clear();
+                        let slotIndex = 0;
+                        data.inventory.petals.forEach((petal: any) => {
+                            // Each petal entry may have multiple counts, so add them one by one
+                            for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
+                                inventory?.addPetal(petal.type, slotIndex);
+                                slotIndex++;
+                            }
+                        });
+                    } else {
+                        console.log('localStorage loadout exists, preserving user\'s loadout configuration');
+                    }
                     
                     // Update UI if inventory is open
                     if (this.isInventoryOpen) {
@@ -1240,12 +1267,12 @@ export class Game {
             console.log('Received inventory sync:', data);
             
             if (this.socket?.id) {
-                // Store collected items - this can be done immediately
+                // Always update collected items - this doesn't override loadout
                 this.collectedPetals = data.collectedItems.flatMap(item => 
                     Array(item.amount).fill(item.type as PetalType)
                 );
 
-                // Check if player exists before creating inventory
+                // Check if player exists before handling loadout
                 const player = this.players.get(this.socket.id);
                 if (player) {
                     let inventory = this.playerInventories.get(this.socket.id);
@@ -1254,15 +1281,23 @@ export class Game {
                         this.playerInventories.set(this.socket.id, inventory);
                     }
 
-                    // Load petals - assign to available slots automatically
-                    let slotIndex = 0;
-                    data.petals.forEach((petal: any) => {
-                        // Each petal entry may have multiple counts, so add them one by one
-                        for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
-                            inventory?.addPetal(petal.type, slotIndex);
-                            slotIndex++;
-                        }
-                    });
+                    // Check if localStorage has a saved loadout
+                    const localStorageLoadout = localStorage.getItem('loadout');
+                    if (!localStorageLoadout) {
+                        // Only load server loadout if no localStorage loadout exists
+                        console.log('No localStorage loadout found, loading server loadout from inventorySync');
+                        inventory.clear();
+                        let slotIndex = 0;
+                        data.petals.forEach((petal: any) => {
+                            // Each petal entry may have multiple counts, so add them one by one
+                            for (let i = 0; i < petal.amount && slotIndex < 8; i++) {
+                                inventory?.addPetal(petal.type, slotIndex);
+                                slotIndex++;
+                            }
+                        });
+                    } else {
+                        console.log('localStorage loadout exists, preserving user\'s loadout configuration from inventorySync');
+                    }
                     
                     // Update UI if inventory is open
                     if (this.isInventoryOpen) {
@@ -1661,7 +1696,7 @@ export class Game {
                 // Get the petal type before removing it
                 const petalType = slot.petal.getType();
                 
-                // Remove the petal from the slot
+                // Remove the petal from the slot (this will automatically save to localStorage)
                 inventory.removePetal(index);
                 
                 // Add it back to collected petals (convert to PetalType for backward compatibility)
@@ -2130,7 +2165,7 @@ export class Game {
                 const emptySlotIndex = slots.findIndex(slot => !slot.petal);
                 
                 if (emptySlotIndex !== -1) {
-                    // Add petal to the empty slot (petalType is already a string)
+                    // Add petal to the empty slot (this will automatically save to localStorage)
                     inventory.addPetal(petalType, emptySlotIndex);
                     
                     // Remove one from collected petals
@@ -2329,6 +2364,33 @@ export class Game {
         rarityTintingContainer.appendChild(rarityTintingToggle);
         settingsContainer.appendChild(rarityTintingContainer);
 
+        // Add reset loadout button
+        const resetLoadoutButton = document.createElement('button');
+        resetLoadoutButton.textContent = 'Reset Loadout to Server';
+        resetLoadoutButton.style.cssText = `
+            padding: 8px 16px;
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        `;
+        resetLoadoutButton.addEventListener('mouseover', () => {
+            resetLoadoutButton.style.backgroundColor = '#ff5252';
+        });
+        resetLoadoutButton.addEventListener('mouseout', () => {
+            resetLoadoutButton.style.backgroundColor = '#ff6b6b';
+        });
+        resetLoadoutButton.addEventListener('click', () => {
+            if (confirm('This will replace your current loadout with the server\'s loadout data. Are you sure?')) {
+                this.resetLoadoutToServer();
+            }
+        });
+        settingsContainer.appendChild(resetLoadoutButton);
+
         // Add logout button
         const logoutButton = document.createElement('button');
         logoutButton.textContent = 'Logout';
@@ -2356,6 +2418,32 @@ export class Game {
 
         menu.appendChild(settingsContainer);
         document.body.appendChild(menu);
+    }
+
+    private resetLoadoutToServer(): void {
+        console.log('Resetting loadout to server data');
+        
+        if (this.socket?.id) {
+            const inventory = this.playerInventories.get(this.socket.id);
+            if (inventory) {
+                // Clear localStorage loadout
+                inventory.clearStoredLoadout();
+                
+                // Clear current loadout
+                inventory.clear();
+                
+                // Request fresh inventory sync from server
+                this.socket.emit('requestInventory');
+                
+                console.log('Loadout reset complete - requested fresh data from server');
+            }
+        }
+        
+        // Close settings menu
+        this.isSettingsOpen = false;
+        if (this.settingsMenu) {
+            this.settingsMenu.style.display = 'none';
+        }
     }
 
     private handleLogout(): void {

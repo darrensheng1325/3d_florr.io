@@ -2463,25 +2463,44 @@ var Game = /** @class */ (function () {
             _this.playerHealthBars.set(playerId, healthBar);
             // Create inventory and load pending data if available
             var inventory = new inventory_1.Inventory(_this.scene, player);
-            // Check if this is the local player and if there's pending inventory data
-            if (playerId === ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) && window.pendingInventoryData) {
-                var pendingData = window.pendingInventoryData;
-                // Load petals from pending data
-                var slotIndex_1 = 0;
-                if (pendingData.petals) {
-                    pendingData.petals.forEach(function (petal) {
-                        // Each petal entry may have multiple counts, so add them one by one
-                        for (var i = 0; i < petal.amount && slotIndex_1 < 8; i++) {
-                            inventory.addPetal(petal.type, slotIndex_1);
-                            slotIndex_1++;
-                        }
-                    });
+            if (playerId === ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id)) {
+                // For local player, ALWAYS prioritize localStorage loadout over server data
+                console.log('Loading loadout from localStorage for local player');
+                inventory.loadPetals();
+                // Check if localStorage had any petals
+                var hasLocalStorageLoadout = !inventory.getSlots().every(function (slot) { return !slot.petal; });
+                if (!hasLocalStorageLoadout && window.pendingInventoryData) {
+                    // Only use pending server data if no localStorage loadout exists
+                    console.log('No localStorage loadout found, using server data');
+                    var pendingData = window.pendingInventoryData;
+                    var slotIndex_1 = 0;
+                    if (pendingData.petals) {
+                        pendingData.petals.forEach(function (petal) {
+                            // Each petal entry may have multiple counts, so add them one by one
+                            for (var i = 0; i < petal.amount && slotIndex_1 < 8; i++) {
+                                inventory.addPetal(petal.type, slotIndex_1);
+                                slotIndex_1++;
+                            }
+                        });
+                    }
                 }
-                // Clear pending data since we've used it
-                delete window.pendingInventoryData;
+                else if (!hasLocalStorageLoadout) {
+                    // No localStorage and no server data, create default petals
+                    console.log('No saved loadout found, creating default petals');
+                    for (var i = 0; i < 5; i++) {
+                        inventory.addPetal(types_1.PetalType.BASIC, i);
+                    }
+                }
+                else {
+                    console.log('Using localStorage loadout, ignoring server data');
+                }
+                // Clear pending data since we've processed it
+                if (window.pendingInventoryData) {
+                    delete window.pendingInventoryData;
+                }
             }
             else {
-                // Create default petals for non-local players or if no pending data
+                // Create default petals for non-local players
                 for (var i = 0; i < 5; i++) {
                     inventory.addPetal(types_1.PetalType.BASIC, i);
                 }
@@ -2657,11 +2676,11 @@ var Game = /** @class */ (function () {
             _this.totalXP = data.totalXP;
             // Load inventory data
             if ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) {
-                // Store collected items - this can be done immediately
+                // Always update collected items - this doesn't override loadout
                 _this.collectedPetals = data.inventory.collectedItems.flatMap(function (item) {
                     return Array(item.amount).fill(item.type);
                 });
-                // Check if player exists before creating inventory
+                // Check if player exists before handling loadout
                 var player = _this.players.get(_this.socket.id);
                 if (player) {
                     var inventory_2 = _this.playerInventories.get(_this.socket.id);
@@ -2669,15 +2688,24 @@ var Game = /** @class */ (function () {
                         inventory_2 = new inventory_1.Inventory(_this.scene, player);
                         _this.playerInventories.set(_this.socket.id, inventory_2);
                     }
-                    // Load petals - assign to available slots automatically
-                    var slotIndex_2 = 0;
-                    data.inventory.petals.forEach(function (petal) {
-                        // Each petal entry may have multiple counts, so add them one by one
-                        for (var i = 0; i < petal.amount && slotIndex_2 < 8; i++) {
-                            inventory_2 === null || inventory_2 === void 0 ? void 0 : inventory_2.addPetal(petal.type, slotIndex_2);
-                            slotIndex_2++;
-                        }
-                    });
+                    // Check if localStorage has a saved loadout
+                    var localStorageLoadout = localStorage.getItem('loadout');
+                    if (!localStorageLoadout) {
+                        // Only load server loadout if no localStorage loadout exists
+                        console.log('No localStorage loadout found, loading server loadout');
+                        inventory_2.clear();
+                        var slotIndex_2 = 0;
+                        data.inventory.petals.forEach(function (petal) {
+                            // Each petal entry may have multiple counts, so add them one by one
+                            for (var i = 0; i < petal.amount && slotIndex_2 < 8; i++) {
+                                inventory_2 === null || inventory_2 === void 0 ? void 0 : inventory_2.addPetal(petal.type, slotIndex_2);
+                                slotIndex_2++;
+                            }
+                        });
+                    }
+                    else {
+                        console.log('localStorage loadout exists, preserving user\'s loadout configuration');
+                    }
                     // Update UI if inventory is open
                     if (_this.isInventoryOpen) {
                         _this.updateInventoryDisplay();
@@ -2694,11 +2722,11 @@ var Game = /** @class */ (function () {
             var _a;
             console.log('Received inventory sync:', data);
             if ((_a = _this.socket) === null || _a === void 0 ? void 0 : _a.id) {
-                // Store collected items - this can be done immediately
+                // Always update collected items - this doesn't override loadout
                 _this.collectedPetals = data.collectedItems.flatMap(function (item) {
                     return Array(item.amount).fill(item.type);
                 });
-                // Check if player exists before creating inventory
+                // Check if player exists before handling loadout
                 var player = _this.players.get(_this.socket.id);
                 if (player) {
                     var inventory_3 = _this.playerInventories.get(_this.socket.id);
@@ -2706,15 +2734,24 @@ var Game = /** @class */ (function () {
                         inventory_3 = new inventory_1.Inventory(_this.scene, player);
                         _this.playerInventories.set(_this.socket.id, inventory_3);
                     }
-                    // Load petals - assign to available slots automatically
-                    var slotIndex_3 = 0;
-                    data.petals.forEach(function (petal) {
-                        // Each petal entry may have multiple counts, so add them one by one
-                        for (var i = 0; i < petal.amount && slotIndex_3 < 8; i++) {
-                            inventory_3 === null || inventory_3 === void 0 ? void 0 : inventory_3.addPetal(petal.type, slotIndex_3);
-                            slotIndex_3++;
-                        }
-                    });
+                    // Check if localStorage has a saved loadout
+                    var localStorageLoadout = localStorage.getItem('loadout');
+                    if (!localStorageLoadout) {
+                        // Only load server loadout if no localStorage loadout exists
+                        console.log('No localStorage loadout found, loading server loadout from inventorySync');
+                        inventory_3.clear();
+                        var slotIndex_3 = 0;
+                        data.petals.forEach(function (petal) {
+                            // Each petal entry may have multiple counts, so add them one by one
+                            for (var i = 0; i < petal.amount && slotIndex_3 < 8; i++) {
+                                inventory_3 === null || inventory_3 === void 0 ? void 0 : inventory_3.addPetal(petal.type, slotIndex_3);
+                                slotIndex_3++;
+                            }
+                        });
+                    }
+                    else {
+                        console.log('localStorage loadout exists, preserving user\'s loadout configuration from inventorySync');
+                    }
                     // Update UI if inventory is open
                     if (_this.isInventoryOpen) {
                         _this.updateInventoryDisplay();
@@ -3076,7 +3113,7 @@ var Game = /** @class */ (function () {
                     return;
                 // Get the petal type before removing it
                 var petalType = slot.petal.getType();
-                // Remove the petal from the slot
+                // Remove the petal from the slot (this will automatically save to localStorage)
                 inventory.removePetal(index);
                 // Add it back to collected petals (convert to PetalType for backward compatibility)
                 _this.collectedPetals.push(petalType);
@@ -3499,7 +3536,7 @@ var Game = /** @class */ (function () {
                 var slots = inventory.getSlots();
                 var emptySlotIndex = slots.findIndex(function (slot) { return !slot.petal; });
                 if (emptySlotIndex !== -1) {
-                    // Add petal to the empty slot (petalType is already a string)
+                    // Add petal to the empty slot (this will automatically save to localStorage)
                     inventory.addPetal(petalType, emptySlotIndex);
                     // Remove one from collected petals
                     var petalIndex = _this.collectedPetals.findIndex(function (p) { return p === petalType; });
@@ -3670,6 +3707,22 @@ var Game = /** @class */ (function () {
         rarityTintingContainer.appendChild(rarityTintingLabel);
         rarityTintingContainer.appendChild(rarityTintingToggle);
         settingsContainer.appendChild(rarityTintingContainer);
+        // Add reset loadout button
+        var resetLoadoutButton = document.createElement('button');
+        resetLoadoutButton.textContent = 'Reset Loadout to Server';
+        resetLoadoutButton.style.cssText = "\n            padding: 8px 16px;\n            background-color: #ff6b6b;\n            color: white;\n            border: none;\n            border-radius: 5px;\n            cursor: pointer;\n            font-size: 14px;\n            margin-top: 10px;\n            transition: background-color 0.3s;\n        ";
+        resetLoadoutButton.addEventListener('mouseover', function () {
+            resetLoadoutButton.style.backgroundColor = '#ff5252';
+        });
+        resetLoadoutButton.addEventListener('mouseout', function () {
+            resetLoadoutButton.style.backgroundColor = '#ff6b6b';
+        });
+        resetLoadoutButton.addEventListener('click', function () {
+            if (confirm('This will replace your current loadout with the server\'s loadout data. Are you sure?')) {
+                _this.resetLoadoutToServer();
+            }
+        });
+        settingsContainer.appendChild(resetLoadoutButton);
         // Add logout button
         var logoutButton = document.createElement('button');
         logoutButton.textContent = 'Logout';
@@ -3686,6 +3739,27 @@ var Game = /** @class */ (function () {
         settingsContainer.appendChild(logoutButton);
         menu.appendChild(settingsContainer);
         document.body.appendChild(menu);
+    };
+    Game.prototype.resetLoadoutToServer = function () {
+        var _a;
+        console.log('Resetting loadout to server data');
+        if ((_a = this.socket) === null || _a === void 0 ? void 0 : _a.id) {
+            var inventory = this.playerInventories.get(this.socket.id);
+            if (inventory) {
+                // Clear localStorage loadout
+                inventory.clearStoredLoadout();
+                // Clear current loadout
+                inventory.clear();
+                // Request fresh inventory sync from server
+                this.socket.emit('requestInventory');
+                console.log('Loadout reset complete - requested fresh data from server');
+            }
+        }
+        // Close settings menu
+        this.isSettingsOpen = false;
+        if (this.settingsMenu) {
+            this.settingsMenu.style.display = 'none';
+        }
     };
     Game.prototype.handleLogout = function () {
         var _this = this;
@@ -4314,6 +4388,7 @@ var Inventory = /** @class */ (function () {
         if (toPetal) {
             this.slots[fromIndex].petal = new petal_1.Petal(this.scene, this.parent, fromIndex, this.slots.length, toPetal.getType(), this);
         }
+        this.savePetals(); // Save to localStorage whenever petals are swapped
         return true;
     };
     Inventory.prototype.updatePetalPositions = function () {
@@ -4359,6 +4434,7 @@ var Inventory = /** @class */ (function () {
             this.slots[index].petal.remove(this.scene);
             this.slots[index].petal = null;
             this.slots[index].isActive = false;
+            this.savePetals(); // Save to localStorage whenever a petal is removed
             return true;
         }
         return false;
@@ -4374,34 +4450,94 @@ var Inventory = /** @class */ (function () {
             }
         });
         this.slots = [];
+        this.savePetals(); // Save empty state to localStorage when cleared
     };
     Inventory.prototype.loadPetals = function () {
         var _this = this;
         // Load petals from local storage
         var storedPetals = localStorage.getItem('loadout');
         if (storedPetals) {
-            var petalData = JSON.parse(storedPetals);
-            petalData.forEach(function (_a) {
-                var type = _a.type, slotIndex = _a.slotIndex;
-                _this.addPetal(type, slotIndex);
-            });
+            try {
+                var petalData = JSON.parse(storedPetals);
+                petalData.forEach(function (_a) {
+                    var type = _a.type, slotIndex = _a.slotIndex;
+                    _this.addPetalWithoutSaving(type, slotIndex);
+                });
+                console.log('Loaded loadout from localStorage:', petalData);
+            }
+            catch (error) {
+                console.error('Failed to load loadout from localStorage:', error);
+                // Clear corrupted data
+                localStorage.removeItem('loadout');
+            }
         }
     };
+    Inventory.prototype.addPetalWithoutSaving = function (type, slotIndex) {
+        var _this = this;
+        if (slotIndex < 0 || slotIndex >= this.slots.length) {
+            return false;
+        }
+        // Remove existing petal if any
+        if (this.slots[slotIndex].petal) {
+            this.slots[slotIndex].petal.remove(this.scene);
+        }
+        // Create new petal
+        var petal = new petal_1.Petal(this.scene, this.parent, slotIndex, this.slots.length, type, this);
+        petal.angle = this.slots[slotIndex].position;
+        // Set up respawn callback to reequip petal
+        petal.setRespawnCallback(function () {
+            // Remove the broken petal
+            _this.removePetal(slotIndex);
+            // Create and add a fresh petal of the same type
+            _this.addPetal(type, slotIndex);
+        });
+        this.slots[slotIndex].petal = petal;
+        // Note: NOT calling savePetals() here to avoid infinite recursion during loading
+        return true;
+    };
     Inventory.prototype.savePetals = function () {
-        var petalData = this.slots
-            .map(function (slot, index) {
-            var _a;
-            return ({
-                type: (_a = slot.petal) === null || _a === void 0 ? void 0 : _a.getType(),
-                slotIndex: index
-            });
-        })
-            .filter(function (data) { return data.type !== undefined; });
-        localStorage.setItem('loadout', JSON.stringify(petalData));
-        // Also emit inventory update to server
-        var socket = window.socket;
-        if (socket) {
-            socket.emit('requestInventory');
+        try {
+            var petalData = this.slots
+                .map(function (slot, index) {
+                var _a;
+                return ({
+                    type: (_a = slot.petal) === null || _a === void 0 ? void 0 : _a.getType(),
+                    slotIndex: index
+                });
+            })
+                .filter(function (data) { return data.type !== undefined; });
+            localStorage.setItem('loadout', JSON.stringify(petalData));
+            console.log('Saved loadout to localStorage:', petalData);
+            // Also emit inventory update to server
+            var socket = window.socket;
+            if (socket) {
+                socket.emit('requestInventory');
+            }
+        }
+        catch (error) {
+            console.error('Failed to save loadout to localStorage:', error);
+        }
+    };
+    Inventory.prototype.clearStoredLoadout = function () {
+        localStorage.removeItem('loadout');
+        console.log('Cleared localStorage loadout');
+    };
+    Inventory.prototype.clearSavedLoadout = function () {
+        try {
+            localStorage.removeItem('loadout');
+            console.log('Cleared saved loadout from localStorage');
+        }
+        catch (error) {
+            console.error('Failed to clear saved loadout:', error);
+        }
+    };
+    Inventory.prototype.hasSavedLoadout = function () {
+        try {
+            return localStorage.getItem('loadout') !== null;
+        }
+        catch (error) {
+            console.error('Failed to check for saved loadout:', error);
+            return false;
         }
     };
     return Inventory;

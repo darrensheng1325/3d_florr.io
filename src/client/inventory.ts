@@ -145,6 +145,7 @@ export class Inventory {
             this.slots[fromIndex].petal = new Petal(this.scene, this.parent, fromIndex, this.slots.length, toPetal.getType(), this);
         }
 
+        this.savePetals(); // Save to localStorage whenever petals are swapped
         return true;
     }
 
@@ -196,6 +197,7 @@ export class Inventory {
             this.slots[index].petal.remove(this.scene);
             this.slots[index].petal = null;
             this.slots[index].isActive = false;
+            this.savePetals(); // Save to localStorage whenever a petal is removed
             return true;
         }
         return false;
@@ -212,33 +214,98 @@ export class Inventory {
             }
         });
         this.slots = [];
+        this.savePetals(); // Save empty state to localStorage when cleared
     }
 
     public loadPetals(): void {
         // Load petals from local storage
         const storedPetals = localStorage.getItem('loadout');
         if (storedPetals) {
-            const petalData: Array<{ type: string; slotIndex: number }> = JSON.parse(storedPetals);
-            petalData.forEach(({ type, slotIndex }) => {
-                this.addPetal(type, slotIndex);
-            });
+            try {
+                const petalData: Array<{ type: string; slotIndex: number }> = JSON.parse(storedPetals);
+                petalData.forEach(({ type, slotIndex }) => {
+                    this.addPetalWithoutSaving(type, slotIndex);
+                });
+                console.log('Loaded loadout from localStorage:', petalData);
+            } catch (error) {
+                console.error('Failed to load loadout from localStorage:', error);
+                // Clear corrupted data
+                localStorage.removeItem('loadout');
+            }
         }
     }
 
-    public savePetals(): void {
-        const petalData = this.slots
-            .map((slot, index) => ({
-                type: slot.petal?.getType(),
-                slotIndex: index
-            }))
-            .filter(data => data.type !== undefined);
-        
-        localStorage.setItem('loadout', JSON.stringify(petalData));
+    private addPetalWithoutSaving(type: string, slotIndex: number): boolean {
+        if (slotIndex < 0 || slotIndex >= this.slots.length) {
+            return false;
+        }
 
-        // Also emit inventory update to server
-        const socket = (window as any).socket;
-        if (socket) {
-            socket.emit('requestInventory');
+        // Remove existing petal if any
+        if (this.slots[slotIndex].petal) {
+            this.slots[slotIndex].petal.remove(this.scene);
+        }
+
+        // Create new petal
+        const petal = new Petal(this.scene, this.parent, slotIndex, this.slots.length, type, this);
+        petal.angle = this.slots[slotIndex].position;
+        
+        // Set up respawn callback to reequip petal
+        petal.setRespawnCallback(() => {
+            // Remove the broken petal
+            this.removePetal(slotIndex);
+            
+            // Create and add a fresh petal of the same type
+            this.addPetal(type, slotIndex);
+        });
+        
+        this.slots[slotIndex].petal = petal;
+        // Note: NOT calling savePetals() here to avoid infinite recursion during loading
+
+        return true;
+    }
+
+    public savePetals(): void {
+        try {
+            const petalData = this.slots
+                .map((slot, index) => ({
+                    type: slot.petal?.getType(),
+                    slotIndex: index
+                }))
+                .filter(data => data.type !== undefined);
+            
+            localStorage.setItem('loadout', JSON.stringify(petalData));
+            console.log('Saved loadout to localStorage:', petalData);
+
+            // Also emit inventory update to server
+            const socket = (window as any).socket;
+            if (socket) {
+                socket.emit('requestInventory');
+            }
+        } catch (error) {
+            console.error('Failed to save loadout to localStorage:', error);
+        }
+    }
+
+    public clearStoredLoadout(): void {
+        localStorage.removeItem('loadout');
+        console.log('Cleared localStorage loadout');
+    }
+
+    public clearSavedLoadout(): void {
+        try {
+            localStorage.removeItem('loadout');
+            console.log('Cleared saved loadout from localStorage');
+        } catch (error) {
+            console.error('Failed to clear saved loadout:', error);
+        }
+    }
+
+    public hasSavedLoadout(): boolean {
+        try {
+            return localStorage.getItem('loadout') !== null;
+        } catch (error) {
+            console.error('Failed to check for saved loadout:', error);
+            return false;
         }
     }
 } 

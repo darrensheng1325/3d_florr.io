@@ -1,7 +1,7 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1751491592240,
+    "lastSeen": 1751491663503,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
@@ -9,30 +9,30 @@
         {
           "baseType": "pea",
           "rarities": {
-            "COMMON": 449,
-            "UNCOMMON": 387,
-            "RARE": 64,
-            "EPIC": 72,
-            "LEGENDARY": 44,
-            "MYTHIC": 6
+            "COMMON": 631,
+            "UNCOMMON": 548,
+            "RARE": 104,
+            "EPIC": 122,
+            "LEGENDARY": 88,
+            "MYTHIC": 12
           }
         },
         {
           "baseType": "tetrahedron",
           "rarities": {
-            "COMMON": 164,
-            "UNCOMMON": 93,
+            "COMMON": 216,
+            "UNCOMMON": 109,
             "RARE": 0,
-            "EPIC": 11,
-            "LEGENDARY": 2076,
-            "MYTHIC": 125
+            "EPIC": 15,
+            "LEGENDARY": 2250,
+            "MYTHIC": 135
           }
         },
         {
           "baseType": "cube",
           "rarities": {
-            "COMMON": 71,
-            "UNCOMMON": 52,
+            "COMMON": 101,
+            "UNCOMMON": 60,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -42,21 +42,21 @@
         {
           "baseType": "stinger",
           "rarities": {
-            "COMMON": 130,
-            "UNCOMMON": 141,
+            "COMMON": 138,
+            "UNCOMMON": 163,
             "RARE": 0,
-            "EPIC": 4,
+            "EPIC": 8,
             "LEGENDARY": 0,
-            "MYTHIC": 2200
+            "MYTHIC": 2400
           }
         },
         {
           "baseType": "leaf",
           "rarities": {
-            "COMMON": 59,
-            "UNCOMMON": 71,
-            "RARE": 2,
-            "EPIC": 2,
+            "COMMON": 69,
+            "UNCOMMON": 77,
+            "RARE": 4,
+            "EPIC": 4,
             "LEGENDARY": 0,
             "MYTHIC": 0
           }
@@ -65,7 +65,7 @@
           "baseType": "basic",
           "rarities": {
             "COMMON": 0,
-            "UNCOMMON": 2,
+            "UNCOMMON": 4,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -76,7 +76,7 @@
       "collectedItems": [
         {
           "type": "pea_uncommon",
-          "amount": 76
+          "amount": 79
         },
         {
           "type": "tetrahedron",
@@ -124,7 +124,7 @@
         },
         {
           "type": "pea",
-          "amount": 88
+          "amount": 90
         },
         {
           "type": "tetrahedron_legendary",
