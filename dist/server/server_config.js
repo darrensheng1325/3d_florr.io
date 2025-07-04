@@ -270,7 +270,7 @@ class ServerConfig {
             spawnInterval: 1000,
             enemiesPerWave: 20,
             xpPerWave: 1000,
-            spawnLocations: 'edges',
+            spawnLocations: 'terrain',
             gridCellSize: 1,
             gridColor: 0x038f21 // Default gray color for grid
         };
@@ -600,9 +600,63 @@ class ServerConfig {
     setGridColor(color) {
         this.gridConfig.gridColor = color;
     }
+    setSpawnLocations(spawnType) {
+        this.gridConfig.spawnLocations = spawnType;
+    }
+    getRandomTerrainPosition() {
+        const terrainPlanes = this.currentConfig.collisionPlanes.filter(plane => plane.type === 'terrain');
+        if (terrainPlanes.length === 0) {
+            // Fallback to random spawning if no terrain defined
+            const size = this.gridConfig.size;
+            return {
+                x: (Math.random() * 2 - 1) * size,
+                y: 0,
+                z: (Math.random() * 2 - 1) * size
+            };
+        }
+        // Randomly select a terrain plane
+        const randomPlane = terrainPlanes[Math.floor(Math.random() * terrainPlanes.length)];
+        // Generate a random position within the terrain plane bounds
+        const halfWidth = randomPlane.width / 2;
+        const halfHeight = randomPlane.height / 2;
+        // Random position in local coordinates relative to the plane center
+        const localX = (Math.random() * 2 - 1) * halfWidth * 0.8; // Use 80% of plane to avoid edges
+        const localY = (Math.random() * 2 - 1) * halfHeight * 0.8;
+        // Transform local coordinates to world coordinates
+        // This is a simplified transformation that assumes the plane rotations
+        const radX = randomPlane.rotationX * Math.PI / 180;
+        const radY = randomPlane.rotationY * Math.PI / 180;
+        const radZ = randomPlane.rotationZ * Math.PI / 180;
+        const cosX = Math.cos(radX), sinX = Math.sin(radX);
+        const cosY = Math.cos(radY), sinY = Math.sin(radY);
+        const cosZ = Math.cos(radZ), sinZ = Math.sin(radZ);
+        // Apply rotations: Z -> Y -> X (reverse order)
+        let x = localX, y = localY, z = 0;
+        // X rotation
+        let tempY = y * cosX - z * sinX;
+        z = y * sinX + z * cosX;
+        y = tempY;
+        // Y rotation
+        let tempX = x * cosY + z * sinY;
+        z = -x * sinY + z * cosY;
+        x = tempX;
+        // Z rotation
+        tempX = x * cosZ - y * sinZ;
+        y = x * sinZ + y * cosZ;
+        x = tempX;
+        // Translate to world position
+        return {
+            x: x + randomPlane.x,
+            y: y + randomPlane.y,
+            z: z + randomPlane.z
+        };
+    }
     getSpawnPosition() {
         const size = this.gridConfig.size;
         switch (this.gridConfig.spawnLocations) {
+            case 'terrain': {
+                return this.getRandomTerrainPosition();
+            }
             case 'grid': {
                 // Get random grid cell
                 const cellSize = this.gridConfig.gridCellSize;

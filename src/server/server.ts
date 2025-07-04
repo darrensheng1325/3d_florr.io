@@ -2124,6 +2124,24 @@ process.stdin.on('data', (data: string) => {
             console.log(`Active enemies: ${enemies.size}`);
             break;
 
+        case 'spawnmode':
+            if (args.length !== 1) {
+                console.log('Usage: spawnmode <type>');
+                console.log('Available types: edges, grid, random, terrain');
+                console.log('Current spawn mode:', serverConfig.getGridConfig().spawnLocations);
+                return;
+            }
+
+            const spawnType = args[0].toLowerCase() as 'edges' | 'grid' | 'random' | 'terrain';
+            if (!['edges', 'grid', 'random', 'terrain'].includes(spawnType)) {
+                console.log('Invalid spawn type. Available types: edges, grid, random, terrain');
+                return;
+            }
+
+            serverConfig.setSpawnLocations(spawnType);
+            console.log(`Spawn mode changed to: ${spawnType}`);
+            break;
+
         case 'help':
             console.log('Available commands:');
             console.log('  spawn <type> [count] [rarity] - Spawn enemies');
@@ -2133,6 +2151,8 @@ process.stdin.on('data', (data: string) => {
             console.log('  spawnitem <type> [count]      - Spawn items at center of map');
             console.log('    - type: tetrahedron, cube, leaf, stinger');
             console.log('    - count: number of items to spawn (default: 1)');
+            console.log('  spawnmode <type>              - Set spawn mode');
+            console.log('    - type: edges, grid, random, terrain');
             console.log('  setwave <wave_number>         - Set current wave to specific number');
             console.log('  nextwave                      - Advance to next wave immediately');
             console.log('  wave                          - Show current wave status and info');
