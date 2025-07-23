@@ -1,7 +1,7 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1751670261372,
+    "lastSeen": 1753233441242,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
@@ -9,30 +9,30 @@
         {
           "baseType": "pea",
           "rarities": {
-            "COMMON": 843,
-            "UNCOMMON": 710,
-            "RARE": 144,
-            "EPIC": 172,
-            "LEGENDARY": 132,
-            "MYTHIC": 18
+            "COMMON": 949,
+            "UNCOMMON": 791,
+            "RARE": 164,
+            "EPIC": 197,
+            "LEGENDARY": 154,
+            "MYTHIC": 21
           }
         },
         {
           "baseType": "tetrahedron",
           "rarities": {
-            "COMMON": 271,
-            "UNCOMMON": 127,
+            "COMMON": 299,
+            "UNCOMMON": 136,
             "RARE": 0,
-            "EPIC": 19,
-            "LEGENDARY": 2424,
-            "MYTHIC": 145
+            "EPIC": 21,
+            "LEGENDARY": 2511,
+            "MYTHIC": 150
           }
         },
         {
           "baseType": "cube",
           "rarities": {
-            "COMMON": 133,
-            "UNCOMMON": 68,
+            "COMMON": 149,
+            "UNCOMMON": 73,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -42,21 +42,21 @@
         {
           "baseType": "stinger",
           "rarities": {
-            "COMMON": 150,
-            "UNCOMMON": 187,
+            "COMMON": 157,
+            "UNCOMMON": 199,
             "RARE": 0,
-            "EPIC": 12,
+            "EPIC": 14,
             "LEGENDARY": 0,
-            "MYTHIC": 2600
+            "MYTHIC": 2700
           }
         },
         {
           "baseType": "leaf",
           "rarities": {
-            "COMMON": 84,
-            "UNCOMMON": 85,
-            "RARE": 6,
-            "EPIC": 6,
+            "COMMON": 92,
+            "UNCOMMON": 90,
+            "RARE": 7,
+            "EPIC": 7,
             "LEGENDARY": 0,
             "MYTHIC": 0
           }
@@ -65,7 +65,7 @@
           "baseType": "basic",
           "rarities": {
             "COMMON": 0,
-            "UNCOMMON": 6,
+            "UNCOMMON": 7,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -104,7 +104,7 @@
         },
         {
           "type": "cube_uncommon",
-          "amount": 4
+          "amount": 5
         },
         {
           "type": "pea_rare",
@@ -169,6 +169,34 @@
       "totalDeaths": 1,
       "totalPlayTime": 81666,
       "bestXP": 13150
+    }
+  },
+  "spectator_kkz8v4uwp": {
+    "id": "spectator_kkz8v4uwp",
+    "lastSeen": 1753233408498,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [
+        {
+          "baseType": "basic",
+          "rarities": {
+            "COMMON": 5,
+            "UNCOMMON": 0,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        }
+      ],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
     }
   }
 }

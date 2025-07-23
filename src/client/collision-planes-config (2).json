@@ -1,0 +1,147 @@
+{
+  "collisionPlanes": [
+    {
+      "x": 0,
+      "y": 0,
+      "z": 40,
+      "width": 80,
+      "height": 10,
+      "rotationX": 9,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": 12,
+      "y": 5,
+      "z": 8,
+      "width": 10,
+      "height": 10,
+      "rotationX": 90,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "terrain"
+    },
+    {
+      "x": -25,
+      "y": 0,
+      "z": 29,
+      "width": 8,
+      "height": 10,
+      "rotationX": 0,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": 12,
+      "y": 2.5,
+      "z": 3,
+      "width": 10,
+      "height": 5,
+      "rotationX": 0,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": 12,
+      "y": 2.5,
+      "z": 13,
+      "width": 5,
+      "height": 5,
+      "rotationX": 0,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": 12,
+      "y": 1.53553390593,
+      "z": -0.5,
+      "width": 7.07106781187,
+      "height": 10,
+      "rotationX": 45,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "terrain"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "z": -40,
+      "width": 80,
+      "height": 10,
+      "rotationX": 0,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": -40,
+      "y": 0,
+      "z": 0,
+      "width": 80,
+      "height": 10,
+      "rotationX": 0,
+      "rotationY": 90,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": 40,
+      "y": 0,
+      "z": 0,
+      "width": 80,
+      "height": 10,
+      "rotationX": 0,
+      "rotationY": 90,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": -40,
+      "y": 0,
+      "z": 0,
+      "width": 80,
+      "height": 10,
+      "rotationX": 0,
+      "rotationY": 90,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "width": 80,
+      "height": 80,
+      "rotationX": 90,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "terrain"
+    },
+    {
+      "x": -20,
+      "y": 0,
+      "z": 25,
+      "width": 10,
+      "height": 10,
+      "rotationX": 0,
+      "rotationY": 0,
+      "rotationZ": 0,
+      "type": "wall"
+    },
+    {
+      "x": -25,
+      "y": 0,
+      "z": 25,
+      "width": 8,
+      "height": 10,
+      "rotationX": 0,
+      "rotationY": 90,
+      "rotationZ": 0,
+      "type": "wall"
+    }
+  ]
+}
