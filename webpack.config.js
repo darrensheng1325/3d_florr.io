@@ -4,7 +4,10 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
 
 module.exports = {
-  entry: './src/client/game.ts',
+  entry: {
+    game: './src/client/game.ts',
+    terrainEditor: './src/client/terrain_editor.ts'
+  },
   module: {
     rules: [
       {
@@ -22,12 +25,19 @@ module.exports = {
     extensions: ['.tsx', '.ts', '.js'],
   },
   output: {
-    filename: 'bundle.js',
+    filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'dist'),
   },
   plugins: [
     new HtmlWebpackPlugin({
       template: './src/client/index.html',
+      filename: 'index.html',
+      chunks: ['game']
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/client/terrain_editor.html',
+      filename: 'terrain_editor.html',
+      chunks: ['terrainEditor']
     }),
     new CopyWebpackPlugin({
       patterns: [

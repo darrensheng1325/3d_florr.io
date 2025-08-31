@@ -218,3 +218,83 @@ export interface WaveStartData {
 } 
 
 export const PETAL_ROTATION_SPEED = 0.01;
+
+// Heightmap System Types
+export interface HeightmapData {
+    width: number;
+    height: number;
+    resolution: number; // Grid size between height points
+    heights: number[][]; // 2D array of height values
+    minHeight: number;
+    maxHeight: number;
+    metadata?: {
+        name?: string;
+        description?: string;
+        created?: string;
+        version?: string;
+    };
+}
+
+export interface HeightmapChunk {
+    x: number;
+    z: number;
+    width: number;
+    height: number;
+    heights: number[][];
+}
+
+export interface TerrainConfig {
+    heightmap: HeightmapData;
+    material: {
+        type: 'basic' | 'phong' | 'standard';
+        color?: number;
+        texture?: string;
+        roughness?: number;
+        metalness?: number;
+        normalMap?: string;
+        displacementMap?: string;
+        displacementScale?: number;
+    };
+    collision: {
+        enabled: boolean;
+        precision: 'low' | 'medium' | 'high';
+    };
+    rendering: {
+        wireframe: boolean;
+        showNormals: boolean;
+        chunkSize: number;
+        maxChunks: number;
+    };
+}
+
+export interface HeightmapGenerationParams {
+    width: number;
+    height: number;
+    resolution: number;
+    algorithm: 'perlin' | 'simplex' | 'fractal' | 'cellular' | 'random';
+    seed?: number;
+    octaves?: number;
+    frequency?: number;
+    amplitude?: number;
+    persistence?: number;
+    lacunarity?: number;
+    minHeight: number;
+    maxHeight: number;
+    smoothing?: number;
+}
+
+export interface HeightmapModification {
+    type: 'raise' | 'lower' | 'smooth' | 'flatten' | 'noise';
+    x: number;
+    z: number;
+    radius: number;
+    intensity: number;
+    falloff?: 'linear' | 'exponential' | 'gaussian';
+}
+
+export interface TerrainCollision {
+    position: THREE.Vector3;
+    normal: THREE.Vector3;
+    height: number;
+    slope: number;
+}

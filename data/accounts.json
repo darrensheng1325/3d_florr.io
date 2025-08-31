@@ -1,7 +1,7 @@
 {
   "user_109804663": {
     "id": "user_109804663",
-    "lastSeen": 1753233441242,
+    "lastSeen": 1756678939493,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {
@@ -9,30 +9,30 @@
         {
           "baseType": "pea",
           "rarities": {
-            "COMMON": 949,
-            "UNCOMMON": 791,
-            "RARE": 164,
-            "EPIC": 197,
-            "LEGENDARY": 154,
-            "MYTHIC": 21
+            "COMMON": 2773,
+            "UNCOMMON": 2199,
+            "RARE": 484,
+            "EPIC": 597,
+            "LEGENDARY": 506,
+            "MYTHIC": 69
           }
         },
         {
           "baseType": "tetrahedron",
           "rarities": {
-            "COMMON": 299,
-            "UNCOMMON": 136,
+            "COMMON": 767,
+            "UNCOMMON": 282,
             "RARE": 0,
-            "EPIC": 21,
-            "LEGENDARY": 2511,
-            "MYTHIC": 150
+            "EPIC": 53,
+            "LEGENDARY": 3903,
+            "MYTHIC": 230
           }
         },
         {
           "baseType": "cube",
           "rarities": {
-            "COMMON": 149,
-            "UNCOMMON": 73,
+            "COMMON": 407,
+            "UNCOMMON": 153,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -42,21 +42,21 @@
         {
           "baseType": "stinger",
           "rarities": {
-            "COMMON": 157,
-            "UNCOMMON": 199,
+            "COMMON": 269,
+            "UNCOMMON": 397,
             "RARE": 0,
-            "EPIC": 14,
+            "EPIC": 46,
             "LEGENDARY": 0,
-            "MYTHIC": 2700
+            "MYTHIC": 4300
           }
         },
         {
           "baseType": "leaf",
           "rarities": {
-            "COMMON": 92,
-            "UNCOMMON": 90,
-            "RARE": 7,
-            "EPIC": 7,
+            "COMMON": 220,
+            "UNCOMMON": 170,
+            "RARE": 23,
+            "EPIC": 23,
             "LEGENDARY": 0,
             "MYTHIC": 0
           }
@@ -65,7 +65,7 @@
           "baseType": "basic",
           "rarities": {
             "COMMON": 0,
-            "UNCOMMON": 7,
+            "UNCOMMON": 23,
             "RARE": 0,
             "EPIC": 0,
             "LEGENDARY": 0,
@@ -76,15 +76,15 @@
       "collectedItems": [
         {
           "type": "pea_uncommon",
-          "amount": 81
+          "amount": 88
         },
         {
           "type": "tetrahedron",
-          "amount": 28
+          "amount": 30
         },
         {
           "type": "stinger_uncommon",
-          "amount": 12
+          "amount": 13
         },
         {
           "type": "leaf",
@@ -96,7 +96,7 @@
         },
         {
           "type": "tetrahedron_uncommon",
-          "amount": 9
+          "amount": 10
         },
         {
           "type": "pea_epic",
@@ -120,11 +120,11 @@
         },
         {
           "type": "cube",
-          "amount": 16
+          "amount": 17
         },
         {
           "type": "pea",
-          "amount": 106
+          "amount": 114
         },
         {
           "type": "tetrahedron_legendary",
@@ -174,6 +174,33 @@
   "spectator_kkz8v4uwp": {
     "id": "spectator_kkz8v4uwp",
     "lastSeen": 1753233408498,
+    "totalXP": 0,
+    "highestWave": 0,
+    "inventory": {
+      "petals": [
+        {
+          "baseType": "basic",
+          "rarities": {
+            "COMMON": 5,
+            "UNCOMMON": 0,
+            "RARE": 0,
+            "EPIC": 0,
+            "LEGENDARY": 0,
+            "MYTHIC": 0
+          }
+        }
+      ],
+      "collectedItems": []
+    },
+    "stats": {
+      "totalKills": 0,
+      "totalDeaths": 0,
+      "totalPlayTime": 0,
+      "bestXP": 0
+    }
+  },
+  "undefined": {
+    "lastSeen": 1756677379562,
     "totalXP": 0,
     "highestWave": 0,
     "inventory": {

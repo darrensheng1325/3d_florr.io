@@ -16,6 +16,7 @@ import { CollisionManager } from './managers/CollisionManager';
 import { SceneManager } from './managers/SceneManager';
 import { UIManager } from './managers/UIManager';
 import { NetworkManager } from './managers/NetworkManager';
+import { TerrainManager } from './managers/TerrainManager';
 
 const MAP_SIZE = 15;  // Match server's map size
 
@@ -85,6 +86,7 @@ export class Game {
     private directionalLight: THREE.DirectionalLight;
     private hemisphereLight: THREE.HemisphereLight;
     private collisionManager: CollisionManager;
+    private terrainManager: TerrainManager;
     private uiPreviewRenderer: THREE.WebGLRenderer;
 
     constructor() {
@@ -94,6 +96,7 @@ export class Game {
         this.scene = this.sceneManager.scene;
         this.camera = this.sceneManager.camera;
         this.renderer = this.sceneManager.renderer;
+        this.terrainManager = new TerrainManager(this.scene);
         this.uiManager = new UIManager(
             this.accountManager, 
             this.renderer, 
@@ -106,6 +109,7 @@ export class Game {
         this.textureLoader = new THREE.TextureLoader();
         this.waveUI = new WaveUI();
         this.collisionManager = new CollisionManager(this.scene);
+        this.terrainManager.initialize();
         const title = document.createElement('title');
         title.textContent = '3dflower.io | title screen';
         document.head.appendChild(title);
@@ -1146,6 +1150,28 @@ export class Game {
                 player.position.set(data.position.x, data.position.y, data.position.z);
             }
         });
+        
+        // Handle terrain-related events
+        this.socket.on('terrainHeight', (data: { x: number, z: number, height: number }) => {
+            // Update terrain height if needed
+            this.terrainManager.modifyHeightmap({
+                type: 'flatten',
+                x: data.x,
+                z: data.z,
+                radius: 0.1,
+                intensity: data.height
+            });
+        });
+        
+        this.socket.on('terrainChunk', (chunk: any) => {
+            // Handle terrain chunk updates
+            console.log('Received terrain chunk:', chunk);
+        });
+        
+        this.socket.on('terrainConfig', (config: any) => {
+            // Update terrain configuration
+            console.log('Received terrain config:', config);
+        });
 
         // Setup enemy events
         this.setupEnemyEvents();
@@ -1469,6 +1495,9 @@ export class Game {
         // Create a test position vector
         const testPosition = new THREE.Vector3(newX, player.position.y, newZ);
 
+        // Check terrain height first
+        const terrainHeight = this.terrainManager.getHeightAt(newX, newZ);
+        
         // Check collision planes and handle different types
         const collision = this.collisionManager.checkCollisionPlanes(testPosition);
         
@@ -1476,7 +1505,7 @@ export class Game {
             // For terrain: move the player and adjust height
             player.position.x = newX;
             player.position.z = newZ;
-            player.position.y = collision.terrainHeight;
+            player.position.y = Math.max(collision.terrainHeight, terrainHeight + 0.5);
         } else if (collision.collided && (collision.type === 'wall' || collision.type === 'terrain') && collision.normal) {
             // For walls or terrain hit from below: handle sliding
             const movementVector = new THREE.Vector3(movement.x, 0, movement.z);
@@ -1551,12 +1580,17 @@ export class Game {
                 player.rotation.y = angle - Math.PI/2;
             }
 
-            // Emit position to server
-            this.socket.emit('move', {
-                x: player.position.x,
-                y: player.position.y,
-                z: player.position.z
-            });
+                    // Emit position to server
+        this.socket.emit('move', {
+            x: player.position.x,
+            y: player.position.y,
+            z: player.position.z
+        });
+        
+        // Update terrain chunks based on player position
+        if (this.terrainManager && this.terrainManager.getHeightmap()) {
+            this.terrainManager.updateChunks(player.position);
+        }
     }
 
     private onWindowResize(): void {

@@ -9,6 +9,7 @@ import { dbManager } from './database';
 import { PetalType } from '../shared/types';
 import { CollisionPlaneConfig } from '../shared/types';
 import { BasePetalType, parsePetalType } from '../shared/types';
+import { ServerTerrainManager } from './terrain_manager';
 
 interface Player {
     id: string;
@@ -52,9 +53,6 @@ const io = new Server(httpServer, {
 const players = new Map<string, Player>();
 const enemies = new Map<string, Enemy>();
 
-let enemyIdCounter = 0;
-const SPAWN_INTERVAL = 5000;  // Spawn enemy every 5 seconds
-
 // Get server configuration type from environment variable or command line argument
 const configType = process.env.SERVER_TYPE || 'default';
 const serverConfig = ServerConfig.getInstance(configType);
@@ -65,6 +63,49 @@ const MAP_SIZE = gridConfig.size;
 const ENEMIES_PER_WAVE = gridConfig.enemiesPerWave;
 const XP_PER_WAVE = gridConfig.xpPerWave;
 const WAVE_SPAWN_INTERVAL = gridConfig.spawnInterval;
+
+// Initialize terrain manager with server configuration
+const heightmapConfig = serverConfig.getHeightmapConfig();
+const terrainManager = new ServerTerrainManager({
+    heightmap: {
+        width: heightmapConfig.width,
+        height: heightmapConfig.height,
+        resolution: heightmapConfig.resolution,
+        heights: [],
+        minHeight: heightmapConfig.minHeight,
+        maxHeight: heightmapConfig.maxHeight
+    },
+    collision: {
+        enabled: heightmapConfig.collisionEnabled,
+        precision: heightmapConfig.collisionPrecision
+    },
+    rendering: {
+        wireframe: false,
+        showNormals: false,
+        chunkSize: heightmapConfig.chunkSize,
+        maxChunks: heightmapConfig.maxChunks
+    }
+});
+
+// Generate initial heightmap if enabled
+if (heightmapConfig.enabled) {
+    terrainManager.generateHeightmap({
+        width: heightmapConfig.width,
+        height: heightmapConfig.height,
+        resolution: heightmapConfig.resolution,
+        algorithm: heightmapConfig.algorithm,
+        seed: heightmapConfig.seed,
+        octaves: heightmapConfig.octaves,
+        frequency: heightmapConfig.frequency,
+        amplitude: heightmapConfig.amplitude,
+        minHeight: heightmapConfig.minHeight,
+        maxHeight: heightmapConfig.maxHeight,
+        smoothing: heightmapConfig.smoothing
+    });
+}
+
+let enemyIdCounter = 0;
+const SPAWN_INTERVAL = 5000;  // Spawn enemy every 5 seconds
 
 // Wave management
 let currentWave = 1;
@@ -222,6 +263,12 @@ function spawnEnemy(type: EnemyType, position: { x: number; y: number; z: number
     const id = generateId();
     const rarity = determineRarity(forcedRarity, currentWave);
     const stats = getEnemyStats(type, rarity);
+
+    // Adjust Y position based on terrain if heightmap is enabled
+    if (heightmapConfig.enabled && terrainManager) {
+        const terrainHeight = terrainManager.getHeightAt(position.x, position.z);
+        position.y = Math.max(position.y, terrainHeight + stats.size);
+    }
 
     // Set initial aggression based on type
     const isInitiallyAggressive = type === 'spider' || type === 'soldier_ant';
@@ -1497,6 +1544,59 @@ io.on('connection', (socket) => {
         }
     });
 
+            // Handle terrain-related requests
+        socket.on('getTerrainHeight', (data: { x: number, z: number }) => {
+            const height = terrainManager.getHeightAt(data.x, data.z);
+            socket.emit('terrainHeight', { x: data.x, z: data.z, height });
+        });
+
+        socket.on('getTerrainChunk', (data: { chunkX: number, chunkZ: number, chunkSize: number }) => {
+            const chunk = terrainManager.getHeightmapChunk(data.chunkX, data.chunkZ, data.chunkSize);
+            if (chunk) {
+                socket.emit('terrainChunk', chunk);
+            }
+        });
+
+        socket.on('getTerrainConfig', () => {
+            const config = terrainManager.getTerrainConfig();
+            socket.emit('terrainConfig', config);
+        });
+
+        socket.on('getHeightmapData', () => {
+            const heightmapData = terrainManager.getHeightmapData();
+            if (heightmapData) {
+                socket.emit('heightmapData', heightmapData);
+            }
+        });
+
+        socket.on('modifyTerrain', (modification: any) => {
+            try {
+                const result = terrainManager.modifyHeightmap(modification);
+                if (result) {
+                    // Broadcast terrain change to all clients
+                    socket.broadcast.emit('terrainModified', modification);
+                    socket.emit('terrainModificationResult', { success: true, modification });
+                }
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                socket.emit('terrainModificationResult', { success: false, error: errorMessage });
+            }
+        });
+
+        socket.on('generateTerrain', (params: any) => {
+            try {
+                const result = terrainManager.generateHeightmap(params);
+                if (result) {
+                    // Broadcast new terrain to all clients
+                    socket.broadcast.emit('terrainGenerated', result);
+                    socket.emit('terrainGenerationResult', { success: true, heightmap: result });
+                }
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                socket.emit('terrainGenerationResult', { success: false, error: errorMessage });
+            }
+        });
+
     // Handle enemy damage
     socket.on('enemyDamaged', ({ enemyId, damage, knockback }) => {
         const enemy = enemies.get(enemyId);
@@ -1905,6 +2005,94 @@ process.stdin.on('data', (data: string) => {
                 console.log('Example: setlight directional color 0xffffff');
                 return;
             }
+
+        case 'heightmap':
+            if (args.length === 0) {
+                console.log('Heightmap commands:');
+                console.log('  heightmap info - Show current heightmap info');
+                console.log('  heightmap generate [algorithm] [seed] - Generate new heightmap');
+                console.log('  heightmap export [format] - Export heightmap (json/raw)');
+                console.log('  heightmap analyze - Analyze terrain statistics');
+                return;
+            }
+            
+            switch (args[0]) {
+                case 'info':
+                    if (heightmapConfig.enabled) {
+                        const heightmapData = terrainManager.getHeightmapData();
+                        if (heightmapData) {
+                            console.log('Heightmap Info:');
+                            console.log(`  Size: ${heightmapData.width}x${heightmapData.height}`);
+                            console.log(`  Resolution: ${heightmapData.resolution}`);
+                            console.log(`  Height Range: ${heightmapData.minHeight} to ${heightmapData.maxHeight}`);
+                            console.log(`  Grid: ${heightmapData.heights.length}x${heightmapData.heights[0].length}`);
+                        } else {
+                            console.log('No heightmap data available');
+                        }
+                    } else {
+                        console.log('Heightmap system is disabled');
+                    }
+                    break;
+                    
+                case 'generate':
+                    const algorithm = args[1] || 'perlin';
+                    const seed = parseInt(args[2]) || Math.floor(Math.random() * 10000);
+                    
+                    try {
+                        const result = terrainManager.generateHeightmap({
+                            width: heightmapConfig.width,
+                            height: heightmapConfig.height,
+                            resolution: heightmapConfig.resolution,
+                            algorithm: algorithm as any,
+                            seed,
+                            octaves: heightmapConfig.octaves,
+                            frequency: heightmapConfig.frequency,
+                            amplitude: heightmapConfig.amplitude,
+                            minHeight: heightmapConfig.minHeight,
+                            maxHeight: heightmapConfig.maxHeight,
+                            smoothing: heightmapConfig.smoothing
+                        });
+                        
+                        console.log(`Generated new heightmap using ${algorithm} algorithm with seed ${seed}`);
+                        io.emit('terrainGenerated', result);
+                    } catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                        console.log(`Error generating heightmap: ${errorMessage}`);
+                    }
+                    break;
+                    
+                case 'export':
+                    const format = args[1] || 'json';
+                    try {
+                        const data = terrainManager.exportHeightmap(format as 'json' | 'raw');
+                        console.log(`Heightmap exported as ${format}`);
+                        // Could save to file here if needed
+                    } catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                        console.log(`Error exporting heightmap: ${errorMessage}`);
+                    }
+                    break;
+                    
+                case 'analyze':
+                    try {
+                        const analysis = terrainManager.analyzeTerrain();
+                        console.log('Terrain Analysis:');
+                        console.log(`  Average Height: ${analysis.averageHeight.toFixed(2)}`);
+                        console.log(`  Max Slope: ${(analysis.maxSlope * 180 / Math.PI).toFixed(1)}°`);
+                        console.log(`  Flat Areas: ${analysis.flatAreas}`);
+                        console.log(`  Steep Areas: ${analysis.steepAreas}`);
+                        console.log(`  Water Level: ${analysis.waterLevel.toFixed(2)}`);
+                    } catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                        console.log(`Error analyzing terrain: ${errorMessage}`);
+                    }
+                    break;
+                    
+                default:
+                    console.log('Unknown heightmap command. Use "heightmap" for help.');
+                    break;
+            }
+            break;
             
             const [lightType, property, value] = args;
             if (!['ambient', 'directional', 'hemisphere'].includes(lightType)) {

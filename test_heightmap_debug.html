@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heightmap Debug Test</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Heightmap System Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. HeightmapUtils Test</h2>
+        <button onclick="testHeightmapUtils()">Test HeightmapUtils</button>
+        <div id="heightmapUtilsResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Terrain Generation Test</h2>
+        <button onclick="testTerrainGeneration()">Test Terrain Generation</button>
+        <div id="terrainGenerationResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Three.js Integration Test</h2>
+        <button onclick="testThreeJS()">Test Three.js Integration</button>
+        <div id="threeJSResult"></div>
+        <div id="threeJSCanvas"></div>
+    </div>
+
+    <script type="module">
+        // Import the heightmap utilities
+        import { HeightmapUtils } from './dist/shared/heightmap.js';
+        
+        window.HeightmapUtils = HeightmapUtils;
+        
+        // Test HeightmapUtils
+        window.testHeightmapUtils = function() {
+            const resultDiv = document.getElementById('heightmapUtilsResult');
+            resultDiv.innerHTML = '<p class="info">Testing HeightmapUtils...</p>';
+            
+            try {
+                const heightmap = HeightmapUtils.generateHeightmap({
+                    width: 10,
+                    height: 10,
+                    resolution: 1,
+                    algorithm: 'perlin',
+                    seed: 12345,
+                    octaves: 2,
+                    frequency: 0.1,
+                    amplitude: 1,
+                    persistence: 0.5,
+                    lacunarity: 2,
+                    minHeight: -2,
+                    maxHeight: 2,
+                    smoothing: 1
+                });
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✅ HeightmapUtils test passed!</p>
+                    <h3>Generated Heightmap:</h3>
+                    <pre>${JSON.stringify(heightmap, null, 2)}</pre>
+                    <h3>Heights Array:</h3>
+                    <pre>${JSON.stringify(heightmap.heights, null, 2)}</pre>
+                    <p><strong>Array dimensions:</strong> ${heightmap.heights.length} x ${heightmap.heights[0]?.length || 0}</p>
+                    <p><strong>Sample height:</strong> ${heightmap.heights[0]?.[0]}</p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ HeightmapUtils test failed!</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        };
+        
+        // Test Terrain Generation
+        window.testTerrainGeneration = function() {
+            const resultDiv = document.getElementById('terrainGenerationResult');
+            resultDiv.innerHTML = '<p class="info">Testing terrain generation...</p>';
+            
+            try {
+                const heightmap = HeightmapUtils.generateHeightmap({
+                    width: 20,
+                    height: 20,
+                    resolution: 1,
+                    algorithm: 'perlin',
+                    seed: 12345,
+                    octaves: 4,
+                    frequency: 0.05,
+                    amplitude: 1,
+                    persistence: 0.5,
+                    lacunarity: 2,
+                    minHeight: -3,
+                    maxHeight: 3,
+                    smoothing: 2
+                });
+                
+                // Test getting height at position
+                const height1 = HeightmapUtils.getHeightAt(heightmap, 0, 0);
+                const height2 = HeightmapUtils.getHeightAt(heightmap, 5, 5);
+                const height3 = HeightmapUtils.getHeightAt(heightmap, 10, 10);
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✅ Terrain generation test passed!</p>
+                    <h3>Generated Terrain:</h3>
+                    <p><strong>Dimensions:</strong> ${heightmap.width} x ${heightmap.height}</p>
+                    <p><strong>Resolution:</strong> ${heightmap.resolution}</p>
+                    <p><strong>Height Range:</strong> ${heightmap.minHeight} to ${heightmap.maxHeight}</p>
+                    <p><strong>Grid Size:</strong> ${heightmap.heights.length} x ${heightmap.heights[0]?.length || 0}</p>
+                    <h3>Height Tests:</h3>
+                    <p><strong>Height at (0,0):</strong> ${height1}</p>
+                    <p><strong>Height at (5,5):</strong> ${height2}</p>
+                    <p><strong>Height at (10,10):</strong> ${height3}</p>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Terrain generation test failed!</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        };
+        
+        // Test Three.js Integration
+        window.testThreeJS = function() {
+            const resultDiv = document.getElementById('threeJSResult');
+            const canvasDiv = document.getElementById('threeJSCanvas');
+            resultDiv.innerHTML = '<p class="info">Testing Three.js integration...</p>';
+            
+            try {
+                // Check if Three.js is available
+                if (typeof THREE === 'undefined') {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Three.js not available!</p>
+                        <p>Make sure Three.js is loaded before running this test.</p>
+                    `;
+                    return;
+                }
+                
+                // Create a simple scene
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, 400 / 300, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(400, 300);
+                canvasDiv.appendChild(renderer.domElement);
+                
+                // Generate heightmap
+                const heightmap = HeightmapUtils.generateHeightmap({
+                    width: 10,
+                    height: 10,
+                    resolution: 1,
+                    algorithm: 'perlin',
+                    seed: 12345,
+                    octaves: 2,
+                    frequency: 0.2,
+                    amplitude: 1,
+                    persistence: 0.5,
+                    lacunarity: 2,
+                    minHeight: -1,
+                    maxHeight: 1,
+                    smoothing: 1
+                });
+                
+                // Create simple geometry
+                const geometry = new THREE.PlaneGeometry(10, 10, 9, 9);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0x00ff00, 
+                    wireframe: true,
+                    side: THREE.DoubleSide
+                });
+                
+                // Apply heightmap to geometry
+                const positions = geometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    const x = positions[i];
+                    const z = positions[i + 2];
+                    const heightmapX = Math.floor((x + 5) / 10 * heightmap.heights[0].length);
+                    const heightmapZ = Math.floor((z + 5) / 10 * heightmap.heights.length);
+                    
+                    if (heightmapX >= 0 && heightmapX < heightmap.heights[0].length &&
+                        heightmapZ >= 0 && heightmapZ < heightmap.heights.length) {
+                        positions[i + 1] = heightmap.heights[heightmapZ][heightmapX];
+                    }
+                }
+                
+                geometry.attributes.position.needsUpdate = true;
+                geometry.computeVertexNormals();
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                scene.add(mesh);
+                
+                camera.position.set(0, 5, 10);
+                camera.lookAt(0, 0, 0);
+                
+                // Render
+                renderer.render(scene, camera);
+                
+                resultDiv.innerHTML = `
+                    <p class="success">✅ Three.js integration test passed!</p>
+                    <p><strong>Scene created:</strong> ${scene.children.length} objects</p>
+                    <p><strong>Geometry vertices:</strong> ${geometry.attributes.position.count}</p>
+                    <p><strong>Heightmap applied:</strong> ${heightmap.heights.length} x ${heightmap.heights[0]?.length || 0}</p>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Three.js integration test failed!</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        };
+        
+        console.log('Heightmap debug test page loaded');
+    </script>
+</body>
+</html>
